@@ -1,0 +1,549 @@
+<div class="mx-auto max-w-6xl space-y-6">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">Members</h1>
+      <p class="text-slate-600">Add people, track {{ dueLabel().toLowerCase() }}, and record payments.</p>
+    </div>
+    <button
+      type="button"
+      class="rounded-xl bg-emerald-600 px-6 py-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-700"
+      (click)="openAdd()"
+    >
+      + Add member
+    </button>
+  </div>
+
+  <div class="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:flex-wrap lg:items-end">
+    <div class="min-w-[200px] flex-1">
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Search</label>
+      <input
+        type="search"
+        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+        placeholder="Name or mobile"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+      />
+    </div>
+    <div>
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Status</label>
+      <select
+        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base lg:w-40"
+        [value]="statusFilter()"
+        (change)="statusFilter.set($any($event.target).value)"
+      >
+        <option value="all">All</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
+    <div>
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Payment</label>
+      <select
+        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base lg:w-40"
+        [value]="payFilter()"
+        (change)="payFilter.set($any($event.target).value)"
+      >
+        <option value="all">All</option>
+        <option value="paid">Paid</option>
+        <option value="pending">Pending</option>
+      </select>
+    </div>
+    <div>
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Sort</label>
+      <div class="flex gap-2">
+        <select
+          class="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-base"
+          [value]="sortKey()"
+          (change)="sortKey.set($any($event.target).value)"
+        >
+          <option value="due">{{ dueLabel() }}</option>
+          <option value="name">Name</option>
+        </select>
+        <select
+          class="w-28 rounded-xl border border-slate-200 px-3 py-3 text-base"
+          [value]="sortDir()"
+          (change)="sortDir.set($any($event.target).value)"
+        >
+          <option value="asc">Asc</option>
+          <option value="desc">Desc</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+    <span class="inline-flex items-center gap-2 font-medium text-slate-700">Row colors</span>
+    <span class="inline-flex items-center gap-1.5"
+      ><span class="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"></span> Overdue</span
+    >
+    <span class="inline-flex items-center gap-1.5"
+      ><span class="h-2.5 w-2.5 shrink-0 rounded-full bg-orange-400"></span> Due soon</span
+    >
+    <span class="inline-flex items-center gap-1.5"
+      ><span class="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-400"></span> Partial payment</span
+    >
+    <span class="inline-flex items-center gap-1.5"
+      ><span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500"></span> Active</span
+    >
+  </div>
+
+  @if (dueSectionFilter() !== 'all') {
+    <div class="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+      <span>
+        Showing only:
+        <strong>{{ dueSectionFilter() === 'dueToday' ? 'Due today' : 'Overdue' }}</strong>
+      </span>
+      <button
+        type="button"
+        class="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+        (click)="clearDueSectionFilter()"
+      >
+        Show all sections
+      </button>
+    </div>
+  }
+
+  @if (groupedMemberSections().length === 0) {
+    <div class="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
+      No members match your filters.
+    </div>
+  }
+
+  @for (sec of groupedMemberSections(); track sec.key) {
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="border-b border-slate-100 bg-slate-50 px-4 py-3">
+        <h2 class="text-sm font-semibold text-slate-900">
+          {{ sec.title }}
+          <span class="font-normal text-slate-500">({{ sec.members.length }})</span>
+        </h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-left text-sm">
+          <thead class="bg-white text-xs font-semibold uppercase text-slate-500">
+            <tr>
+              <th class="px-4 py-3">Name</th>
+              <th class="px-4 py-3">Mobile</th>
+              @if (isGym()) {
+                <th class="px-4 py-3">Plan</th>
+              }
+              <th class="px-4 py-3">{{ dueLabel() }}</th>
+              <th class="px-4 py-3">Payment status</th>
+              <th class="px-4 py-3">Member</th>
+              <th class="px-4 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            @for (m of sec.members; track m.memberId) {
+              <tr
+                [class.bg-blue-50]="rowTone(m) === 'blue'"
+                [class.bg-red-50]="rowTone(m) === 'red'"
+                [class.bg-orange-50]="rowTone(m) === 'orange'"
+                [class.bg-emerald-50]="rowTone(m) === 'green'"
+                [class.bg-slate-50]="rowTone(m) === 'neutral'"
+              >
+                <td class="px-4 py-3 font-medium text-slate-900">
+                  {{ m.firstName }} {{ m.lastName }}
+                </td>
+                <td class="px-4 py-3 text-slate-600">{{ m.mobile || '—' }}</td>
+                @if (isGym()) {
+                  <td class="px-4 py-3 capitalize text-slate-600">{{ m.subscriptionType || 'monthly' }}</td>
+                }
+                <td class="px-4 py-3 text-slate-800">
+                  <div class="font-medium">{{ m.dueDate.toDate() | date: 'mediumDate' }}</div>
+                  <div class="text-xs text-slate-600">{{ dueStatusLabel(m) }}</div>
+                </td>
+                <td class="px-4 py-3">
+                  @if (rowTone(m) === 'blue') {
+                    <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-900">Partial payment</span>
+                  } @else if (rowTone(m) === 'red') {
+                    <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-900">Overdue</span>
+                  } @else if (rowTone(m) === 'orange') {
+                    <span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-900"
+                      >Due soon</span
+                    >
+                  } @else if (rowTone(m) === 'green') {
+                    <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900"
+                      >Active</span
+                    >
+                  } @else {
+                    <span class="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-800">—</span>
+                  }
+                </td>
+                <td class="px-4 py-3">
+                  <span
+                    class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                    [class.bg-slate-200]="m.status === 'inactive'"
+                    [class.text-slate-800]="m.status === 'inactive'"
+                    [class.bg-emerald-100]="m.status === 'active'"
+                    [class.text-emerald-900]="m.status === 'active'"
+                  >
+                    {{ m.status }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                    @if (m.status === 'active' && rowTone(m) !== 'green') {
+                      <button
+                        type="button"
+                        class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                        (click)="openPay(m)"
+                      >
+                        {{ (m.pendingAmount || 0) > 0 ? 'Partial payment done' : 'Mark paid' }}
+                      </button>
+                    }
+                    @if (m.status === 'active' && rowTone(m) === 'green') {
+                      <span class="rounded-lg bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-900"
+                        >Paid ahead</span
+                      >
+                    }
+                    @if (whatsappLink(m); as wa) {
+                      <a
+                        [href]="wa"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                      >
+                        Send reminder
+                      </a>
+                    }
+                    @if (canSendReceipt(m)) {
+                      <button
+                        type="button"
+                        class="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-50"
+                        (click)="sendReceipt(m)"
+                      >
+                        Send receipt
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      (click)="openHistory(m)"
+                    >
+                      History
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      (click)="openEdit(m)"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-50"
+                      (click)="deleteMember(m)"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</div>
+
+<app-modal [open]="modalOpen()" [title]="editingId() ? 'Edit member' : 'Add member'" (closed)="closeModal()">
+  <form [formGroup]="memberForm" (ngSubmit)="saveMember()" class="space-y-4">
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">First name</label>
+      <input
+        formControlName="firstName"
+        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+      />
+      @if (memberForm.controls.firstName.touched && memberForm.controls.firstName.invalid) {
+        <p class="mt-1 text-sm text-red-600">First name is required</p>
+      }
+    </div>
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Last name</label>
+      <input formControlName="lastName" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
+    </div>
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Mobile</label>
+      <input
+        formControlName="mobile"
+        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+        inputmode="numeric"
+      />
+      @if (memberForm.controls.mobile.touched && memberForm.controls.mobile.hasError('digitsLen')) {
+        <p class="mt-1 text-sm text-red-600">Enter 10 digits or leave blank</p>
+      }
+    </div>
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Address</label>
+      <textarea
+        formControlName="address"
+        rows="2"
+        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+      ></textarea>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-3">
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Floor number</label>
+        <input
+          formControlName="floorNumber"
+          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+          [readonly]="hasSeatLayout()"
+        />
+        @if (memberForm.controls.floorNumber.touched && memberForm.controls.floorNumber.invalid) {
+          <p class="mt-1 text-sm text-red-600">Floor number is required</p>
+        }
+      </div>
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Room number</label>
+        <input
+          formControlName="roomNumber"
+          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+          [readonly]="hasSeatLayout()"
+        />
+        @if (memberForm.controls.roomNumber.touched && memberForm.controls.roomNumber.invalid) {
+          <p class="mt-1 text-sm text-red-600">Room number is required</p>
+        }
+      </div>
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Bed number</label>
+        <input
+          formControlName="bedNumber"
+          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+          [readonly]="hasSeatLayout()"
+        />
+        @if (memberForm.controls.bedNumber.touched && memberForm.controls.bedNumber.invalid) {
+          <p class="mt-1 text-sm text-red-600">Bed number is required</p>
+        }
+      </div>
+    </div>
+    @if (isPg()) {
+      @if (hasSeatLayout()) {
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-sm text-slate-700">Choose bed from your actual seat map.</p>
+            <button
+              type="button"
+              class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+              (click)="openBedPicker()"
+            >
+              Assign Bed
+            </button>
+          </div>
+        </div>
+      } @else {
+        <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Seat map not setup yet. You can enter floor/room/bed manually.
+        </p>
+      }
+    }
+    @if (isGym()) {
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Subscription</label>
+        <select
+          formControlName="subscriptionType"
+          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base capitalize"
+        >
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly (3 months)</option>
+          <option value="yearly">Yearly (12 months)</option>
+        </select>
+        <p class="mt-1 text-xs text-slate-500">Next due after payment moves by this period from the current due date.</p>
+      </div>
+    }
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Monthly amount (₹)</label>
+        <input
+          type="number"
+          formControlName="amount"
+          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+          min="1"
+          step="1"
+        />
+        @if (memberForm.controls.amount.touched && memberForm.controls.amount.invalid) {
+          <p class="mt-1 text-sm text-red-600">Enter a positive amount</p>
+        }
+      </div>
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Join date</label>
+        <input type="date" formControlName="joinDate" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
+      </div>
+    </div>
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Member status</label>
+      <select formControlName="status" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base">
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
+
+    <details class="rounded-xl border border-slate-200 bg-slate-50" [open]="moreOpen()" (toggle)="moreOpen.set($any($event.target).open)">
+      <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">More details</summary>
+      <div class="space-y-4 border-t border-slate-200 bg-white px-4 py-4">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Gender</label>
+          <select formControlName="gender" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base">
+            <option value="">—</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar number</label>
+          <input
+            formControlName="aadhaarLast4"
+            maxlength="12"
+            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+            inputmode="numeric"
+          />
+          @if (memberForm.controls.aadhaarLast4.touched && memberForm.controls.aadhaarLast4.hasError('digitsLen')) {
+            <p class="mt-1 text-sm text-red-600">Exactly 4 digits or leave blank</p>
+          }
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Notes</label>
+          <textarea
+            formControlName="notes"
+            rows="2"
+            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+          ></textarea>
+        </div>
+      </div>
+    </details>
+
+    <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+      <button type="button" class="rounded-xl border border-slate-200 px-5 py-3 font-semibold" (click)="closeModal()">
+        Cancel
+      </button>
+      <button type="submit" class="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700">
+        Save
+      </button>
+    </div>
+  </form>
+</app-modal>
+
+<app-modal [open]="bedPickerOpen()" title="Assign Bed" (closed)="closeBedPicker()">
+  @if (!hasSeatLayout()) {
+    <p class="text-sm text-slate-600">Setup required</p>
+  } @else {
+    <div class="space-y-3">
+      @for (floor of (pgLayout()?.floors || []); track floor.floorNumber) {
+        <section class="rounded-xl border border-slate-200 p-3">
+          <p class="text-sm font-semibold text-slate-900">Floor {{ floor.floorNumber }}</p>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            @for (room of floor.rooms; track room.roomNumber) {
+              <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">Room {{ room.roomNumber }}</p>
+                <div class="mt-2 grid grid-cols-3 gap-2">
+                  @for (_ of [].constructor(room.beds); track $index) {
+                    <button
+                      type="button"
+                      class="h-8 rounded-md border text-xs font-semibold"
+                      [disabled]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
+                      [class.border-red-200]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
+                      [class.bg-red-100]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
+                      [class.text-red-800]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
+                      [class.cursor-not-allowed]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
+                      [class.border-emerald-200]="!isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
+                      [class.bg-emerald-50]="!isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
+                      [class.text-emerald-800]="!isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
+                      (click)="selectBed(floor.floorNumber, room.roomNumber, $index + 1)"
+                    >
+                      Bed {{ $index + 1 }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
+</app-modal>
+
+<app-modal [open]="payModalOpen()" title="Mark as paid" (closed)="closePay()">
+  @if (payTarget(); as m) {
+    <form [formGroup]="payForm" (ngSubmit)="submitPay()" class="space-y-4">
+      <p class="text-sm text-slate-600">
+        Recording payment for <span class="font-semibold text-slate-900">{{ m.firstName }} {{ m.lastName }}</span>
+      </p>
+      <p class="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        Next {{ dueLabel().toLowerCase() }} will be one billing period after the current due date ({{
+          m.dueDate.toDate() | date: 'mediumDate'
+        }}), not from today.
+      </p>
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Amount (₹)</label>
+        <input
+          type="number"
+          formControlName="amount"
+          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+          min="1"
+        />
+      </div>
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Method</label>
+        <select formControlName="method" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base">
+          <option value="cash">Cash</option>
+          <option value="upi">UPI</option>
+          <option value="card">Card</option>
+        </select>
+      </div>
+      @if (isGym()) {
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Plan for this payment</label>
+          <select formControlName="subscriptionType" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base capitalize">
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly (3 months)</option>
+            <option value="yearly">Yearly (12 months)</option>
+          </select>
+        </div>
+      }
+      <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
+        <input type="checkbox" formControlName="isPartialPayment" class="h-4 w-4" />
+        <span class="text-sm font-medium text-slate-700">Partial payment done</span>
+      </label>
+      @if (payForm.controls.isPartialPayment.value) {
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Pending amount to be paid (₹)</label>
+          <input
+            type="number"
+            formControlName="pendingAmount"
+            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+            min="1"
+          />
+        </div>
+      }
+      <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button type="button" class="rounded-xl border border-slate-200 px-5 py-3 font-semibold" (click)="closePay()">
+          Cancel
+        </button>
+        <button type="submit" class="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700">
+          {{ payForm.controls.isPartialPayment.value ? 'Partial payment done' : 'Confirm payment' }}
+        </button>
+      </div>
+    </form>
+  }
+</app-modal>
+
+<app-modal [open]="historyModalOpen()" title="Payment history" (closed)="closeHistory()">
+  @if (historyMember(); as hm) {
+    <p class="mb-3 text-sm text-slate-600">{{ hm.firstName }} {{ hm.lastName }}</p>
+    @if (historyPayments().length === 0) {
+      <p class="text-sm text-slate-500">No payments yet.</p>
+    } @else {
+      <ul class="max-h-72 space-y-2 overflow-y-auto">
+        @for (p of historyPayments(); track p.paymentId) {
+          <li class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+            <span>{{ p.date.toDate() | date: 'mediumDate' }}</span>
+            <span class="font-semibold">₹{{ p.amount | number: '1.0-0' }}</span>
+            <span class="uppercase text-slate-500">{{ p.method }}</span>
+          </li>
+        }
+      </ul>
+    }
+  }
+</app-modal>

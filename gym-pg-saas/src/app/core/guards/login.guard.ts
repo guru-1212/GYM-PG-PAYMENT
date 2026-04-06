@@ -1,0 +1,25 @@
+import { inject } from '@angular/core';
+import { CanActivateFn, Router } from '@angular/router';
+import { AuthService } from '../services/auth.service';
+import { FirebaseAppService } from '../services/firebase-app.service';
+
+/** Redirect authenticated users away from login/register. */
+export const loginGuard: CanActivateFn = async () => {
+  const fb = inject(FirebaseAppService);
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  await fb.auth.authStateReady();
+  if (!fb.auth.currentUser) return true;
+  let p = auth.profile();
+  if (!p) p = await auth.refreshProfile();
+  if (!p) return true;
+  if (p.role === 'admin' && p.status === 'approved') {
+    return router.createUrlTree(['/admin/dashboard']);
+  }
+  if (p.role === 'owner') {
+    if (p.status === 'pending') return router.createUrlTree(['/pending-approval']);
+    if (p.status === 'rejected') return router.createUrlTree(['/account-rejected']);
+    if (p.status === 'approved') return router.createUrlTree(['/dashboard']);
+  }
+  return true;
+};

@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    /** Path to the signed-in user's profile doc (must match Auth UID). */
+    function myOwnerPath() {
+      return /databases/$(database)/documents/owners/$(request.auth.uid);
+    }
+
+    /**
+     * Never call get(...).data unless the document exists — otherwise rule
+     * evaluation can fail and the client sees Listen/stream errors (e.g. NS_BINDING_ABORTED in Firefox).
+     */
+    function myOwnerExists() {
+      return exists(myOwnerPath());
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && myOwnerExists()
+        && get(myOwnerPath()).data.role == 'admin'
+        && get(myOwnerPath()).data.status == 'approved';
+    }
+
+    function isApprovedOwner() {
+      return signedIn()
+        && myOwnerExists()
+        && get(myOwnerPath()).data.role == 'owner'
+        && get(myOwnerPath()).data.status == 'approved';
+    }
+
+    match /owners/{ownerId} {
+      allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
+      allow create: if signedIn()
+        && request.auth.uid == ownerId
+        && request.resource.data.role == 'owner'
+        && request.resource.data.status == 'pending';
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /members/{memberId} {
+      allow read: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
+      allow create: if isApprovedOwner()
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isApprovedOwner()
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
+      allow create: if isApprovedOwner()
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}

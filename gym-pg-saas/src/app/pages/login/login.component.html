@@ -1,0 +1,161 @@
+<div class="flex min-h-screen flex-col justify-center bg-slate-50 px-4 py-10">
+  <div class="mx-auto w-full max-w-md">
+    <div class="mb-8 text-center">
+      <p class="text-sm font-medium uppercase tracking-wide text-emerald-600">PayBook</p>
+      <h1 class="mt-1 text-2xl font-bold text-slate-900">Gym &amp; PG payments</h1>
+      <p class="mt-2 text-slate-600">Simple tracking for owners. No notebook required.</p>
+    </div>
+
+    <div class="flex rounded-xl bg-slate-200/80 p-1">
+      <button
+        type="button"
+        class="flex-1 rounded-lg py-3 text-sm font-semibold transition"
+        [class.bg-white]="mode() === 'signin'"
+        [class.shadow]="mode() === 'signin'"
+        [class.text-slate-900]="mode() === 'signin'"
+        [class.text-slate-600]="mode() !== 'signin'"
+        (click)="setMode('signin')"
+      >
+        Sign in
+      </button>
+      <button
+        type="button"
+        class="flex-1 rounded-lg py-3 text-sm font-semibold transition"
+        [class.bg-white]="mode() === 'signup'"
+        [class.shadow]="mode() === 'signup'"
+        [class.text-slate-900]="mode() === 'signup'"
+        [class.text-slate-600]="mode() !== 'signup'"
+        (click)="setMode('signup')"
+      >
+        Owner sign up
+      </button>
+    </div>
+
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      @if (mode() === 'signin') {
+        <form [formGroup]="signInForm" (ngSubmit)="onSignIn()" class="space-y-4">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              formControlName="email"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none ring-emerald-500 focus:ring-2"
+              autocomplete="email"
+            />
+            @if (signInForm.controls.email.touched && signInForm.controls.email.invalid) {
+              <p class="mt-1 text-sm text-red-600">Valid email required</p>
+            }
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="pw">Password</label>
+            <input
+              id="pw"
+              type="password"
+              formControlName="password"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none ring-emerald-500 focus:ring-2"
+              autocomplete="current-password"
+            />
+            @if (signInForm.controls.password.touched && signInForm.controls.password.invalid) {
+              <p class="mt-1 text-sm text-red-600">Min 6 characters</p>
+            }
+          </div>
+          <button
+            type="submit"
+            class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-4 text-base font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            [disabled]="busy()"
+          >
+            @if (busy()) {
+              <span class="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+            }
+            Sign in
+          </button>
+        </form>
+      } @else {
+        <form [formGroup]="signUpForm" (ngSubmit)="onSignUp()" class="space-y-4">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="name">Your name</label>
+            <input
+              id="name"
+              type="text"
+              formControlName="name"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none ring-emerald-500 focus:ring-2"
+            />
+            @if (signUpForm.controls.name.touched && signUpForm.controls.name.invalid) {
+              <p class="mt-1 text-sm text-red-600">Name is required</p>
+            }
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="businessName">
+              {{ signUpForm.controls.businessType.value === 'pg' ? 'PG name' : 'Gym name' }}
+            </label>
+            <input
+              id="businessName"
+              type="text"
+              formControlName="businessName"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none ring-emerald-500 focus:ring-2"
+              [placeholder]="signUpForm.controls.businessType.value === 'pg' ? 'Enter PG name' : 'Enter Gym name'"
+            />
+            @if (signUpForm.controls.businessName.touched && signUpForm.controls.businessName.invalid) {
+              <p class="mt-1 text-sm text-red-600">Business name is required</p>
+            }
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="semail">Email</label>
+            <input
+              id="semail"
+              type="email"
+              formControlName="email"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none ring-emerald-500 focus:ring-2"
+              autocomplete="email"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="spw">Password</label>
+            <input
+              id="spw"
+              type="password"
+              formControlName="password"
+              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none ring-emerald-500 focus:ring-2"
+              autocomplete="new-password"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Business type</label>
+            <div class="grid grid-cols-2 gap-2">
+              <label
+                class="flex cursor-pointer items-center justify-center rounded-xl border-2 py-3 text-sm font-semibold"
+                [class.border-emerald-600]="signUpForm.controls.businessType.value === 'gym'"
+                [class.bg-emerald-50]="signUpForm.controls.businessType.value === 'gym'"
+              >
+                <input type="radio" formControlName="businessType" value="gym" class="sr-only" />
+                Gym
+              </label>
+              <label
+                class="flex cursor-pointer items-center justify-center rounded-xl border-2 py-3 text-sm font-semibold"
+                [class.border-emerald-600]="signUpForm.controls.businessType.value === 'pg'"
+                [class.bg-emerald-50]="signUpForm.controls.businessType.value === 'pg'"
+              >
+                <input type="radio" formControlName="businessType" value="pg" class="sr-only" />
+                PG
+              </label>
+            </div>
+          </div>
+          <button
+            type="submit"
+            class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-4 text-base font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            [disabled]="busy()"
+          >
+            @if (busy()) {
+              <span class="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+            }
+            Create account
+          </button>
+          <p class="text-center text-xs text-slate-500">
+            Admin must approve your account before you can use the app.
+          </p>
+        </form>
+      }
+    </div>
+  </div>
+</div>
