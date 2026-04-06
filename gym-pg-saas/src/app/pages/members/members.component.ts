@@ -18,6 +18,7 @@ import {
   dueRemainingOrOverdueLabel,
   endOfToday,
   memberDueBucket,
+  startOfDay,
   timestampToDate,
 } from '../../core/utils/date.utils';
 import { optionalDigitsLen, positiveAmount } from '../../core/utils/validators';
@@ -109,15 +110,18 @@ export class MembersComponent implements OnInit, OnDestroy {
     }
     const sk = this.sortKey();
     const dir = this.sortDir() === 'asc' ? 1 : -1;
+    const dueCalendarTime = (m: Member): number => {
+      const d = coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
+      return d ? startOfDay(d).getTime() : Number.POSITIVE_INFINITY;
+    };
     list.sort((a, b) => {
       if (sk === 'name') {
         const an = `${a.firstName} ${a.lastName || ''}`.toLowerCase();
         const bn = `${b.firstName} ${b.lastName || ''}`.toLowerCase();
         return an.localeCompare(bn) * dir;
       }
-      const ad = timestampToDate(a.dueDate)?.getTime() ?? 0;
-      const bd = timestampToDate(b.dueDate)?.getTime() ?? 0;
-      return (ad - bd) * dir;
+      // Due sort: ascending = earliest due first (most overdue / least days left at top).
+      return (dueCalendarTime(a) - dueCalendarTime(b)) * dir;
     });
     return list;
   });

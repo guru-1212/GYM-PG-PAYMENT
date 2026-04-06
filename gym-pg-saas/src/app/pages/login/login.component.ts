@@ -19,6 +19,8 @@ export class LoginComponent {
 
   readonly mode = signal<'signin' | 'signup'>('signin');
   readonly busy = signal(false);
+  readonly showSignInPassword = signal(false);
+  readonly showSignUpPassword = signal(false);
 
   readonly signInForm = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],

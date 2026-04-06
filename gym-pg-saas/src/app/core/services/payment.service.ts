@@ -22,6 +22,29 @@ export class PaymentService {
   private readonly fb = inject(FirebaseAppService);
   private readonly members = inject(MemberService);
 
+  private paymentDateFromRow(row: Record<string, unknown>): Date | null {
+    return coerceFirestoreDate(row['date']) ?? coerceFirestoreDate(row['createdAt']);
+  }
+
+  private paymentAmountFromRow(row: Record<string, unknown>): number {
+    return (
+      this.toAmount(row['amount']) ||
+      this.toAmount(row['paidAmount']) ||
+      this.toAmount(row['paymentAmount']) ||
+      this.toAmount(row['totalPaid']) ||
+      0
+    );
+  }
+
+  private toAmount(value: unknown): number {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (typeof value === 'string') {
+      const n = Number(value.replace(/,/g, '').trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
+  }
+
   watchPaymentsForOwner(ownerId: string, callback: (payments: Payment[]) => void): Unsubscribe {
     const q = query(
       collection(this.fb.db, 'payments'),
@@ -41,19 +64,30 @@ export class PaymentService {
   async sumPaymentsForCalendarMonth(ownerId: string, refDate: Date = new Date()): Promise<number> {
     const start = new Date(refDate.getFullYear(), refDate.getMonth(), 1, 0, 0, 0, 0);
     const end = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0, 23, 59, 59, 999);
-    const q = query(
+    const monthlyByDateQ = query(
       collection(this.fb.db, 'payments'),
       where('ownerId', '==', ownerId),
       where('date', '>=', dateToTimestamp(start)),
       where('date', '<=', dateToTimestamp(end)),
     );
-    const snap = await getDocs(q);
+    const snap = await getDocs(monthlyByDateQ);
     let sum = 0;
     snap.forEach((docSnap) => {
       const row = docSnap.data() as Record<string, unknown>;
-      const d = coerceFirestoreDate(row['date']);
+      const d = this.paymentDateFromRow(row);
       if (!d || !isDateInCalendarMonth(d, refDate)) return;
-      sum += Number(row['amount']) || 0;
+      sum += this.paymentAmountFromRow(row);
+    });
+    if (sum > 0) return sum;
+
+    // Fallback for legacy rows where `date` field may be missing/malformed.
+    const ownerOnlyQ = query(collection(this.fb.db, 'payments'), where('ownerId', '==', ownerId));
+    const ownerOnlySnap = await getDocs(ownerOnlyQ);
+    ownerOnlySnap.forEach((docSnap) => {
+      const row = docSnap.data() as Record<string, unknown>;
+      const d = this.paymentDateFromRow(row);
+      if (!d || !isDateInCalendarMonth(d, refDate)) return;
+      sum += this.paymentAmountFromRow(row);
     });
     return sum;
   }

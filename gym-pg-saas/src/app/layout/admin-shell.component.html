@@ -1,32 +1,32 @@
-<div class="flex min-h-screen bg-slate-50">
-  <aside class="hidden w-56 shrink-0 flex-col border-r border-slate-200 bg-slate-900 text-white md:flex">
-    <div class="border-b border-slate-800 px-4 py-5">
-      <p class="text-xs font-semibold uppercase tracking-wide text-emerald-400">Admin</p>
-      <p class="mt-1 truncate text-sm font-semibold">{{ profile()?.name }}</p>
+<div class="flex min-h-screen bg-transparent">
+  <aside class="hidden w-64 shrink-0 flex-col border-r border-white/60 bg-white/75 backdrop-blur-xl md:sticky md:top-0 md:flex md:h-screen">
+    <div class="border-b border-slate-100/80 px-5 py-6">
+      <p class="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-xs font-semibold uppercase tracking-wide text-transparent">Admin</p>
+      <p class="mt-1 truncate text-sm font-semibold text-slate-900">{{ profile()?.name }}</p>
     </div>
     <nav class="flex flex-1 flex-col gap-1 p-3">
       <a
         routerLink="/admin/dashboard"
-        routerLinkActive="bg-slate-800"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
         [routerLinkActiveOptions]="{ exact: true }"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800/80"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
       >
-        <span class="material-icons-outlined text-slate-300">analytics</span>
+        <span class="material-icons-outlined">analytics</span>
         Dashboard
       </a>
       <a
         routerLink="/admin/owners"
-        routerLinkActive="bg-slate-800"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800/80"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
       >
-        <span class="material-icons-outlined text-slate-300">manage_accounts</span>
+        <span class="material-icons-outlined">manage_accounts</span>
         Owners
       </a>
     </nav>
     <div class="border-t border-slate-800 p-3">
       <button
         type="button"
-        class="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-800 py-3 text-sm font-semibold hover:bg-slate-700"
+        class="saas-btn-secondary flex w-full items-center justify-center gap-2 py-3 text-sm"
         (click)="signOut()"
       >
         <span class="material-icons-outlined text-lg">logout</span>
@@ -36,26 +36,26 @@
   </aside>
 
   <div class="flex min-w-0 flex-1 flex-col">
-    <header class="flex items-center justify-between bg-slate-900 px-4 py-3 text-white md:hidden">
-      <p class="text-sm font-semibold">Admin</p>
-      <button type="button" class="text-sm font-semibold underline" (click)="signOut()">Sign out</button>
+    <header class="sticky top-0 z-20 flex items-center justify-between border-b border-white/60 bg-white/85 px-4 py-3 backdrop-blur-xl md:hidden">
+      <p class="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-sm font-semibold text-transparent">Admin</p>
+      <button type="button" class="saas-btn-secondary rounded-lg px-3 py-2 text-sm" (click)="signOut()">Sign out</button>
     </header>
-    <nav class="flex gap-2 overflow-x-auto border-b border-slate-200 bg-white px-2 py-2 md:hidden">
+    <nav class="sticky top-[57px] z-10 flex gap-2 overflow-x-auto border-b border-white/60 bg-white/85 px-2 py-2 backdrop-blur-xl md:hidden">
       <a
         routerLink="/admin/dashboard"
-        routerLinkActive="bg-slate-900 text-white"
+        routerLinkActive="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
         [routerLinkActiveOptions]="{ exact: true }"
-        class="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700"
+        class="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
         >Dashboard</a
       >
       <a
         routerLink="/admin/owners"
-        routerLinkActive="bg-slate-900 text-white"
-        class="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700"
+        routerLinkActive="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
+        class="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
         >Owners</a
       >
     </nav>
-    <main class="flex-1 p-4 md:p-8">
+    <main class="flex-1 p-4 md:p-6 lg:p-8">
       <router-outlet />
     </main>
   </div>

@@ -12,7 +12,9 @@ import { Component, input, output } from '@angular/core';
         (click)="backdropClose() && closed.emit()"
       >
         <div
-          class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl"
+          class="max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-white/60 bg-white/90 shadow-xl backdrop-blur-xl"
+          [class.max-w-lg]="!wide()"
+          [class.max-w-2xl]="wide()"
           (click)="$event.stopPropagation()"
         >
           <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -38,5 +40,7 @@ export class ModalComponent {
   readonly open = input(false);
   readonly title = input('');
   readonly backdropClose = input(false);
+  /** Wider panel for detail views (e.g. member profile). */
+  readonly wide = input(false);
   readonly closed = output<void>();
 }

@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
 
@@ -13,6 +13,7 @@ export class OwnerShellComponent {
   private readonly router = inject(Router);
 
   readonly profile = this.auth.profile;
+  readonly isPgOwner = computed(() => this.profile()?.businessType === 'pg');
 
   async signOut(): Promise<void> {
     await this.auth.signOut();

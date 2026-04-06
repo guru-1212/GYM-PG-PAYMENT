@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,8 +11,24 @@
 }
 
 @layer base {
+  :root {
+    --saas-bg: #f8fafc;
+    --saas-primary-from: #2563eb;
+    --saas-primary-to: #4f46e5;
+    --saas-glow: 0 10px 28px rgba(37, 99, 235, 0.18);
+    --saas-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  }
+
+  * {
+    font-family: 'Inter', sans-serif;
+  }
+
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply text-slate-900 antialiased;
+    background:
+      radial-gradient(800px circle at 0% 0%, rgba(79, 70, 229, 0.08), transparent 45%),
+      radial-gradient(700px circle at 100% 0%, rgba(37, 99, 235, 0.08), transparent 50%),
+      var(--saas-bg);
   }
 
   .material-icons-outlined {
@@ -27,5 +44,80 @@
     word-wrap: normal;
     direction: ltr;
     -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  .saas-page {
+    @apply animate-[fadeIn_0.35s_ease] space-y-6;
+  }
+
+  .saas-card {
+    @apply rounded-2xl border border-white/70 bg-white/80 backdrop-blur-sm transition-all duration-200;
+    box-shadow: var(--saas-shadow);
+  }
+
+  .saas-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.11), var(--saas-glow);
+  }
+
+  .saas-btn-primary {
+    @apply rounded-xl px-5 py-2.5 font-semibold text-white transition-all duration-200;
+    background-image: linear-gradient(135deg, var(--saas-primary-from), var(--saas-primary-to));
+    box-shadow: 0 8px 20px rgba(79, 70, 229, 0.25);
+  }
+
+  .saas-btn-primary:hover {
+    transform: scale(1.03);
+    box-shadow: 0 14px 24px rgba(79, 70, 229, 0.34);
+  }
+
+  .saas-btn-secondary {
+    @apply rounded-xl border border-slate-200 bg-white px-4 py-2.5 font-semibold text-slate-700 transition-all duration-200 hover:bg-slate-50;
+  }
+
+  .saas-input {
+    @apply rounded-xl border border-slate-200 bg-white px-4 py-3 text-base transition-all duration-200 focus:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-100;
+  }
+
+  .saas-table thead {
+    @apply bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500;
+  }
+
+  .saas-table tbody tr {
+    @apply transition-colors duration-200 hover:bg-indigo-50/60;
+  }
+
+  .status-pill-paid {
+    @apply rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800;
+  }
+
+  .status-pill-overdue {
+    @apply rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800;
+  }
+
+  .status-pill-due-soon {
+    @apply rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800;
+  }
+
+  .seat-block {
+    @apply transition-all duration-200;
+  }
+
+  .seat-block:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 16px rgba(79, 70, 229, 0.18);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

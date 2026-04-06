@@ -17,6 +17,7 @@ import {
   endOfToday,
   isDateInCalendarMonth,
   overdueCalendarDays,
+  startOfDay,
   timestampToDate,
 } from '../../core/utils/date.utils';
 
@@ -46,8 +47,12 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly importDueDateForAll = this.fb.nonNullable.control(false);
   readonly importDueDate = this.fb.nonNullable.control('');
   readonly pgLayout = signal<PgLayout | null>(null);
+  readonly showMonthEarnings = signal(false);
+  readonly recentJoinersExpanded = signal(false);
+  readonly memberDetailTarget = signal<Member | null>(null);
 
   readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
+  readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
   readonly hasPgLayout = computed(() => {
     if ((this.pgLayout()?.floors?.length ?? 0) > 0) return true;
     return this.formToLayoutFloors().some((f) => f.rooms.length > 0);
@@ -68,9 +73,10 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const list = this.payments();
     const verified = this.monthEarningsVerified();
     const fromListener = list.reduce((sum, p) => {
-      const d = coerceFirestoreDate(p.date as unknown);
+      const row = p as unknown as Record<string, unknown>;
+      const d = coerceFirestoreDate(row['date']) ?? coerceFirestoreDate(row['createdAt']);
       if (!d || !isDateInCalendarMonth(d, now)) return sum;
-      return sum + (Number(p.amount) || 0);
+      return sum + this.paymentAmountFromRow(row);
     }, 0);
     if (!this.paymentsListenerReady()) {
       return verified ?? 0;
@@ -109,6 +115,31 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly partialPendingList = computed(() =>
     this.members().filter((m) => m.status === 'active' && (Number(m.pendingAmount) || 0) > 0),
   );
+
+  /** Members who joined from (today − 10 days) through end of today — gym and PG. */
+  readonly recentJoiners = computed(() => {
+    const today = new Date();
+    const windowStart = startOfDay(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 10));
+    const windowEnd = endOfToday();
+    return [...this.members()]
+      .filter((m) => {
+        const jd = coerceFirestoreDate(m.joinDate as unknown) ?? timestampToDate(m.joinDate);
+        return jd != null && jd >= windowStart && jd <= windowEnd;
+      })
+      .sort((a, b) => {
+        const ta =
+          coerceFirestoreDate(a.joinDate as unknown)?.getTime() ?? timestampToDate(a.joinDate)?.getTime() ?? 0;
+        const tb =
+          coerceFirestoreDate(b.joinDate as unknown)?.getTime() ?? timestampToDate(b.joinDate)?.getTime() ?? 0;
+        return tb - ta;
+      });
+  });
+
+  readonly memberDetailPayments = computed(() => {
+    const m = this.memberDetailTarget();
+    if (!m) return [];
+    return this.payments().filter((p) => p.memberId === m.memberId);
+  });
 
   readonly totalBeds = computed(() =>
     (this.pgLayout()?.floors ?? []).reduce(
@@ -192,6 +223,35 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     return n === 1 ? 'Overdue by 1 day' : `Overdue by ${n} days`;
   }
 
+  toggleRecentJoinersExpanded(): void {
+    this.recentJoinersExpanded.update((v) => !v);
+  }
+
+  openMemberDetail(m: Member): void {
+    this.memberDetailTarget.set(m);
+  }
+
+  closeMemberDetail(): void {
+    this.memberDetailTarget.set(null);
+  }
+
+  memberDetailTitle(): string {
+    const m = this.memberDetailTarget();
+    return m ? `${m.firstName} ${m.lastName || ''}`.trim() : 'Member details';
+  }
+
+  memberJoinDate(m: Member): Date | null {
+    return coerceFirestoreDate(m.joinDate as unknown) ?? timestampToDate(m.joinDate);
+  }
+
+  memberCreatedAt(m: Member): Date | null {
+    return coerceFirestoreDate(m.createdAt as unknown) ?? timestampToDate(m.createdAt);
+  }
+
+  memberDueDate(m: Member): Date | null {
+    return coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
+  }
+
   get floorGroups(): FormArray {
     return this.setupForm.controls.floors as FormArray;
   }
@@ -256,10 +316,41 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     if (!file) return;
     this.importFileName.set(file.name);
     try {
-      const text = await file.text();
-      this.parseImportCsv(text);
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+        const XLSX = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const firstSheet = wb.SheetNames[0];
+        if (!firstSheet) {
+          this.importRows.set([]);
+          this.toast.error('Excel file has no sheets');
+          return;
+        }
+        const sheet = wb.Sheets[firstSheet];
+        const rows = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(sheet, {
+          header: 1,
+          raw: false,
+          blankrows: false,
+          defval: '',
+        });
+        const csvText = rows
+          .map((r) =>
+            r
+              .map((cell) => {
+                const s = String(cell ?? '').trim();
+                return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+              })
+              .join(','),
+          )
+          .join('\n');
+        this.parseImportCsv(csvText);
+      } else {
+        const text = await file.text();
+        this.parseImportCsv(text);
+      }
     } catch {
-      this.toast.error('Could not read CSV file');
+      this.toast.error('Could not read file. Upload CSV or Excel.');
     } finally {
       input.value = '';
     }
@@ -295,7 +386,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
     const existingKeys = new Set<string>();
     for (const m of this.members()) {
-      existingKeys.add(this.memberIdentityKey(m.firstName, m.lastName || '', m.mobile || '', m.floorNumber || '', m.roomNumber || '', m.bedNumber || ''));
+      const loc = this.identityLocationParts(m.floorNumber || '', m.roomNumber || '', m.bedNumber || '');
+      existingKeys.add(this.memberIdentityKey(m.firstName, m.lastName || '', m.mobile || '', loc.floorNumber, loc.roomNumber, loc.bedNumber));
     }
     const fileKeys = new Set<string>();
     const rows: ImportPreviewRow[] = [];
@@ -325,12 +417,13 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       if (!dueDate) errors.push('dueDate should be YYYY-MM-DD');
       if (mobile && mobile.length !== 10) errors.push('Mobile should be 10 digits');
 
-      const key = this.memberIdentityKey(firstName, lastName, mobile, floor, room, bed);
+      const assignedBed = this.resolveBedForImport(floor, room, bed);
+      const identityLoc = this.identityLocationParts(assignedBed.floorNumber, assignedBed.roomNumber, assignedBed.bedNumber);
+      const key = this.memberIdentityKey(firstName, lastName, mobile, identityLoc.floorNumber, identityLoc.roomNumber, identityLoc.bedNumber);
       if (existingKeys.has(key)) errors.push('Member details already exist');
       if (fileKeys.has(key)) errors.push('Duplicate row in file');
       fileKeys.add(key);
 
-      const assignedBed = this.resolveBedForImport(floor, room, bed);
       if (assignedBed.error) errors.push(assignedBed.error);
 
       rows.push({
@@ -614,6 +707,38 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Bed already occupied' };
     }
     return { floorNumber: String(Math.trunc(f)), roomNumber: String(Math.trunc(r)), bedNumber: String(Math.trunc(b)) };
+  }
+
+  private identityLocationParts(
+    floorNumber: string,
+    roomNumber: string,
+    bedNumber: string,
+  ): { floorNumber: string; roomNumber: string; bedNumber: string } {
+    if (!this.isPg()) return { floorNumber: '', roomNumber: '', bedNumber: '' };
+    return {
+      floorNumber: String(floorNumber || '').trim().toLowerCase(),
+      roomNumber: String(roomNumber || '').trim().toLowerCase(),
+      bedNumber: String(bedNumber || '').trim().toLowerCase(),
+    };
+  }
+
+  private toAmount(value: unknown): number {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (typeof value === 'string') {
+      const n = Number(value.replace(/,/g, '').trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
+  }
+
+  private paymentAmountFromRow(row: Record<string, unknown>): number {
+    return (
+      this.toAmount(row['amount']) ||
+      this.toAmount(row['paidAmount']) ||
+      this.toAmount(row['paymentAmount']) ||
+      this.toAmount(row['totalPaid']) ||
+      0
+    );
   }
 }
 
