@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
@@ -13,7 +13,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
   imports: [ReactiveFormsModule, TranslatePipe, LanguageSwitcherComponent],
   templateUrl: './login.component.html',
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -23,6 +23,7 @@ export class LoginComponent {
   readonly busy = signal(false);
   readonly showSignInPassword = signal(false);
   readonly showSignUpPassword = signal(false);
+  readonly businessTypeSignal = signal<'gym' | 'pg'>('gym');
 
   readonly signInForm = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
@@ -38,12 +39,18 @@ export class LoginComponent {
   });
 
   readonly businessNameLabel = computed(() => {
-    return this.signUpForm.controls.businessType.value === 'pg' ? 'login.pgName' : 'login.gymName';
+    return this.businessTypeSignal() === 'pg' ? 'login.pgName' : 'login.gymName';
   });
 
   readonly businessNamePlaceholder = computed(() => {
-    return this.signUpForm.controls.businessType.value === 'pg' ? 'login.enterPgName' : 'login.enterGymName';
+    return this.businessTypeSignal() === 'pg' ? 'login.enterPgName' : 'login.enterGymName';
   });
+
+  ngOnInit(): void {
+    this.signUpForm.controls.businessType.valueChanges.subscribe((value) => {
+      this.businessTypeSignal.set(value);
+    });
+  }
 
   setMode(m: 'signin' | 'signup'): void {
     this.mode.set(m);
