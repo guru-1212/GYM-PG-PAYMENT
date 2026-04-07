@@ -47,6 +47,14 @@ export function coerceFirestoreDate(value: unknown): Date | null {
   if (value == null) return null;
   if (value instanceof Timestamp) return value.toDate();
   if (value instanceof Date) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof value === 'string') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
   if (typeof value === 'object') {
     const o = value as { seconds?: unknown; nanoseconds?: unknown; _seconds?: unknown; _nanoseconds?: unknown };
     const sec = Number(o.seconds ?? o._seconds);
@@ -93,11 +101,12 @@ export function calendarDaysBetween(earlier: Date, later: Date): number {
 }
 
 /**
- * Days overdue (positive). 0 if not overdue.
+ * Whole calendar days past the due date (positive). 0 if due is today or in the future.
+ * Uses calendar days (midnight-to-midnight), same basis as `memberDueBucket`.
  */
 export function overdueCalendarDays(due: Date, ref: Date = new Date()): number {
-  const diff = calendarDaysBetween(due, ref);
-  return diff < 0 ? -diff : 0;
+  const diff = calendarDaysBetween(startOfDay(due), startOfDay(ref));
+  return diff > 0 ? diff : 0;
 }
 
 export function memberDueBucket(due: Date | null, isActive: boolean): DueBucket {

@@ -10,20 +10,26 @@ import { MemberService } from '../../core/services/member.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { ToastService } from '../../core/services/toast.service';
+import { TranslationService } from '../../core/services/translation.service';
 import { ModalComponent } from '../../shared/modal.component';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import {
   coerceFirestoreDate,
+  calendarDaysBetween,
+  dueRemainingOrOverdueLabel,
   dueUiStatus,
   endOfToday,
   isDateInCalendarMonth,
   overdueCalendarDays,
+  startOfDay,
+  startOfToday,
   timestampToDate,
 } from '../../core/utils/date.utils';
 
 @Component({
   selector: 'app-owner-dashboard',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, RouterLink, ReactiveFormsModule, ModalComponent],
+  imports: [DatePipe, DecimalPipe, RouterLink, ReactiveFormsModule, ModalComponent, TranslatePipe],
   templateUrl: './owner-dashboard.component.html',
 })
 export class OwnerDashboardComponent implements OnInit, OnDestroy {
@@ -33,6 +39,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   private readonly pgLayoutApi = inject(PgLayoutService);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
+  private readonly i18n = inject(TranslationService);
 
   readonly members = signal<Member[]>([]);
   readonly payments = signal<Payment[]>([]);
@@ -46,40 +53,92 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly importDueDateForAll = this.fb.nonNullable.control(false);
   readonly importDueDate = this.fb.nonNullable.control('');
   readonly pgLayout = signal<PgLayout | null>(null);
+  readonly showMonthEarnings = signal(false);
+  readonly recentJoinersExpanded = signal(false);
+  readonly memberDetailTarget = signal<Member | null>(null);
 
   readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
+  readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
   readonly hasPgLayout = computed(() => {
     if ((this.pgLayout()?.floors?.length ?? 0) > 0) return true;
     return this.formToLayoutFloors().some((f) => f.rooms.length > 0);
   });
 
-  readonly dueLabel = computed(() =>
-    this.auth.profile()?.businessType === 'pg' ? 'Rent due' : 'Plan expiry',
-  );
+  readonly dueLabel = computed(() => {
+    this.i18n.lang();
+    return this.auth.profile()?.businessType === 'pg'
+      ? this.i18n.t('fees.rentDue')
+      : this.i18n.t('fees.planExpiry');
+  });
 
   readonly totalMembers = computed(() => this.members().filter((m) => m.status === 'active').length);
 
-  /** From a direct Firestore query — correct even before the live listener first fires (e.g. after login). */
-  private readonly monthEarningsVerified = signal<number | null>(null);
-  private readonly paymentsListenerReady = signal(false);
-
+  /**
+   * Monthly earnings: Sum of all payments in the current calendar month
+   * 1. Waits for data to be loaded
+   * 2. Converts Firestore Timestamps to JS Date using toDate()
+   * 3. Filters by current month AND year
+   * 4. Matches ownerId with logged-in user
+   * 5. Includes debug logging
+   */
   readonly monthEarnings = computed(() => {
+    if (this.loading()) return 0; // Wait for data to load
+
     const now = new Date();
-    const list = this.payments();
-    const verified = this.monthEarningsVerified();
-    const fromListener = list.reduce((sum, p) => {
-      const d = coerceFirestoreDate(p.date as unknown);
-      if (!d || !isDateInCalendarMonth(d, now)) return sum;
-      return sum + (Number(p.amount) || 0);
+    const currentMonth = now.getMonth();      // 0-11
+    const currentYear = now.getFullYear();
+    const loggedInOwnerId = this.auth.profile()?.ownerId;
+    const payments = this.payments();
+
+    // Debug log
+    console.log('🔍 Monthly Earnings Calculation:', {
+      timestamp: now.toISOString(),
+      currentMonth,
+      currentYear,
+      loggedInOwnerId,
+      paymentsCount: payments.length,
+      payments: payments.map((p) => ({
+        paymentId: p.paymentId,
+        amount: p.amount,
+        ownerId: p.ownerId,
+        date: this.convertTimestampToDate(p.date),
+      })),
+    });
+
+    const monthlySum = payments.reduce((sum, payment) => {
+      // 1. Match ownerId with logged-in user
+      if (payment.ownerId !== loggedInOwnerId) {
+        return sum;
+      }
+
+      // 2. Convert Firestore Timestamp to JS Date using toDate()
+      const paymentDate = this.convertTimestampToDate(payment.date);
+
+      if (!paymentDate) {
+        console.warn('⚠️ Could not parse payment date:', payment);
+        return sum;
+      }
+
+      // 3. Filter by current month AND year
+      const paymentMonth = paymentDate.getMonth();
+      const paymentYear = paymentDate.getFullYear();
+
+      if (paymentMonth !== currentMonth || paymentYear !== currentYear) {
+        return sum;
+      }
+
+      // 4. Add to sum
+      const amount = Number(payment.amount) || 0;
+      console.log('✅ Payment included:', {
+        amount,
+        date: paymentDate.toISOString(),
+        runningTotal: sum + amount,
+      });
+      return sum + amount;
     }, 0);
-    if (!this.paymentsListenerReady()) {
-      return verified ?? 0;
-    }
-    // If the snapshot has rows but dates did not parse, keep the server sum from getDocs.
-    if (list.length > 0 && fromListener === 0 && verified != null && verified > 0) {
-      return verified;
-    }
-    return fromListener;
+
+    console.log('💰 Monthly Earnings Total:', monthlySum);
+    return monthlySum;
   });
 
   readonly pendingCount = computed(() => {
@@ -106,9 +165,50 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     });
   });
 
+  readonly dueSoonList = computed(() => {
+    const today = startOfToday();
+    return this.members().filter((m) => {
+      if (m.status !== 'active') return false;
+      const due = timestampToDate(m.dueDate);
+      if (!due) return false;
+      const daysLeft = calendarDaysBetween(today, startOfDay(due));
+      return daysLeft >= 0 && daysLeft <= 5;
+    });
+  });
+
   readonly partialPendingList = computed(() =>
     this.members().filter((m) => m.status === 'active' && (Number(m.pendingAmount) || 0) > 0),
   );
+
+  dueStatusLabel(m: Member): string {
+    const due = timestampToDate(m.dueDate);
+    return dueRemainingOrOverdueLabel(due, m.status === 'active');
+  }
+
+  /** Members who joined from (today − 10 days) through end of today — gym and PG. */
+  readonly recentJoiners = computed(() => {
+    const today = new Date();
+    const windowStart = startOfDay(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 10));
+    const windowEnd = endOfToday();
+    return [...this.members()]
+      .filter((m) => {
+        const jd = coerceFirestoreDate(m.joinDate as unknown) ?? timestampToDate(m.joinDate);
+        return jd != null && jd >= windowStart && jd <= windowEnd;
+      })
+      .sort((a, b) => {
+        const ta =
+          coerceFirestoreDate(a.joinDate as unknown)?.getTime() ?? timestampToDate(a.joinDate)?.getTime() ?? 0;
+        const tb =
+          coerceFirestoreDate(b.joinDate as unknown)?.getTime() ?? timestampToDate(b.joinDate)?.getTime() ?? 0;
+        return tb - ta;
+      });
+  });
+
+  readonly memberDetailPayments = computed(() => {
+    const m = this.memberDetailTarget();
+    if (!m) return [];
+    return this.payments().filter((p) => p.memberId === m.memberId);
+  });
 
   readonly totalBeds = computed(() =>
     (this.pgLayout()?.floors ?? []).reduce(
@@ -144,21 +244,18 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   private unsubLayout: (() => void) | null = null;
 
   async ngOnInit(): Promise<void> {
-    this.paymentsListenerReady.set(false);
-    this.monthEarningsVerified.set(null);
+    this.loading.set(true);
     this.payments.set([]);
+    console.log('🚀 Dashboard init started');
     await this.auth.refreshProfile();
     const uid = this.auth.profile()?.ownerId;
+    console.log('👤 Logged-in user ID:', uid);
     if (!uid) {
       this.loading.set(false);
+      console.error('❌ No owner ID found');
       return;
     }
-    try {
-      const sum = await this.paymentsApi.sumPaymentsForCalendarMonth(uid);
-      this.monthEarningsVerified.set(sum);
-    } catch {
-      this.monthEarningsVerified.set(0);
-    }
+    console.log('📡 Setting up data listeners for owner:', uid);
     this.attach(uid);
   }
 
@@ -172,15 +269,31 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     this.unsubM?.();
     this.unsubP?.();
     this.unsubLayout?.();
+
+    // Members listener
     this.unsubM = this.membersApi.watchMembersForOwner(ownerId, (list) => {
+      console.log('👥 Members loaded:', list.length);
       this.members.set(list);
+    });
+
+    // Payments listener - CRITICAL: Verify ownerId matches
+    this.unsubP = this.paymentsApi.watchPaymentsForOwner(ownerId, (list) => {
+      const filtered = list.filter((p) => p.ownerId === ownerId);
+      console.log(
+        `💳 Payments loaded: ${filtered.length} out of ${list.length} (filtered for ownerId: ${ownerId})`,
+      );
+      filtered.forEach((p, i) => {
+        const pDate = (p.date as any) instanceof Object && 'toDate' in (p.date as any) ? (p.date as any).toDate() : p.date;
+        console.log(`  Payment ${i + 1}: Amount=${p.amount}, Date=${pDate}, OwnerId=${p.ownerId}`);
+      });
+      this.payments.set(filtered);
+      // Mark loading as complete once payments are loaded
       this.loading.set(false);
     });
-    this.unsubP = this.paymentsApi.watchPaymentsForOwner(ownerId, (list) => {
-      this.payments.set(list);
-      this.paymentsListenerReady.set(true);
-    });
+
+    // Layout listener
     this.unsubLayout = this.pgLayoutApi.watchLayout(ownerId, (layout) => {
+      console.log('🏗️ PG Layout loaded');
       this.pgLayout.set(layout);
     });
   }
@@ -190,6 +303,35 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     if (!d) return 'Overdue';
     const n = overdueCalendarDays(d);
     return n === 1 ? 'Overdue by 1 day' : `Overdue by ${n} days`;
+  }
+
+  toggleRecentJoinersExpanded(): void {
+    this.recentJoinersExpanded.update((v) => !v);
+  }
+
+  openMemberDetail(m: Member): void {
+    this.memberDetailTarget.set(m);
+  }
+
+  closeMemberDetail(): void {
+    this.memberDetailTarget.set(null);
+  }
+
+  memberDetailTitle(): string {
+    const m = this.memberDetailTarget();
+    return m ? `${m.firstName} ${m.lastName || ''}`.trim() : 'Member details';
+  }
+
+  memberJoinDate(m: Member): Date | null {
+    return coerceFirestoreDate(m.joinDate as unknown) ?? timestampToDate(m.joinDate);
+  }
+
+  memberCreatedAt(m: Member): Date | null {
+    return coerceFirestoreDate(m.createdAt as unknown) ?? timestampToDate(m.createdAt);
+  }
+
+  memberDueDate(m: Member): Date | null {
+    return coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
   }
 
   get floorGroups(): FormArray {
@@ -256,10 +398,41 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     if (!file) return;
     this.importFileName.set(file.name);
     try {
-      const text = await file.text();
-      this.parseImportCsv(text);
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+        const XLSX = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const firstSheet = wb.SheetNames[0];
+        if (!firstSheet) {
+          this.importRows.set([]);
+          this.toast.error('Excel file has no sheets');
+          return;
+        }
+        const sheet = wb.Sheets[firstSheet];
+        const rows = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(sheet, {
+          header: 1,
+          raw: false,
+          blankrows: false,
+          defval: '',
+        });
+        const csvText = rows
+          .map((r) =>
+            r
+              .map((cell) => {
+                const s = String(cell ?? '').trim();
+                return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+              })
+              .join(','),
+          )
+          .join('\n');
+        this.parseImportCsv(csvText);
+      } else {
+        const text = await file.text();
+        this.parseImportCsv(text);
+      }
     } catch {
-      this.toast.error('Could not read CSV file');
+      this.toast.error('Could not read file. Upload CSV or Excel.');
     } finally {
       input.value = '';
     }
@@ -295,7 +468,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
     const existingKeys = new Set<string>();
     for (const m of this.members()) {
-      existingKeys.add(this.memberIdentityKey(m.firstName, m.lastName || '', m.mobile || '', m.floorNumber || '', m.roomNumber || '', m.bedNumber || ''));
+      const loc = this.identityLocationParts(m.floorNumber || '', m.roomNumber || '', m.bedNumber || '');
+      existingKeys.add(this.memberIdentityKey(m.firstName, m.lastName || '', m.mobile || '', loc.floorNumber, loc.roomNumber, loc.bedNumber));
     }
     const fileKeys = new Set<string>();
     const rows: ImportPreviewRow[] = [];
@@ -325,12 +499,13 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       if (!dueDate) errors.push('dueDate should be YYYY-MM-DD');
       if (mobile && mobile.length !== 10) errors.push('Mobile should be 10 digits');
 
-      const key = this.memberIdentityKey(firstName, lastName, mobile, floor, room, bed);
+      const assignedBed = this.resolveBedForImport(floor, room, bed);
+      const identityLoc = this.identityLocationParts(assignedBed.floorNumber, assignedBed.roomNumber, assignedBed.bedNumber);
+      const key = this.memberIdentityKey(firstName, lastName, mobile, identityLoc.floorNumber, identityLoc.roomNumber, identityLoc.bedNumber);
       if (existingKeys.has(key)) errors.push('Member details already exist');
       if (fileKeys.has(key)) errors.push('Duplicate row in file');
       fileKeys.add(key);
 
-      const assignedBed = this.resolveBedForImport(floor, room, bed);
       if (assignedBed.error) errors.push(assignedBed.error);
 
       rows.push({
@@ -384,6 +559,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
           joinDate: join,
           dueDate: due,
           amount: row.amount,
+          paymentMethod: 'cash', // Default to cash for bulk import
           status: 'active',
           subscriptionType: owner.businessType === 'gym' ? row.subscriptionType : 'monthly',
         });
@@ -525,6 +701,44 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     return `${Math.trunc(f)}-${Math.trunc(r)}-${Math.trunc(b)}`;
   }
 
+  /**
+   * Convert Firestore Timestamp to JavaScript Date
+   * Handles multiple formats: Firestore Timestamp with toDate(), fallback utils, etc.
+   */
+  private convertTimestampToDate(timestamp: unknown): Date | null {
+    try {
+      // Try Firestore Timestamp.toDate() method first
+      if (timestamp && typeof timestamp === 'object') {
+        const obj = timestamp as any;
+        if (typeof obj.toDate === 'function') {
+          return obj.toDate();
+        }
+      }
+
+      // Try coercion utilities
+      const coerced = coerceFirestoreDate(timestamp);
+      if (coerced) {
+        return coerced;
+      }
+
+      // Try timestampToDate utility
+      const converted = timestampToDate(timestamp as any);
+      if (converted) {
+        return converted;
+      }
+
+      // If it's already a Date
+      if (timestamp instanceof Date) {
+        return timestamp;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error converting timestamp:', timestamp, error);
+      return null;
+    }
+  }
+
   private parseCsvLine(line: string): string[] {
     const out: string[] = [];
     let cur = '';
@@ -615,6 +829,23 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     }
     return { floorNumber: String(Math.trunc(f)), roomNumber: String(Math.trunc(r)), bedNumber: String(Math.trunc(b)) };
   }
+
+  private identityLocationParts(
+    floorNumber: string,
+    roomNumber: string,
+    bedNumber: string,
+  ): { floorNumber: string; roomNumber: string; bedNumber: string } {
+    if (!this.isPg()) return { floorNumber: '', roomNumber: '', bedNumber: '' };
+    return {
+      floorNumber: String(floorNumber || '').trim().toLowerCase(),
+      roomNumber: String(roomNumber || '').trim().toLowerCase(),
+      bedNumber: String(bedNumber || '').trim().toLowerCase(),
+    };
+  }
+
+
+
+
 }
 
 type ImportPreviewRow = {

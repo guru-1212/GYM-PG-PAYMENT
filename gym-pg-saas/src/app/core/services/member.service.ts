@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { Observable } from 'rxjs';
 import type { SubscriptionType } from '../models/member.model';
+import type { PaymentMethod } from '../models/payment.model';
 import { Member } from '../models/member.model';
 import { dateToTimestamp, firstDueFromJoin } from '../utils/date.utils';
 import { AuthService } from './auth.service';
@@ -22,6 +23,7 @@ export interface MemberInput {
   firstName: string;
   lastName?: string;
   mobile?: string;
+  email?: string;
   gender?: Member['gender'];
   aadhaarLast4?: string;
   address?: string;
@@ -31,6 +33,7 @@ export interface MemberInput {
   notes?: string;
   joinDate: Date;
   amount: number;
+  paymentMethod: PaymentMethod;
   status: Member['status'];
   /** Optional explicit due date (used by bulk import). */
   dueDate?: Date;
@@ -74,12 +77,15 @@ export class MemberService {
     const sub: SubscriptionType =
       owner.businessType === 'gym' ? input.subscriptionType || 'monthly' : 'monthly';
     const due = input.dueDate || firstDueFromJoin(join, sub);
-    await addDoc(collection(this.fb.db, 'members'), {
+
+    // Create member document
+    const memberRef = await addDoc(collection(this.fb.db, 'members'), {
       ownerId: owner.ownerId,
       businessType: owner.businessType,
       firstName: input.firstName.trim(),
       lastName: input.lastName?.trim() || '',
       mobile: input.mobile?.trim() || '',
+      email: input.email?.trim() || '',
       gender: input.gender || null,
       aadhaarLast4: input.aadhaarLast4?.trim() || '',
       address: input.address?.trim() || '',
@@ -95,6 +101,22 @@ export class MemberService {
       pendingAmount: 0,
       createdAt: serverTimestamp(),
     });
+
+    // If an amount is provided (payment made during member creation), create payment record
+    if (input.amount > 0) {
+      console.log('💰 Creating payment record for new member:', input.amount);
+      await addDoc(collection(this.fb.db, 'payments'), {
+        memberId: memberRef.id,
+        ownerId: owner.ownerId,
+        amount: input.amount,
+        date: dateToTimestamp(join), // Use join date as payment date
+        method: input.paymentMethod,
+        isPartialPayment: false,
+        pendingAmount: 0,
+        createdAt: serverTimestamp(),
+      });
+      console.log('✅ Payment record created for member:', memberRef.id);
+    }
   }
 
   async updateMember(memberId: string, input: MemberInput): Promise<void> {
@@ -103,11 +125,12 @@ export class MemberService {
     const join = input.joinDate;
     const sub: SubscriptionType =
       owner?.businessType === 'gym' ? input.subscriptionType || 'monthly' : 'monthly';
-    const due = firstDueFromJoin(join, sub);
+    const due = input.dueDate || firstDueFromJoin(join, sub);
     await updateDoc(ref, {
       firstName: input.firstName.trim(),
       lastName: input.lastName?.trim() || '',
       mobile: input.mobile?.trim() || '',
+      email: input.email?.trim() || '',
       gender: input.gender || null,
       aadhaarLast4: input.aadhaarLast4?.trim() || '',
       address: input.address?.trim() || '',

@@ -8,25 +8,31 @@ import { Member, SubscriptionType } from '../../core/models/member.model';
 import { PgLayout } from '../../core/models/pg-layout.model';
 import { Payment, PaymentMethod } from '../../core/models/payment.model';
 import { AuthService } from '../../core/services/auth.service';
+import { TranslationService } from '../../core/services/translation.service';
 import { MemberService } from '../../core/services/member.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { ToastService } from '../../core/services/toast.service';
 import {
+  calendarDaysBetween,
   coerceFirestoreDate,
+  dueUiStatus,
   DueBucket,
   dueRemainingOrOverdueLabel,
   endOfToday,
   memberDueBucket,
+  startOfDay,
+  startOfToday,
   timestampToDate,
 } from '../../core/utils/date.utils';
 import { optionalDigitsLen, positiveAmount } from '../../core/utils/validators';
 import { ModalComponent } from '../../shared/modal.component';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
 @Component({
   selector: 'app-members',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, ModalComponent],
+  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, ModalComponent, TranslatePipe],
   templateUrl: './members.component.html',
 })
 export class MembersComponent implements OnInit, OnDestroy {
@@ -44,7 +50,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly payFilter = signal<'all' | 'paid' | 'pending'>('all');
   readonly sortKey = signal<'due' | 'name'>('due');
   readonly sortDir = signal<'asc' | 'desc'>('asc');
-  readonly dueSectionFilter = signal<'all' | 'dueToday' | 'overdue'>('all');
+  readonly dueSectionFilter = signal<'all' | 'dueToday' | 'overdue' | 'dueSoon'>('all');
 
   readonly modalOpen = signal(false);
   readonly editingId = signal<string | null>(null);
@@ -59,10 +65,14 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly pgLayout = signal<PgLayout | null>(null);
   private historyUnsub: (() => void) | null = null;
   private layoutUnsub: (() => void) | null = null;
+  private readonly i18n = inject(TranslationService);
 
-  readonly dueLabel = computed(() =>
-    this.auth.profile()?.businessType === 'pg' ? 'Rent due' : 'Plan expiry',
-  );
+  readonly dueLabel = computed(() => {
+    this.i18n.lang();
+    return this.auth.profile()?.businessType === 'pg'
+      ? this.i18n.t('fees.rentDue')
+      : this.i18n.t('fees.planExpiry');
+  });
 
   readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
   readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
@@ -107,17 +117,42 @@ export class MembersComponent implements OnInit, OnDestroy {
         return d && d <= end;
       });
     }
+
+    const dueFilter = this.dueSectionFilter();
+    if (dueFilter === 'dueToday') {
+      list = list.filter((m) => {
+        const d = timestampToDate(m.dueDate);
+        return d ? dueUiStatus(d) === 'dueToday' : false;
+      });
+    } else if (dueFilter === 'overdue') {
+      list = list.filter((m) => {
+        const d = timestampToDate(m.dueDate);
+        return d ? dueUiStatus(d) === 'overdue' : false;
+      });
+    } else if (dueFilter === 'dueSoon') {
+      const today = startOfToday();
+      list = list.filter((m) => {
+        const due = coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
+        if (!due || m.status !== 'active') return false;
+        const daysLeft = calendarDaysBetween(today, startOfDay(due));
+        return daysLeft >= 0 && daysLeft <= 5;
+      });
+    }
+
     const sk = this.sortKey();
     const dir = this.sortDir() === 'asc' ? 1 : -1;
+    const dueCalendarTime = (m: Member): number => {
+      const d = coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
+      return d ? startOfDay(d).getTime() : Number.POSITIVE_INFINITY;
+    };
     list.sort((a, b) => {
       if (sk === 'name') {
         const an = `${a.firstName} ${a.lastName || ''}`.toLowerCase();
         const bn = `${b.firstName} ${b.lastName || ''}`.toLowerCase();
         return an.localeCompare(bn) * dir;
       }
-      const ad = timestampToDate(a.dueDate)?.getTime() ?? 0;
-      const bd = timestampToDate(b.dueDate)?.getTime() ?? 0;
-      return (ad - bd) * dir;
+      // Due sort: ascending = earliest due first (most overdue / least days left at top).
+      return (dueCalendarTime(a) - dueCalendarTime(b)) * dir;
     });
     return list;
   });
@@ -192,6 +227,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     firstName: ['', Validators.required],
     lastName: [''],
     mobile: ['', optionalDigitsLen(10)],
+    email: [''],
     address: [''],
     floorNumber: ['', Validators.required],
     roomNumber: ['', Validators.required],
@@ -200,7 +236,9 @@ export class MembersComponent implements OnInit, OnDestroy {
     aadhaarLast4: ['', optionalDigitsLen(4)],
     notes: [''],
     joinDate: ['', Validators.required],
+    dueDate: ['', Validators.required],
     amount: [0, [Validators.required, positiveAmount()]],
+    paymentMethod: this.fb.nonNullable.control<PaymentMethod>('cash', Validators.required),
     status: this.fb.nonNullable.control<'active' | 'inactive'>('active', Validators.required),
     subscriptionType: this.fb.nonNullable.control<'monthly' | 'quarterly' | 'yearly'>(
       'monthly',
@@ -227,7 +265,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       }
 
       const due = params.get('due');
-      if (due === 'dueToday' || due === 'overdue') {
+      if (due === 'dueToday' || due === 'overdue' || due === 'dueSoon') {
         this.dueSectionFilter.set(due);
       } else {
         this.dueSectionFilter.set('all');
@@ -260,10 +298,16 @@ export class MembersComponent implements OnInit, OnDestroy {
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
     const d = String(today.getDate()).padStart(2, '0');
+    const futureDate = new Date(today);
+    futureDate.setDate(futureDate.getDate() + 30);
+    const fy = futureDate.getFullYear();
+    const fm = String(futureDate.getMonth() + 1).padStart(2, '0');
+    const fd = String(futureDate.getDate()).padStart(2, '0');
     this.memberForm.reset({
       firstName: '',
       lastName: '',
       mobile: '',
+      email: '',
       address: '',
       floorNumber: '',
       roomNumber: '',
@@ -272,6 +316,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       aadhaarLast4: '',
       notes: '',
       joinDate: `${y}-${m}-${d}`,
+      dueDate: `${fy}-${fm}-${fd}`,
       amount: 0,
       status: 'active',
       subscriptionType: 'monthly',
@@ -284,10 +329,13 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.moreOpen.set(!!(m.gender || m.aadhaarLast4 || m.notes));
     const jd = timestampToDate(m.joinDate);
     const joinStr = jd ? this.toInputDate(jd) : '';
+    const dd = timestampToDate(m.dueDate);
+    const dueStr = dd ? this.toInputDate(dd) : '';
     this.memberForm.patchValue({
       firstName: m.firstName,
       lastName: m.lastName || '',
       mobile: m.mobile || '',
+      email: m.email || '',
       address: m.address || '',
       floorNumber: m.floorNumber || '',
       roomNumber: m.roomNumber || '',
@@ -296,7 +344,9 @@ export class MembersComponent implements OnInit, OnDestroy {
       aadhaarLast4: m.aadhaarLast4 || '',
       notes: m.notes || '',
       joinDate: joinStr,
+      dueDate: dueStr,
       amount: m.amount,
+      paymentMethod: 'cash', // Default to cash for existing members
       status: m.status,
       subscriptionType: m.subscriptionType || 'monthly',
     });
@@ -318,10 +368,12 @@ export class MembersComponent implements OnInit, OnDestroy {
       return;
     }
     const join = new Date(v.joinDate + 'T12:00:00');
+    const due = new Date(v.dueDate + 'T12:00:00');
     const input = {
       firstName: v.firstName,
       lastName: v.lastName || undefined,
       mobile: v.mobile || undefined,
+      email: v.email || undefined,
       address: v.address || undefined,
       floorNumber: v.floorNumber,
       roomNumber: v.roomNumber,
@@ -330,7 +382,9 @@ export class MembersComponent implements OnInit, OnDestroy {
       aadhaarLast4: v.aadhaarLast4 || undefined,
       notes: v.notes || undefined,
       joinDate: join,
+      dueDate: due,
       amount: Number(v.amount),
+      paymentMethod: v.paymentMethod,
       status: v.status,
       subscriptionType: this.isGym() ? v.subscriptionType : undefined,
     };

@@ -7,11 +7,12 @@ import { MemberService } from '../../core/services/member.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ModalComponent } from '../../shared/modal.component';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
 @Component({
   selector: 'app-rooms-page',
   standalone: true,
-  imports: [ReactiveFormsModule, ModalComponent],
+  imports: [ReactiveFormsModule, ModalComponent, TranslatePipe],
   templateUrl: './rooms-page.component.html',
 })
 export class RoomsPageComponent implements OnInit, OnDestroy {
@@ -196,5 +197,9 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
     if (!Number.isFinite(f) || !Number.isFinite(r) || !Number.isFinite(b)) return '';
     if (f <= 0 || r <= 0 || b <= 0) return '';
     return `${Math.trunc(f)}-${Math.trunc(r)}-${Math.trunc(b)}`;
+  }
+
+  formatRoomNumber(floorNumber: number, roomNumber: number): string {
+    return `${floorNumber}${roomNumber.toString().padStart(2, '0')}`;
   }
 }

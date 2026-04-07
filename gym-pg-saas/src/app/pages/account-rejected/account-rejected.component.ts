@@ -6,8 +6,14 @@ import { AuthService } from '../../core/services/auth.service';
   selector: 'app-account-rejected',
   standalone: true,
   template: `
-    <div class="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4">
-      <div class="max-w-md rounded-2xl border border-red-200 bg-red-50 p-8 text-center shadow-sm">
+    <div class="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+      <div aria-hidden="true" class="pointer-events-none absolute inset-0">
+        <div class="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-indigo-500/25 blur-3xl"></div>
+        <div class="absolute -right-24 top-20 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl"></div>
+        <div class="absolute left-1/2 top-[60%] h-80 w-[32rem] -translate-x-1/2 rounded-full bg-indigo-500/10 blur-3xl"></div>
+      </div>
+      <div class="relative w-full max-w-md">
+      <div class="saas-card border-red-200 bg-red-50/60 p-8 text-center">
         <span class="material-icons-outlined mb-4 text-4xl text-red-700">block</span>
         <h1 class="text-xl font-bold text-slate-900">Account not approved</h1>
         <p class="mt-3 text-slate-700">
@@ -15,11 +21,12 @@ import { AuthService } from '../../core/services/auth.service';
         </p>
         <button
           type="button"
-          class="mt-6 w-full rounded-xl bg-slate-900 py-4 text-base font-semibold text-white hover:bg-slate-800"
+          class="saas-btn-secondary mt-6 w-full py-3 text-base"
           (click)="signOut()"
         >
           Sign out
         </button>
+      </div>
       </div>
     </div>
   `,

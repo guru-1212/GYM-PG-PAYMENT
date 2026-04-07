@@ -22,17 +22,67 @@ export class PaymentService {
   private readonly fb = inject(FirebaseAppService);
   private readonly members = inject(MemberService);
 
+  private paymentDateFromRow(row: Record<string, unknown>): Date | null {
+    return coerceFirestoreDate(row['date']) ?? coerceFirestoreDate(row['createdAt']);
+  }
+
+  private paymentAmountFromRow(row: Record<string, unknown>): number {
+    // Check for field existence first, then convert to amount
+    // Order: amount > paidAmount > paymentAmount > totalPaid
+    if (row['amount'] !== undefined && row['amount'] !== null) {
+      const val = this.toAmount(row['amount']);
+      if (val > 0) return val;
+    }
+    if (row['paidAmount'] !== undefined && row['paidAmount'] !== null) {
+      const val = this.toAmount(row['paidAmount']);
+      if (val > 0) return val;
+    }
+    if (row['paymentAmount'] !== undefined && row['paymentAmount'] !== null) {
+      const val = this.toAmount(row['paymentAmount']);
+      if (val > 0) return val;
+    }
+    if (row['totalPaid'] !== undefined && row['totalPaid'] !== null) {
+      const val = this.toAmount(row['totalPaid']);
+      if (val > 0) return val;
+    }
+    return 0;
+  }
+
+  private toAmount(value: unknown): number {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (typeof value === 'string') {
+      const n = Number(value.replace(/,/g, '').trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
+  }
+
   watchPaymentsForOwner(ownerId: string, callback: (payments: Payment[]) => void): Unsubscribe {
+    console.log('📡 Setting up payments listener for ownerId:', ownerId);
     const q = query(
       collection(this.fb.db, 'payments'),
       where('ownerId', '==', ownerId),
       orderBy('date', 'desc'),
     );
-    return onSnapshot(q, (snap) => {
-      const list: Payment[] = [];
-      snap.forEach((d) => list.push({ ...(d.data() as Payment), paymentId: d.id }));
-      callback(list);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        const list: Payment[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as Payment;
+          list.push({ ...data, paymentId: d.id });
+        });
+        console.log(`✅ Payments snapshot received: ${list.length} payments for ownerId: ${ownerId}`);
+        list.forEach((p, i) => {
+          const pDate = p.date instanceof Object && 'toDate' in p.date ? p.date.toDate() : p.date;
+          console.log(`  [${i}] Amount: ${p.amount}, Date: ${pDate}, OwnerId: ${p.ownerId}`);
+        });
+        callback(list);
+      },
+      (error) => {
+        console.error('❌ Payments listener error:', error);
+      },
+    );
   }
 
   /**
@@ -41,19 +91,30 @@ export class PaymentService {
   async sumPaymentsForCalendarMonth(ownerId: string, refDate: Date = new Date()): Promise<number> {
     const start = new Date(refDate.getFullYear(), refDate.getMonth(), 1, 0, 0, 0, 0);
     const end = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0, 23, 59, 59, 999);
-    const q = query(
+    const monthlyByDateQ = query(
       collection(this.fb.db, 'payments'),
       where('ownerId', '==', ownerId),
       where('date', '>=', dateToTimestamp(start)),
       where('date', '<=', dateToTimestamp(end)),
     );
-    const snap = await getDocs(q);
+    const snap = await getDocs(monthlyByDateQ);
     let sum = 0;
     snap.forEach((docSnap) => {
       const row = docSnap.data() as Record<string, unknown>;
-      const d = coerceFirestoreDate(row['date']);
+      const d = this.paymentDateFromRow(row);
       if (!d || !isDateInCalendarMonth(d, refDate)) return;
-      sum += Number(row['amount']) || 0;
+      sum += this.paymentAmountFromRow(row);
+    });
+    if (sum > 0) return sum;
+
+    // Fallback for legacy rows where `date` field may be missing/malformed.
+    const ownerOnlyQ = query(collection(this.fb.db, 'payments'), where('ownerId', '==', ownerId));
+    const ownerOnlySnap = await getDocs(ownerOnlyQ);
+    ownerOnlySnap.forEach((docSnap) => {
+      const row = docSnap.data() as Record<string, unknown>;
+      const d = this.paymentDateFromRow(row);
+      if (!d || !isDateInCalendarMonth(d, refDate)) return;
+      sum += this.paymentAmountFromRow(row);
     });
     return sum;
   }

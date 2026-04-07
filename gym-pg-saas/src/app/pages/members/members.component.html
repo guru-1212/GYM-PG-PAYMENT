@@ -1,240 +1,129 @@
-<div class="mx-auto max-w-6xl space-y-6">
+<div class="saas-page mx-auto max-w-6xl">
   <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-slate-900">Members</h1>
-      <p class="text-slate-600">Add people, track {{ dueLabel().toLowerCase() }}, and record payments.</p>
+      <h1 class="text-2xl font-bold text-slate-900">{{ 'members.title' | t }}</h1>
+      <p class="text-slate-600">{{ 'members.subtitle' | t }}</p>
     </div>
-    <button
-      type="button"
-      class="rounded-xl bg-emerald-600 px-6 py-4 text-base font-semibold text-white shadow-sm hover:bg-emerald-700"
-      (click)="openAdd()"
-    >
-      + Add member
+    <button type="button" class="saas-btn-primary px-6 py-3 text-base" (click)="openAdd()">
+      + {{ 'members.addMember' | t }}
     </button>
   </div>
 
-  <div class="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:flex-wrap lg:items-end">
-    <div class="min-w-[200px] flex-1">
-      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Search</label>
+  <div class="saas-card grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
+    <div class="md:col-span-2 xl:col-span-2">
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.search' | t }}</label>
       <input
         type="search"
-        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-        placeholder="Name or mobile"
+        class="saas-input w-full"
+        [placeholder]="'members.searchPlaceholder' | t"
         [value]="search()"
         (input)="search.set($any($event.target).value)"
       />
     </div>
     <div>
-      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Status</label>
-      <select
-        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base lg:w-40"
-        [value]="statusFilter()"
-        (change)="statusFilter.set($any($event.target).value)"
-      >
-        <option value="all">All</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.memberStatus' | t }}</label>
+      <select class="saas-input w-full" [value]="statusFilter()" (change)="statusFilter.set($any($event.target).value)">
+        <option value="all">{{ 'members.all' | t }}</option>
+        <option value="active">{{ 'members.active' | t }}</option>
+        <option value="inactive">{{ 'members.inactive' | t }}</option>
       </select>
     </div>
     <div>
-      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Payment</label>
-      <select
-        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base lg:w-40"
-        [value]="payFilter()"
-        (change)="payFilter.set($any($event.target).value)"
-      >
-        <option value="all">All</option>
-        <option value="paid">Paid</option>
-        <option value="pending">Pending</option>
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.payment' | t }}</label>
+      <select class="saas-input w-full" [value]="payFilter()" (change)="payFilter.set($any($event.target).value)">
+        <option value="all">{{ 'members.all' | t }}</option>
+        <option value="paid">{{ 'members.paid' | t }}</option>
+        <option value="pending">{{ 'members.pending' | t }}</option>
       </select>
     </div>
-    <div>
-      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Sort</label>
+    <div class="md:col-span-2 xl:col-span-1 xl:max-w-none">
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.sort' | t }}</label>
       <div class="flex gap-2">
-        <select
-          class="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-base"
-          [value]="sortKey()"
-          (change)="sortKey.set($any($event.target).value)"
-        >
-          <option value="due">{{ dueLabel() }}</option>
-          <option value="name">Name</option>
+        <select class="saas-input min-w-0 flex-1" [value]="sortKey()" (change)="sortKey.set($any($event.target).value)">
+          <option value="due">{{ 'members.dueUrgent' | t: { label: dueLabel() } }}</option>
+          <option value="name">{{ 'members.nameSort' | t }}</option>
         </select>
-        <select
-          class="w-28 rounded-xl border border-slate-200 px-3 py-3 text-base"
-          [value]="sortDir()"
-          (change)="sortDir.set($any($event.target).value)"
-        >
-          <option value="asc">Asc</option>
-          <option value="desc">Desc</option>
+        <select class="saas-input w-36 shrink-0" [value]="sortDir()" (change)="sortDir.set($any($event.target).value)">
+          <option value="asc">{{ sortKey() === 'due' ? ('members.soonestFirst' | t) : ('members.az' | t) }}</option>
+          <option value="desc">{{ sortKey() === 'due' ? ('members.latestFirst' | t) : ('members.za' | t) }}</option>
         </select>
       </div>
     </div>
   </div>
 
-  <div class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-    <span class="inline-flex items-center gap-2 font-medium text-slate-700">Row colors</span>
-    <span class="inline-flex items-center gap-1.5"
-      ><span class="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"></span> Overdue</span
-    >
-    <span class="inline-flex items-center gap-1.5"
-      ><span class="h-2.5 w-2.5 shrink-0 rounded-full bg-orange-400"></span> Due soon</span
-    >
-    <span class="inline-flex items-center gap-1.5"
-      ><span class="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-400"></span> Partial payment</span
-    >
-    <span class="inline-flex items-center gap-1.5"
-      ><span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500"></span> Active</span
-    >
-  </div>
-
-  @if (dueSectionFilter() !== 'all') {
-    <div class="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-      <span>
-        Showing only:
-        <strong>{{ dueSectionFilter() === 'dueToday' ? 'Due today' : 'Overdue' }}</strong>
-      </span>
-      <button
-        type="button"
-        class="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
-        (click)="clearDueSectionFilter()"
-      >
-        Show all sections
-      </button>
+  @if (displayMembers().length === 0) {
+    <div class="saas-card p-10 text-center">
+      <p class="text-slate-600">{{ 'members.noneFound' | t }}</p>
+      <button type="button" class="saas-btn-primary mt-4 px-5 py-2.5 text-sm" (click)="openAdd()">{{ 'members.addMember' | t }}</button>
     </div>
-  }
-
-  @if (groupedMemberSections().length === 0) {
-    <div class="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
-      No members match your filters.
-    </div>
-  }
-
-  @for (sec of groupedMemberSections(); track sec.key) {
-    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div class="border-b border-slate-100 bg-slate-50 px-4 py-3">
-        <h2 class="text-sm font-semibold text-slate-900">
-          {{ sec.title }}
-          <span class="font-normal text-slate-500">({{ sec.members.length }})</span>
-        </h2>
-      </div>
+  } @else {
+    <section class="saas-card hidden overflow-hidden md:block">
       <div class="overflow-x-auto">
-        <table class="min-w-full text-left text-sm">
-          <thead class="bg-white text-xs font-semibold uppercase text-slate-500">
+        <table class="saas-table min-w-full text-left text-sm">
+          <thead>
             <tr>
               <th class="px-4 py-3">Name</th>
               <th class="px-4 py-3">Mobile</th>
-              @if (isGym()) {
-                <th class="px-4 py-3">Plan</th>
-              }
+              <th class="px-4 py-3">Plan</th>
               <th class="px-4 py-3">{{ dueLabel() }}</th>
-              <th class="px-4 py-3">Payment status</th>
-              <th class="px-4 py-3">Member</th>
+              <th class="px-4 py-3">Time left</th>
+              <th class="px-4 py-3">Status</th>
               <th class="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            @for (m of sec.members; track m.memberId) {
-              <tr
-                [class.bg-blue-50]="rowTone(m) === 'blue'"
-                [class.bg-red-50]="rowTone(m) === 'red'"
-                [class.bg-orange-50]="rowTone(m) === 'orange'"
-                [class.bg-emerald-50]="rowTone(m) === 'green'"
-                [class.bg-slate-50]="rowTone(m) === 'neutral'"
-              >
-                <td class="px-4 py-3 font-medium text-slate-900">
-                  {{ m.firstName }} {{ m.lastName }}
-                </td>
-                <td class="px-4 py-3 text-slate-600">{{ m.mobile || '—' }}</td>
-                @if (isGym()) {
-                  <td class="px-4 py-3 capitalize text-slate-600">{{ m.subscriptionType || 'monthly' }}</td>
-                }
-                <td class="px-4 py-3 text-slate-800">
+            @for (m of displayMembers(); track m.memberId; let odd = $odd) {
+              <tr class="transition-colors duration-200 hover:bg-indigo-50/70" [class.bg-slate-50]="odd">
+                <td class="px-4 py-3.5 font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</td>
+                <td class="px-4 py-3.5 text-slate-600">{{ m.mobile || '—' }}</td>
+                <td class="px-4 py-3.5 capitalize text-slate-600">{{ m.subscriptionType || 'monthly' }}</td>
+                <td class="px-4 py-3.5 text-slate-800">
                   <div class="font-medium">{{ m.dueDate.toDate() | date: 'mediumDate' }}</div>
-                  <div class="text-xs text-slate-600">{{ dueStatusLabel(m) }}</div>
                 </td>
-                <td class="px-4 py-3">
-                  @if (rowTone(m) === 'blue') {
-                    <span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-900">Partial payment</span>
-                  } @else if (rowTone(m) === 'red') {
-                    <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-900">Overdue</span>
-                  } @else if (rowTone(m) === 'orange') {
-                    <span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-900"
-                      >Due soon</span
-                    >
+                <td class="max-w-[200px] px-4 py-3.5 text-xs text-slate-700 sm:text-sm">
+                  {{ dueStatusLabel(m) }}
+                </td>
+                <td class="px-4 py-3.5">
+                  @if (rowTone(m) === 'red') {
+                    <span class="status-pill-overdue">Overdue</span>
+                  } @else if (rowTone(m) === 'orange' || rowTone(m) === 'blue') {
+                    <span class="status-pill-due-soon">Due soon</span>
                   } @else if (rowTone(m) === 'green') {
-                    <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900"
-                      >Active</span
-                    >
+                    <span class="status-pill-paid">Paid</span>
                   } @else {
-                    <span class="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-800">—</span>
+                    <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">—</span>
                   }
                 </td>
-                <td class="px-4 py-3">
-                  <span
-                    class="rounded-full px-2 py-0.5 text-xs font-semibold"
-                    [class.bg-slate-200]="m.status === 'inactive'"
-                    [class.text-slate-800]="m.status === 'inactive'"
-                    [class.bg-emerald-100]="m.status === 'active'"
-                    [class.text-emerald-900]="m.status === 'active'"
-                  >
-                    {{ m.status }}
-                  </span>
-                </td>
-                <td class="px-4 py-3">
-                  <div class="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                <td class="px-4 py-3.5">
+                  <div class="flex items-center justify-end gap-2">
                     @if (m.status === 'active' && rowTone(m) !== 'green') {
                       <button
                         type="button"
-                        class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                        title="Mark Paid"
+                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
                         (click)="openPay(m)"
                       >
-                        {{ (m.pendingAmount || 0) > 0 ? 'Partial payment done' : 'Mark paid' }}
+                        <span class="material-icons-outlined text-base">check_circle</span>
                       </button>
-                    }
-                    @if (m.status === 'active' && rowTone(m) === 'green') {
-                      <span class="rounded-lg bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-900"
-                        >Paid ahead</span
-                      >
                     }
                     @if (whatsappLink(m); as wa) {
                       <a
                         [href]="wa"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                        title="Send Reminder"
+                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
                       >
-                        Send reminder
+                        <span class="material-icons-outlined text-base">campaign</span>
                       </a>
                     }
-                    @if (canSendReceipt(m)) {
-                      <button
-                        type="button"
-                        class="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-50"
-                        (click)="sendReceipt(m)"
-                      >
-                        Send receipt
-                      </button>
-                    }
                     <button
                       type="button"
-                      class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                      (click)="openHistory(m)"
-                    >
-                      History
-                    </button>
-                    <button
-                      type="button"
-                      class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      title="Edit Member"
+                      class="flex h-9 w-9 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
                       (click)="openEdit(m)"
                     >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      class="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-50"
-                      (click)="deleteMember(m)"
-                    >
-                      Delete
+                      <span class="material-icons-outlined text-base">edit</span>
                     </button>
                   </div>
                 </td>
@@ -244,6 +133,45 @@
         </table>
       </div>
     </section>
+
+    <div class="space-y-3 md:hidden">
+      @for (m of displayMembers(); track m.memberId) {
+        <article class="saas-card animate-[fadeIn_0.35s_ease] space-y-3 p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-base font-semibold text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
+              <p class="mt-1 text-sm text-slate-600">📞 {{ m.mobile || 'Not available' }}</p>
+            </div>
+            @if (rowTone(m) === 'red') {
+              <span class="status-pill-overdue">Overdue</span>
+            } @else if (rowTone(m) === 'orange' || rowTone(m) === 'blue') {
+              <span class="status-pill-due-soon">Due soon</span>
+            } @else if (rowTone(m) === 'green') {
+              <span class="status-pill-paid">Paid</span>
+            } @else {
+              <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">—</span>
+            }
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <p class="text-slate-500">Plan</p>
+            <p class="justify-self-end capitalize text-slate-700">{{ m.subscriptionType || 'monthly' }}</p>
+            <p class="text-slate-500">{{ dueLabel() }}</p>
+            <p class="justify-self-end text-slate-700">{{ m.dueDate.toDate() | date: 'mediumDate' }}</p>
+            <p class="text-slate-500">Time left</p>
+            <p class="justify-self-end text-right text-slate-700">{{ dueStatusLabel(m) }}</p>
+          </div>
+          <div class="flex flex-wrap gap-2 pt-1">
+            @if (m.status === 'active' && rowTone(m) !== 'green') {
+              <button type="button" class="saas-btn-primary px-3 py-2 text-xs" (click)="openPay(m)">Mark Paid</button>
+            }
+            @if (whatsappLink(m); as wa) {
+              <a [href]="wa" target="_blank" rel="noopener noreferrer" class="saas-btn-secondary px-3 py-2 text-xs">Reminder</a>
+            }
+            <button type="button" class="saas-btn-secondary px-3 py-2 text-xs" (click)="openEdit(m)">Edit</button>
+          </div>
+        </article>
+      }
+    </div>
   }
 </div>
 
@@ -273,6 +201,14 @@
       @if (memberForm.controls.mobile.touched && memberForm.controls.mobile.hasError('digitsLen')) {
         <p class="mt-1 text-sm text-red-600">Enter 10 digits or leave blank</p>
       }
+    </div>
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Email</label>
+      <input
+        type="email"
+        formControlName="email"
+        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+      />
     </div>
     <div>
       <label class="mb-1 block text-sm font-medium text-slate-700">Address</label>
@@ -351,9 +287,9 @@
         <p class="mt-1 text-xs text-slate-500">Next due after payment moves by this period from the current due date.</p>
       </div>
     }
-    <div class="grid gap-4 sm:grid-cols-2">
+    <div class="grid gap-4 sm:grid-cols-3">
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700">Monthly amount (₹)</label>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Amount (₹)</label>
         <input
           type="number"
           formControlName="amount"
@@ -366,8 +302,31 @@
         }
       </div>
       <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Payment Method</label>
+        <select formControlName="paymentMethod" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base">
+          <option value="cash">Cash</option>
+          <option value="upi">UPI</option>
+          <option value="card">Card</option>
+        </select>
+        @if (memberForm.controls.paymentMethod.touched && memberForm.controls.paymentMethod.invalid) {
+          <p class="mt-1 text-sm text-red-600">Payment method is required</p>
+        }
+      </div>
+      <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">Join date</label>
         <input type="date" formControlName="joinDate" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
+        @if (memberForm.controls.joinDate.touched && memberForm.controls.joinDate.invalid) {
+          <p class="mt-1 text-sm text-red-600">Join date is required</p>
+        }
+      </div>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Start billing (end date)</label>
+        <input type="date" formControlName="dueDate" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
+        @if (memberForm.controls.dueDate.touched && memberForm.controls.dueDate.invalid) {
+          <p class="mt-1 text-sm text-red-600">Due date is required</p>
+        }
       </div>
     </div>
     <div>
@@ -440,7 +399,7 @@
                   @for (_ of [].constructor(room.beds); track $index) {
                     <button
                       type="button"
-                      class="h-8 rounded-md border text-xs font-semibold"
+                      class="seat-block h-8 rounded-md border text-xs font-semibold"
                       [disabled]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
                       [class.border-red-200]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
                       [class.bg-red-100]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
@@ -471,7 +430,7 @@
         Recording payment for <span class="font-semibold text-slate-900">{{ m.firstName }} {{ m.lastName }}</span>
       </p>
       <p class="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
-        Next {{ dueLabel().toLowerCase() }} will be one billing period after the current due date ({{
+        Next {{ dueLabel() }} will be one billing period after the current due date ({{
           m.dueDate.toDate() | date: 'mediumDate'
         }}), not from today.
       </p>
