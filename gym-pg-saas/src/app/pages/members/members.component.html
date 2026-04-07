@@ -106,6 +106,16 @@
                         <span class="material-icons-outlined text-base">check_circle</span>
                       </button>
                     }
+                    @if (rowTone(m) === 'green') {
+                      <button
+                        type="button"
+                        title="Send Receipt"
+                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                        (click)="sendReceipt(m)"
+                      >
+                        <span class="material-icons-outlined text-base">receipt</span>
+                      </button>
+                    }
                     @if (whatsappLink(m); as wa) {
                       <a
                         [href]="wa"
@@ -163,6 +173,9 @@
           <div class="flex flex-wrap gap-2 pt-1">
             @if (m.status === 'active' && rowTone(m) !== 'green') {
               <button type="button" class="saas-btn-primary px-3 py-2 text-xs" (click)="openPay(m)">Mark Paid</button>
+            }
+            @if (rowTone(m) === 'green') {
+              <button type="button" class="saas-btn-secondary px-3 py-2 text-xs" (click)="sendReceipt(m)">Send Receipt</button>
             }
             @if (whatsappLink(m); as wa) {
               <a [href]="wa" target="_blank" rel="noopener noreferrer" class="saas-btn-secondary px-3 py-2 text-xs">Reminder</a>

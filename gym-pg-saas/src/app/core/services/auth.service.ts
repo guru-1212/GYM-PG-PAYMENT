@@ -66,6 +66,12 @@ export class AuthService {
   readonly isApprovedOwner = computed(
     () => this.profile()?.role === 'owner' && this.profile()?.status === 'approved',
   );
+  readonly isSubscriptionValid = computed(() => {
+    const profile = this.profile();
+    if (!profile || !profile.planEndDate) return false;
+    const planEndDate = profile.planEndDate.toDate?.() || new Date(profile.planEndDate as any);
+    return new Date() <= planEndDate;
+  });
 
   private profileUnsub: Unsubscribe | null = null;
   /** Avoid unsub/resub on repeated onAuthStateChanged for the same UID (Firefox: NS_BINDING_ABORTED on Write/Listen channel). */

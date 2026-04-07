@@ -56,5 +56,11 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if false;
     }
+
+    match /adminPayments/{paymentId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
   }
 }
