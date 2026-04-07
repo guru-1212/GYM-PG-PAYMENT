@@ -57,6 +57,11 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly recentJoinersExpanded = signal(false);
   readonly memberDetailTarget = signal<Member | null>(null);
 
+  // Pagination signals
+  readonly dueTodayPage = signal(1);
+  readonly dueSoonPage = signal(1);
+  readonly overduePage = signal(1);
+  readonly itemsPerPage = 10;
   readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
   readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
   readonly hasPgLayout = computed(() => {
@@ -175,6 +180,34 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       return daysLeft >= 0 && daysLeft <= 5;
     });
   });
+
+  // Paginated lists
+  readonly dueTodayPagedList = computed(() => {
+    const list = this.dueTodayList();
+    const page = this.dueTodayPage();
+    const start = (page - 1) * this.itemsPerPage;
+    return list.slice(start, start + this.itemsPerPage);
+  });
+
+  readonly dueTodayPages = computed(() => Math.ceil(this.dueTodayList().length / this.itemsPerPage));
+
+  readonly dueSoonPagedList = computed(() => {
+    const list = this.dueSoonList();
+    const page = this.dueSoonPage();
+    const start = (page - 1) * this.itemsPerPage;
+    return list.slice(start, start + this.itemsPerPage);
+  });
+
+  readonly dueSoonPages = computed(() => Math.ceil(this.dueSoonList().length / this.itemsPerPage));
+
+  readonly overduePagedList = computed(() => {
+    const list = this.overdueList();
+    const page = this.overduePage();
+    const start = (page - 1) * this.itemsPerPage;
+    return list.slice(start, start + this.itemsPerPage);
+  });
+
+  readonly overduePages = computed(() => Math.ceil(this.overdueList().length / this.itemsPerPage));
 
   readonly partialPendingList = computed(() =>
     this.members().filter((m) => m.status === 'active' && (Number(m.pendingAmount) || 0) > 0),
@@ -330,6 +363,37 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     return coerceFirestoreDate(m.createdAt as unknown) ?? timestampToDate(m.createdAt);
   }
 
+  // Pagination helpers
+  getDueTodayPageNumbers(): number[] {
+    return Array.from({ length: this.dueTodayPages() }, (_, i) => i + 1);
+  }
+
+  getDueSoonPageNumbers(): number[] {
+    return Array.from({ length: this.dueSoonPages() }, (_, i) => i + 1);
+  }
+
+  getOverduePageNumbers(): number[] {
+    return Array.from({ length: this.overduePages() }, (_, i) => i + 1);
+  }
+
+  setDueTodayPage(page: number): void {
+    if (page >= 1 && page <= this.dueTodayPages()) {
+      this.dueTodayPage.set(page);
+    }
+  }
+
+  setDueSoonPage(page: number): void {
+    if (page >= 1 && page <= this.dueSoonPages()) {
+      this.dueSoonPage.set(page);
+    }
+  }
+
+  setOverduePage(page: number): void {
+    if (page >= 1 && page <= this.overduePages()) {
+      this.overduePage.set(page);
+    }
+  }
+
   memberDueDate(m: Member): Date | null {
     return coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
   }
@@ -383,8 +447,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       sample = [
         'name,mobile,plan,dueDate,subscriptionType,floor,room,bed',
         'Ravi Kumar,9876543210,4000,2026-04-30,monthly,1,101,1',
-        'Priya Singh,9988776655,5000,2026-05-15,quarterly,2,205,3',
-        'Amit Patel,9123456789,3500,2026-06-10,monthly,1,102,2',
+        'Priya Singh,9988776655,5000,2026-05-15,quarterly,5,503,3',
+        'Amit Patel,9123456789,3500,2026-06-10,monthly,4,407,2',
       ].join('\n');
     } else {
       sample = [
@@ -823,21 +887,53 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const room = String(roomRaw || '').trim();
     const bed = String(bedRaw || '').trim();
     if (!this.isPg()) return { floorNumber: '', roomNumber: '', bedNumber: '' };
-    if (!floor || !room || !bed) return { floorNumber: '', roomNumber: '', bedNumber: '' };
+    if (!room || !bed) return { floorNumber: '', roomNumber: '', bedNumber: '' };
 
-    const f = Number(floor);
-    const r = Number(room);
-    const b = Number(bed);
-    if (!Number.isFinite(f) || !Number.isFinite(r) || !Number.isFinite(b) || f <= 0 || r <= 0 || b <= 0) {
-      return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Invalid floor/room/bed values' };
+    // Try to parse room number - check if it contains floor info (e.g., 101, 407, 503)
+    const roomNum = Number(room);
+    let f: number;
+    let r: number;
+
+    if (!Number.isFinite(roomNum) || roomNum <= 0) {
+      return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Invalid room/floor format' };
     }
+
+    // If room number >= 100, extract floor and room (e.g., 101 -> floor=1, room=1)
+    if (roomNum >= 100) {
+      f = Math.floor(roomNum / 100);
+      r = roomNum % 100;
+      
+      // If floor is also provided separately, validate it matches
+      if (floor) {
+        const floorNum = Number(floor);
+        if (Number.isFinite(floorNum) && floorNum !== f) {
+          return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Floor mismatch: data has floor 1 but room 501' };
+        }
+      }
+    } else {
+      // Otherwise use floor and room separately (old format)
+      if (!floor) return { floorNumber: '', roomNumber: '', bedNumber: '' };
+      f = Number(floor);
+      r = roomNum;
+      
+      if (!Number.isFinite(f) || f <= 0) {
+        return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Invalid floor value' };
+      }
+    }
+
+    const b = Number(bed);
+    if (!Number.isFinite(b) || b <= 0) {
+      return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Invalid bed value' };
+    }
+
+    // Validate against layout
     const fl = (this.pgLayout()?.floors || []).find((x) => Number(x.floorNumber) === Math.trunc(f));
     const rm = fl?.rooms.find((x) => Number(x.roomNumber) === Math.trunc(r));
     if (!fl || !rm) {
-      return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Floor/room not found in layout' };
+      return { floorNumber: '', roomNumber: '', bedNumber: '', error: `Floor ${f}, Room ${r} not found in layout` };
     }
     if (Math.trunc(b) > Number(rm.beds || 0)) {
-      return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Bed not found in layout' };
+      return { floorNumber: '', roomNumber: '', bedNumber: '', error: `Bed ${b} not found in room` };
     }
     if (this.isBedOccupied(f, r, b)) {
       return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Bed already occupied' };

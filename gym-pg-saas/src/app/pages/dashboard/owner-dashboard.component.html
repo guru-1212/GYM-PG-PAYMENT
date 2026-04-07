@@ -124,7 +124,7 @@
           <p class="text-sm text-slate-500">{{ 'dashboard.noOneDueToday' | t }}</p>
         } @else {
           <ul class="divide-y divide-slate-100">
-            @for (m of dueTodayList(); track m.memberId) {
+            @for (m of dueTodayPagedList(); track m.memberId) {
               <li class="flex items-center justify-between py-3">
                 <div>
                   <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
@@ -136,6 +136,23 @@
               </li>
             }
           </ul>
+          @if (dueTodayPages() > 1) {
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+              @for (pageNum of getDueTodayPageNumbers(); track pageNum) {
+                <button
+                  type="button"
+                  (click)="setDueTodayPage(pageNum)"
+                  [class.bg-emerald-100]="dueTodayPage() === pageNum"
+                  [class.text-emerald-900]="dueTodayPage() === pageNum"
+                  [class.bg-slate-100]="dueTodayPage() !== pageNum"
+                  [class.text-slate-600]="dueTodayPage() !== pageNum"
+                  class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors hover:bg-emerald-50"
+                >
+                  {{ pageNum }}
+                </button>
+              }
+            </div>
+          }
         }
       </section>
 
@@ -148,7 +165,7 @@
           <p class="text-sm text-slate-500">{{ 'dashboard.noDueSoon' | t }}</p>
         } @else {
           <ul class="divide-y divide-slate-100">
-            @for (m of dueSoonList().slice(0, 5); track m.memberId) {
+            @for (m of dueSoonPagedList(); track m.memberId) {
               <li class="flex items-center justify-between py-3">
                 <div>
                   <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
@@ -158,6 +175,23 @@
               </li>
             }
           </ul>
+          @if (dueSoonPages() > 1) {
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+              @for (pageNum of getDueSoonPageNumbers(); track pageNum) {
+                <button
+                  type="button"
+                  (click)="setDueSoonPage(pageNum)"
+                  [class.bg-sky-100]="dueSoonPage() === pageNum"
+                  [class.text-sky-900]="dueSoonPage() === pageNum"
+                  [class.bg-slate-100]="dueSoonPage() !== pageNum"
+                  [class.text-slate-600]="dueSoonPage() !== pageNum"
+                  class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors hover:bg-sky-50"
+                >
+                  {{ pageNum }}
+                </button>
+              }
+            </div>
+          }
         }
       </section>
 
@@ -170,7 +204,7 @@
           <p class="text-sm text-slate-500">{{ 'dashboard.noOverdue' | t }}</p>
         } @else {
           <ul class="divide-y divide-slate-100">
-            @for (m of overdueList(); track m.memberId) {
+            @for (m of overduePagedList(); track m.memberId) {
               <li class="flex items-center justify-between py-3">
                 <div>
                   <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
@@ -184,6 +218,23 @@
               </li>
             }
           </ul>
+          @if (overduePages() > 1) {
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+              @for (pageNum of getOverduePageNumbers(); track pageNum) {
+                <button
+                  type="button"
+                  (click)="setOverduePage(pageNum)"
+                  [class.bg-red-100]="overduePage() === pageNum"
+                  [class.text-red-900]="overduePage() === pageNum"
+                  [class.bg-slate-100]="overduePage() !== pageNum"
+                  [class.text-slate-600]="overduePage() !== pageNum"
+                  class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors hover:bg-red-50"
+                >
+                  {{ pageNum }}
+                </button>
+              }
+            </div>
+          }
         }
       </section>
     </div>
@@ -529,7 +580,7 @@
           <strong>Required:</strong> name, mobile, plan, dueDate, subscriptionType, floor, room, bed
         </p>
         <p class="mt-1 text-xs text-slate-500">
-          For PG: All fields including floor, room, bed are required. Bed must be available in your layout.
+          For PG: Use actual room numbers (101, 102, 403, 504, etc). Floor column can be left empty if room number includes it.
         </p>
       } @else {
         <p class="mt-1 text-xs text-slate-600">
