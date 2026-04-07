@@ -378,11 +378,22 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   }
 
   downloadSampleCsv(): void {
-    const sample = [
-      'name,mobile,plan,dueDate,subscriptionType,floor,room,bed',
-      'Ravi Kumar,9876543210,2500,2026-04-30,monthly,1,101,1',
-      'Anita Sharma,9988776655,3200,2026-05-15,quarterly,,,',
-    ].join('\n');
+    let sample: string;
+    if (this.isPg()) {
+      sample = [
+        'name,mobile,plan,dueDate,subscriptionType,floor,room,bed',
+        'Ravi Kumar,9876543210,4000,2026-04-30,monthly,1,101,1',
+        'Priya Singh,9988776655,5000,2026-05-15,quarterly,2,205,3',
+        'Amit Patel,9123456789,3500,2026-06-10,monthly,1,102,2',
+      ].join('\n');
+    } else {
+      sample = [
+        'name,mobile,plan,dueDate,subscriptionType,floor,room,bed',
+        'Ravi Kumar,9876543210,2500,2026-04-30,monthly,,',
+        'Anita Sharma,9988776655,3200,2026-05-15,quarterly,,',
+        'Vikram Singh,9123456789,2000,2026-05-20,monthly,,',
+      ].join('\n');
+    }
     const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -690,6 +701,10 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const key = this.bedKey(floor, room, bed);
     if (!key) return false;
     return this.occupiedBedKeys().has(key);
+  }
+
+  formatRoomNumber(floorNumber: number, roomNumber: number): string {
+    return `${floorNumber}${roomNumber.toString().padStart(2, '0')}`;
   }
 
   private bedKey(floor: unknown, room: unknown, bed: unknown): string {

@@ -498,6 +498,10 @@ export class MembersComponent implements OnInit, OnDestroy {
     return this.occupiedBedKeys().has(key);
   }
 
+  formatRoomNumber(floorNumber: number, roomNumber: number): string {
+    return `${floorNumber}${roomNumber.toString().padStart(2, '0')}`;
+  }
+
   selectBed(floor: number, room: number, bed: number): void {
     if (this.isBedOccupied(floor, room, bed)) return;
     this.memberForm.patchValue({

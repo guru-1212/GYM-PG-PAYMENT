@@ -39,17 +39,17 @@
               <div class="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">{{ 'rooms.room' | t }} {{ formatRoomNumber(floor.floorNumber, room.roomNumber) }}</p>
                 <div class="mt-2 grid grid-cols-3 gap-2">
-                  @for (_ of [].constructor(room.beds); track $index) {
+                  @for (_ of [].constructor(room.beds); track $index; let bedIdx = $index) {
                     <div
                       class="seat-block flex h-8 items-center justify-center rounded-md border text-xs font-semibold"
-                      [class.border-red-200]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
-                      [class.bg-red-100]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
-                      [class.text-red-800]="isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
-                      [class.border-emerald-200]="!isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
-                      [class.bg-emerald-50]="!isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
-                      [class.text-emerald-800]="!isBedOccupied(floor.floorNumber, room.roomNumber, $index + 1)"
+                      [class.border-red-200]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                      [class.bg-red-100]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                      [class.text-red-800]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                      [class.border-emerald-200]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                      [class.bg-emerald-50]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                      [class.text-emerald-800]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                     >
-                      Bed {{ $index + 1 }}
+                      Bed {{ bedIdx + 1 }}
                     </div>
                   }
                 </div>
@@ -76,10 +76,10 @@
       />
     </div>
     <div class="max-h-[45vh] space-y-3 overflow-y-auto pr-1">
-      @for (floor of floorGroups.controls; track $index) {
+      @for (floor of floorGroups.controls; track $index; let floorIdx = $index) {
         <div class="rounded-xl border border-slate-200 p-3">
           <div class="mb-2 flex items-center justify-between">
-            <p class="text-sm font-semibold text-slate-900">Floor {{ $index + 1 }}</p>
+            <p class="text-sm font-semibold text-slate-900">Floor {{ floorIdx + 1 }}</p>
             <div class="flex items-center gap-2">
               <label class="text-xs text-slate-600">Rooms</label>
               <input
@@ -87,14 +87,14 @@
                 min="1"
                 class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-sm"
                 [value]="floor.get('roomCount')?.value"
-                (change)="onRoomCountChange($index, $any($event.target).value)"
+                (change)="onRoomCountChange(floorIdx, $any($event.target).value)"
               />
             </div>
           </div>
           <div class="grid gap-2 sm:grid-cols-2">
-            @for (room of roomGroupsAt($index).controls; track $index) {
+            @for (room of roomGroupsAt(floorIdx).controls; track $index; let roomIdx = $index) {
               <div class="rounded-lg bg-slate-50 px-3 py-2" [formGroup]="$any(room)">
-                <p class="text-xs font-semibold text-slate-700">Room {{ $index + 1 }}</p>
+                <p class="text-xs font-semibold text-slate-700">Room {{ formatRoomNumber(floorIdx + 1, roomIdx + 1) }}</p>
                 <label class="mt-1 block text-xs text-slate-500">Beds</label>
                 <input
                   type="number"
