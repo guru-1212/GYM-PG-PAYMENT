@@ -1,4 +1,7 @@
 <div class="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+  <div class="absolute right-4 top-4 z-20 md:right-8 md:top-6">
+    <app-language-switcher />
+  </div>
   <div aria-hidden="true" class="pointer-events-none absolute inset-0">
     <div class="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-indigo-500/25 blur-3xl"></div>
     <div class="absolute -right-24 top-20 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl"></div>
@@ -7,9 +10,11 @@
 
   <div class="relative w-full max-w-md">
     <div class="mb-10 text-center animate-[fadeIn_0.35s_ease]">
-      <p class="text-sm font-semibold uppercase tracking-wide bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">PayBook</p>
-      <h1 class="mt-1 text-2xl font-bold text-slate-900">Gym &amp; PG payments</h1>
-      <p class="mt-2 text-slate-600">Simple tracking for owners. No notebook required.</p>
+      <p class="text-sm font-semibold uppercase tracking-wide bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+        {{ 'brand.paybook' | t }}
+      </p>
+      <h1 class="mt-1 text-2xl font-bold text-slate-900">{{ 'login.tagline' | t }}</h1>
+      <p class="mt-2 text-slate-600">{{ 'login.subtitle' | t }}</p>
     </div>
 
     <div class="relative flex rounded-2xl border border-white/70 bg-white/50 p-1 shadow-[0_10px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl">
@@ -21,7 +26,7 @@
         [class.text-slate-600]="mode() !== 'signin'"
         (click)="setMode('signin')"
       >
-        Sign in
+        {{ 'login.signIn' | t }}
       </button>
       <button
         type="button"
@@ -31,7 +36,7 @@
         [class.text-slate-600]="mode() !== 'signup'"
         (click)="setMode('signup')"
       >
-        Owner sign up
+        {{ 'login.ownerSignUp' | t }}
       </button>
     </div>
 
@@ -39,7 +44,7 @@
       @if (mode() === 'signin') {
         <form [formGroup]="signInForm" (ngSubmit)="onSignIn()" class="space-y-4">
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="email">Email</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="email">{{ 'login.email' | t }}</label>
             <input
               id="email"
               type="email"
@@ -48,11 +53,11 @@
               autocomplete="email"
             />
             @if (signInForm.controls.email.touched && signInForm.controls.email.invalid) {
-              <p class="mt-1 text-sm text-red-600">Valid email required</p>
+              <p class="mt-1 text-sm text-red-600">{{ 'login.validEmail' | t }}</p>
             }
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="pw">Password</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="pw">{{ 'login.password' | t }}</label>
             <div class="relative">
               <input
                 id="pw"
@@ -74,7 +79,7 @@
               </button>
             </div>
             @if (signInForm.controls.password.touched && signInForm.controls.password.invalid) {
-              <p class="mt-1 text-sm text-red-600">Min 6 characters</p>
+              <p class="mt-1 text-sm text-red-600">{{ 'login.minPassword' | t }}</p>
             }
           </div>
           <button
@@ -85,13 +90,13 @@
             @if (busy()) {
               <span class="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
             }
-            Sign in
+            {{ 'login.signInBtn' | t }}
           </button>
         </form>
       } @else {
         <form [formGroup]="signUpForm" (ngSubmit)="onSignUp()" class="space-y-4">
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="name">Your name</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="name">{{ 'login.yourName' | t }}</label>
             <input
               id="name"
               type="text"
@@ -99,26 +104,26 @@
               class="saas-input w-full"
             />
             @if (signUpForm.controls.name.touched && signUpForm.controls.name.invalid) {
-              <p class="mt-1 text-sm text-red-600">Name is required</p>
+              <p class="mt-1 text-sm text-red-600">{{ 'login.nameRequired' | t }}</p>
             }
           </div>
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700" for="businessName">
-              {{ signUpForm.controls.businessType.value === 'pg' ? 'PG name' : 'Gym name' }}
+              {{ businessNameLabel() | t }}
             </label>
             <input
               id="businessName"
               type="text"
               formControlName="businessName"
               class="saas-input w-full"
-              [placeholder]="signUpForm.controls.businessType.value === 'pg' ? 'Enter PG name' : 'Enter Gym name'"
+              [placeholder]="businessNamePlaceholder() | t"
             />
             @if (signUpForm.controls.businessName.touched && signUpForm.controls.businessName.invalid) {
-              <p class="mt-1 text-sm text-red-600">Business name is required</p>
+              <p class="mt-1 text-sm text-red-600">{{ 'login.businessNameRequired' | t }}</p>
             }
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="semail">Email</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="semail">{{ 'login.email' | t }}</label>
             <input
               id="semail"
               type="email"
@@ -128,7 +133,7 @@
             />
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="spw">Password</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="spw">{{ 'login.password' | t }}</label>
             <div class="relative">
               <input
                 id="spw"
@@ -151,7 +156,7 @@
             </div>
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Business type</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700">{{ 'login.businessType' | t }}</label>
             <div class="grid grid-cols-2 gap-2">
               <label
                 class="flex cursor-pointer items-center justify-center rounded-xl border-2 py-3 text-sm font-semibold transition-all duration-200 border-white/40 text-slate-700"
@@ -163,7 +168,7 @@
                 [class.text-indigo-700]="signUpForm.controls.businessType.value === 'gym'"
               >
                 <input type="radio" formControlName="businessType" value="gym" class="sr-only" />
-                Gym
+                {{ 'login.gym' | t }}
               </label>
               <label
                 class="flex cursor-pointer items-center justify-center rounded-xl border-2 py-3 text-sm font-semibold transition-all duration-200 border-white/40 text-slate-700"
@@ -175,7 +180,7 @@
                 [class.text-indigo-700]="signUpForm.controls.businessType.value === 'pg'"
               >
                 <input type="radio" formControlName="businessType" value="pg" class="sr-only" />
-                PG
+                {{ 'login.pg' | t }}
               </label>
             </div>
           </div>
@@ -187,10 +192,10 @@
             @if (busy()) {
               <span class="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
             }
-            Create account
+            {{ 'login.createAccount' | t }}
           </button>
           <p class="text-center text-xs text-slate-500">
-            Admin must approve your account before you can use the app.
+            {{ 'login.adminApprove' | t }}
           </p>
           <a
             class="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
@@ -205,7 +210,7 @@
                 d="M19.11 17.53c-.28-.14-1.64-.81-1.9-.9-.26-.1-.45-.14-.64.14-.19.28-.74.9-.9 1.09-.17.19-.33.21-.61.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.4-1.66-1.56-1.94-.17-.28-.02-.43.12-.57.12-.12.28-.33.43-.5.14-.17.19-.28.28-.47.1-.19.05-.36-.02-.5-.07-.14-.64-1.55-.88-2.12-.23-.55-.47-.48-.64-.48h-.55c-.19 0-.5.07-.76.36-.26.28-1 1-1 2.44s1.02 2.83 1.16 3.03c.14.19 2.01 3.07 4.87 4.3.68.29 1.21.46 1.63.59.68.22 1.3.19 1.79.12.55-.08 1.64-.67 1.87-1.31.23-.64.23-1.19.16-1.31-.07-.12-.26-.19-.55-.33zM16 3.2c-7.06 0-12.8 5.64-12.8 12.58 0 2.21.59 4.37 1.71 6.27L3.2 28.8l6.98-1.83c1.85 1 3.93 1.53 6.06 1.53 7.06 0 12.8-5.64 12.8-12.58C28.8 8.84 23.06 3.2 16 3.2zm0 23.05c-2.01 0-3.97-.55-5.66-1.58l-.4-.24-4.14 1.08 1.11-3.98-.26-.4c-1.08-1.66-1.65-3.58-1.65-5.55 0-5.78 4.8-10.49 10.99-10.49 6.19 0 10.99 4.71 10.99 10.49 0 5.78-4.8 10.49-10.99 10.49z"
               />
             </svg>
-            Contact admin on WhatsApp (+91 7522935014)
+            {{ 'login.contactWhatsApp' | t }}
           </a>
         </form>
       }

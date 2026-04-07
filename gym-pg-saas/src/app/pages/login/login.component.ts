@@ -1,14 +1,16 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
+import { LanguageSwitcherComponent } from '../../shared/language-switcher.component';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, TranslatePipe, LanguageSwitcherComponent],
   templateUrl: './login.component.html',
 })
 export class LoginComponent {
@@ -33,6 +35,14 @@ export class LoginComponent {
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]],
     businessType: this.fb.nonNullable.control<'gym' | 'pg'>('gym', Validators.required),
+  });
+
+  readonly businessNameLabel = computed(() => {
+    return this.signUpForm.controls.businessType.value === 'pg' ? 'login.pgName' : 'login.gymName';
+  });
+
+  readonly businessNamePlaceholder = computed(() => {
+    return this.signUpForm.controls.businessType.value === 'pg' ? 'login.enterPgName' : 'login.enterGymName';
   });
 
   setMode(m: 'signin' | 'signup'): void {

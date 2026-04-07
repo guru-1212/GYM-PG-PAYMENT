@@ -3,9 +3,17 @@
     class="hidden w-64 shrink-0 flex-col border-r border-white/60 bg-white/75 backdrop-blur-xl md:sticky md:top-0 md:flex md:h-screen"
   >
     <div class="border-b border-slate-100/80 px-5 py-6">
-      <p class="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-xs font-semibold uppercase tracking-wide text-transparent">PayBook</p>
-      <p class="mt-1 truncate text-sm font-semibold text-slate-900">{{ profile()?.name }}</p>
-      <p class="truncate text-xs text-slate-500">{{ profile()?.email }}</p>
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-bold tracking-tight text-slate-900">{{ 'brand.gmPg' | t }}</p>
+          <p class="mt-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-xs font-semibold uppercase tracking-wide text-transparent">
+            {{ 'brand.paybook' | t }}
+          </p>
+          <p class="mt-1 truncate text-sm font-semibold text-slate-900">{{ profile()?.name }}</p>
+          <p class="truncate text-xs text-slate-500">{{ profile()?.email }}</p>
+        </div>
+        <app-language-switcher class="shrink-0" />
+      </div>
     </div>
     <nav class="flex flex-1 flex-col gap-1 p-3">
       <a
@@ -15,7 +23,7 @@
         class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
       >
         <span class="material-icons-outlined">dashboard</span>
-        Dashboard
+        {{ 'nav.dashboard' | t }}
       </a>
       <a
         routerLink="/members"
@@ -23,7 +31,7 @@
         class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
       >
         <span class="material-icons-outlined">groups</span>
-        Members
+        {{ 'nav.members' | t }}
       </a>
       <a
         routerLink="/payments"
@@ -31,7 +39,7 @@
         class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
       >
         <span class="material-icons-outlined">payments</span>
-        Payments
+        {{ 'nav.payments' | t }}
       </a>
       @if (isPgOwner()) {
         <a
@@ -40,7 +48,7 @@
           class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
         >
           <span class="material-icons-outlined">hotel</span>
-          Rooms
+          {{ 'nav.rooms' | t }}
         </a>
       }
     </nav>
@@ -51,58 +59,138 @@
         (click)="signOut()"
       >
         <span class="material-icons-outlined text-lg">logout</span>
-        Sign out
+        {{ 'nav.signOut' | t }}
       </button>
     </div>
   </aside>
 
   <div class="flex min-w-0 flex-1 flex-col">
     <header
-      class="sticky top-0 z-20 flex items-center justify-between border-b border-white/60 bg-white/85 px-4 py-3 backdrop-blur-xl md:hidden"
+      class="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-white/60 bg-white/85 px-3 py-2.5 backdrop-blur-xl md:hidden"
     >
-      <div>
-        <p class="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-xs font-semibold text-transparent">PayBook</p>
-        <p class="text-sm font-semibold text-slate-900">{{ profile()?.name }}</p>
+      <div class="min-w-0 shrink-0">
+        <p class="text-base font-bold leading-tight tracking-tight text-slate-900">{{ 'brand.gmPg' | t }}</p>
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">{{ 'brand.paybook' | t }}</p>
       </div>
-      <button
-        type="button"
-        class="saas-btn-secondary rounded-lg px-3 py-2 text-sm"
-        (click)="signOut()"
-      >
-        Out
-      </button>
-    </header>
-    <nav
-      class="sticky top-[57px] z-10 flex gap-1 overflow-x-auto border-b border-white/60 bg-white/85 px-2 py-2 backdrop-blur-xl md:hidden"
-    >
-      <a
-        routerLink="/dashboard"
-        routerLinkActive="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
-        [routerLinkActiveOptions]="{ exact: true }"
-        class="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
-        >Home</a
-      >
-      <a
-        routerLink="/members"
-        routerLinkActive="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
-        class="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
-        >Members</a
-      >
-      <a
-        routerLink="/payments"
-        routerLinkActive="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
-        class="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
-        >Pay</a
-      >
-      @if (isPgOwner()) {
-        <a
-          routerLink="/rooms"
-          routerLinkActive="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
-          class="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
-          >Rooms</a
+      <div class="flex shrink-0 items-center gap-2">
+        <app-language-switcher />
+        <div class="relative" data-user-menu-root>
+          <button
+            type="button"
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-blue-600 text-sm font-bold text-white shadow-md ring-2 ring-white"
+            (click)="toggleUserMenu($event)"
+            [attr.aria-expanded]="userMenuOpen()"
+            [attr.aria-label]="'a11y.userMenu' | t"
+          >
+            {{ ownerInitial() }}
+          </button>
+          @if (userMenuOpen()) {
+            <div
+              class="absolute right-0 top-12 z-50 min-w-[14rem] rounded-xl border border-slate-200/80 bg-white/95 p-2 shadow-xl backdrop-blur-xl"
+              role="menu"
+            >
+              <p class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">{{ 'auth.email' | t }}</p>
+              <p class="px-3 pb-2 text-sm font-medium text-slate-900 break-all">{{ profile()?.email }}</p>
+              <button
+                type="button"
+                class="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
+                role="menuitem"
+                (click)="signOut()"
+              >
+                <span class="material-icons-outlined text-lg">logout</span>
+                {{ 'auth.logout' | t }}
+              </button>
+            </div>
+          }
+        </div>
+        <button
+          type="button"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50"
+          (click)="openMobileMenu()"
+          [attr.aria-label]="'a11y.openMenu' | t"
+          [attr.aria-expanded]="mobileMenuOpen()"
         >
-      }
-    </nav>
+          <span class="material-icons-outlined text-2xl">menu</span>
+        </button>
+      </div>
+    </header>
+
+    @if (mobileMenuOpen()) {
+      <div
+        class="fixed inset-0 z-40 md:hidden"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="'a11y.navMenu' | t"
+      >
+        <div
+          class="absolute inset-0 bg-slate-900/45 backdrop-blur-sm transition-opacity"
+          (click)="closeMobileMenu()"
+        ></div>
+        <aside
+          class="absolute right-0 top-0 flex h-full w-[min(18rem,88vw)] flex-col border-l border-white/60 bg-white/95 shadow-2xl backdrop-blur-xl"
+          (click)="$event.stopPropagation()"
+        >
+          <div class="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+            <div class="min-w-0 pr-2">
+              <p class="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-xs font-semibold uppercase tracking-wide text-transparent">
+                {{ 'nav.menu' | t }}
+              </p>
+              <p class="truncate text-sm font-semibold text-slate-900">{{ profile()?.name }}</p>
+            </div>
+            <button
+              type="button"
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100"
+              (click)="closeMobileMenu()"
+              [attr.aria-label]="'a11y.closeMenu' | t"
+            >
+              <span class="material-icons-outlined text-2xl">close</span>
+            </button>
+          </div>
+          <nav class="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
+            <a
+              routerLink="/dashboard"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+              [routerLinkActiveOptions]="{ exact: true }"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              (click)="closeMobileMenu()"
+            >
+              <span class="material-icons-outlined">dashboard</span>
+              {{ 'nav.home' | t }}
+            </a>
+            <a
+              routerLink="/members"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              (click)="closeMobileMenu()"
+            >
+              <span class="material-icons-outlined">groups</span>
+              {{ 'nav.members' | t }}
+            </a>
+            <a
+              routerLink="/payments"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              (click)="closeMobileMenu()"
+            >
+              <span class="material-icons-outlined">payments</span>
+              {{ 'nav.payments' | t }}
+            </a>
+            @if (isPgOwner()) {
+              <a
+                routerLink="/rooms"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">hotel</span>
+                {{ 'nav.rooms' | t }}
+              </a>
+            }
+          </nav>
+        </aside>
+      </div>
+    }
+
     <main class="flex-1 p-4 md:p-6 lg:p-8">
       <router-outlet />
     </main>

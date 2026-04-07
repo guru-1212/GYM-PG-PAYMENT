@@ -11,6 +11,7 @@ export interface Member {
   firstName: string;
   lastName?: string;
   mobile?: string;
+  email?: string;
   gender?: Gender;
   aadhaarLast4?: string;
   address?: string;

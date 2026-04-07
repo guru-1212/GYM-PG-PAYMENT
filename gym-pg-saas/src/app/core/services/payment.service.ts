@@ -27,13 +27,25 @@ export class PaymentService {
   }
 
   private paymentAmountFromRow(row: Record<string, unknown>): number {
-    return (
-      this.toAmount(row['amount']) ||
-      this.toAmount(row['paidAmount']) ||
-      this.toAmount(row['paymentAmount']) ||
-      this.toAmount(row['totalPaid']) ||
-      0
-    );
+    // Check for field existence first, then convert to amount
+    // Order: amount > paidAmount > paymentAmount > totalPaid
+    if (row['amount'] !== undefined && row['amount'] !== null) {
+      const val = this.toAmount(row['amount']);
+      if (val > 0) return val;
+    }
+    if (row['paidAmount'] !== undefined && row['paidAmount'] !== null) {
+      const val = this.toAmount(row['paidAmount']);
+      if (val > 0) return val;
+    }
+    if (row['paymentAmount'] !== undefined && row['paymentAmount'] !== null) {
+      const val = this.toAmount(row['paymentAmount']);
+      if (val > 0) return val;
+    }
+    if (row['totalPaid'] !== undefined && row['totalPaid'] !== null) {
+      const val = this.toAmount(row['totalPaid']);
+      if (val > 0) return val;
+    }
+    return 0;
   }
 
   private toAmount(value: unknown): number {
@@ -46,16 +58,31 @@ export class PaymentService {
   }
 
   watchPaymentsForOwner(ownerId: string, callback: (payments: Payment[]) => void): Unsubscribe {
+    console.log('📡 Setting up payments listener for ownerId:', ownerId);
     const q = query(
       collection(this.fb.db, 'payments'),
       where('ownerId', '==', ownerId),
       orderBy('date', 'desc'),
     );
-    return onSnapshot(q, (snap) => {
-      const list: Payment[] = [];
-      snap.forEach((d) => list.push({ ...(d.data() as Payment), paymentId: d.id }));
-      callback(list);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        const list: Payment[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as Payment;
+          list.push({ ...data, paymentId: d.id });
+        });
+        console.log(`✅ Payments snapshot received: ${list.length} payments for ownerId: ${ownerId}`);
+        list.forEach((p, i) => {
+          const pDate = p.date instanceof Object && 'toDate' in p.date ? p.date.toDate() : p.date;
+          console.log(`  [${i}] Amount: ${p.amount}, Date: ${pDate}, OwnerId: ${p.ownerId}`);
+        });
+        callback(list);
+      },
+      (error) => {
+        console.error('❌ Payments listener error:', error);
+      },
+    );
   }
 
   /**

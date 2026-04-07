@@ -2,15 +2,15 @@
   <div>
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p class="text-slate-600">Quick view of members and collections.</p>
+        <h1 class="text-2xl font-bold text-slate-900">{{ 'dashboard.title' | t }}</h1>
+        <p class="text-slate-600">{{ 'dashboard.subtitle' | t }}</p>
       </div>
       <button
         type="button"
         class="saas-btn-primary px-4 py-2 text-sm"
         (click)="openImportModal()"
       >
-        Import Members
+        {{ 'dashboard.importMembers' | t }}
       </button>
     </div>
   </div>
@@ -19,12 +19,17 @@
     <section class="saas-card p-4">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p class="text-sm font-semibold text-slate-900">PG Bed Availability</p>
+          <p class="text-sm font-semibold text-slate-900">{{ 'dashboard.pgBedAvailability' | t }}</p>
           @if (hasPgLayout()) {
-            <p class="text-xs text-slate-600">{{ (pgLayout()?.floors?.length || 0) }} floors, {{ totalRooms() }} rooms, {{ totalBeds() }} beds</p>
-            <p class="mt-1 text-base font-bold text-emerald-700">Available beds: {{ emptyBeds() }}</p>
+            <p class="text-xs text-slate-600">
+              {{
+                'dashboard.floorsRoomsBeds'
+                  | t: { floors: pgLayout()?.floors?.length || 0, rooms: totalRooms(), beds: totalBeds() }
+              }}
+            </p>
+            <p class="mt-1 text-base font-bold text-emerald-700">{{ 'dashboard.availableBeds' | t }}: {{ emptyBeds() }}</p>
           } @else {
-            <p class="text-xs text-amber-700">Setup required</p>
+            <p class="text-xs text-amber-700">{{ 'dashboard.setupRequired' | t }}</p>
           }
         </div>
         <div class="flex gap-2">
@@ -33,7 +38,7 @@
             class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             (click)="openSetupModal()"
           >
-            Setup Bed Availability
+            {{ 'dashboard.setupBedAvailability' | t }}
           </button>
           <button
             type="button"
@@ -41,7 +46,7 @@
             [disabled]="!hasPgLayout()"
             (click)="openBedMap()"
           >
-            View Bed Map
+            {{ 'dashboard.viewBedMap' | t }}
           </button>
         </div>
       </div>
@@ -53,20 +58,20 @@
       <span class="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600"></span>
     </div>
   } @else {
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <div class="saas-card p-5">
-        <p class="text-sm font-medium text-slate-500">Total members</p>
+        <p class="text-sm font-medium text-slate-500">{{ 'dashboard.totalMembers' | t }}</p>
         <p class="mt-2 text-3xl font-bold text-slate-900">{{ totalMembers() }}</p>
       </div>
       <div class="saas-card p-5">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-sm font-medium text-slate-500">This month earnings</p>
+          <p class="text-sm font-medium text-slate-500">{{ 'dashboard.monthEarnings' | t }}</p>
           <button
             type="button"
             class="rounded-lg p-1.5 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-700"
             (click)="showMonthEarnings.set(!showMonthEarnings())"
-            [attr.aria-label]="showMonthEarnings() ? 'Hide earnings' : 'Show earnings'"
-            [attr.title]="showMonthEarnings() ? 'Hide earnings' : 'Show earnings'"
+            [attr.aria-label]="showMonthEarnings() ? ('dashboard.hideEarnings' | t) : ('dashboard.showEarnings' | t)"
+            [attr.title]="showMonthEarnings() ? ('dashboard.hideEarnings' | t) : ('dashboard.showEarnings' | t)"
           >
             <span class="material-icons-outlined text-lg">{{
               showMonthEarnings() ? 'visibility_off' : 'visibility'
@@ -84,41 +89,154 @@
         [queryParams]="{ pay: 'pending', due: 'dueToday' }"
         class="block rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm transition hover:shadow-md"
       >
-        <p class="text-sm font-medium text-amber-800">Pending payments</p>
+        <p class="text-sm font-medium text-amber-800">{{ 'dashboard.pendingPayments' | t }}</p>
         <p class="mt-2 text-3xl font-bold text-amber-900">{{ pendingCount() }}</p>
-        <p class="mt-1 text-xs text-amber-800/80">Due today or overdue</p>
+        <p class="mt-1 text-xs text-amber-800/80">{{ 'dashboard.dueTodayOrOverdue' | t }}</p>
+      </a>
+      <a
+        routerLink="/members"
+        [queryParams]="{ due: 'dueSoon' }"
+        class="block rounded-2xl border border-sky-200 bg-sky-50 p-5 shadow-sm transition hover:shadow-md"
+      >
+        <p class="text-sm font-medium text-sky-800">{{ 'dashboard.dueSoonTitle' | t }}</p>
+        <p class="mt-2 text-3xl font-bold text-sky-900">{{ dueSoonList().length }}</p>
+        <p class="mt-1 text-xs text-sky-800/80">{{ 'dashboard.dueSoonSubtitle' | t }}</p>
       </a>
       <a
         routerLink="/members"
         [queryParams]="{ pay: 'pending', due: 'overdue' }"
         class="block rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm transition hover:shadow-md"
       >
-        <p class="text-sm font-medium text-red-800">Overdue</p>
+        <p class="text-sm font-medium text-red-800">{{ 'dashboard.overdue' | t }}</p>
         <p class="mt-2 text-3xl font-bold text-red-900">{{ overdueList().length }}</p>
       </a>
     </div>
 
-    <section class="saas-card overflow-hidden p-5">
+    
+
+    <div class="grid gap-6 lg:grid-cols-2">
+      <section class="saas-card p-5">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-slate-900">{{ 'dashboard.dueToday' | t }}</h2>
+          <a routerLink="/members" class="text-sm font-semibold text-emerald-700 hover:underline">{{ 'nav.members' | t }}</a>
+        </div>
+        @if (dueTodayList().length === 0) {
+          <p class="text-sm text-slate-500">{{ 'dashboard.noOneDueToday' | t }}</p>
+        } @else {
+          <ul class="divide-y divide-slate-100">
+            @for (m of dueTodayList(); track m.memberId) {
+              <li class="flex items-center justify-between py-3">
+                <div>
+                  <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
+                  <p class="text-xs text-slate-500">{{ m.mobile || '—' }}</p>
+                </div>
+                <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">{{
+                  'dashboard.dueTodayBadge' | t
+                }}</span>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="saas-card p-5">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-slate-900">{{ 'dashboard.dueSoonTitle' | t }}</h2>
+          <a routerLink="/members" [queryParams]="{ due: 'dueSoon' }" class="text-sm font-semibold text-sky-700 hover:underline">{{ 'dashboard.viewSoonMembers' | t }}</a>
+        </div>
+        @if (dueSoonList().length === 0) {
+          <p class="text-sm text-slate-500">{{ 'dashboard.noDueSoon' | t }}</p>
+        } @else {
+          <ul class="divide-y divide-slate-100">
+            @for (m of dueSoonList().slice(0, 5); track m.memberId) {
+              <li class="flex items-center justify-between py-3">
+                <div>
+                  <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
+                  <p class="text-xs text-slate-500">{{ m.mobile || '—' }}</p>
+                </div>
+                <span class="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-900">{{ dueStatusLabel(m) }}</span>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="saas-card p-5">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-slate-900">{{ 'dashboard.overdue' | t }}</h2>
+          <span class="text-xs font-medium text-slate-500">{{ dueLabel() }}</span>
+        </div>
+        @if (overdueList().length === 0) {
+          <p class="text-sm text-slate-500">{{ 'dashboard.noOverdue' | t }}</p>
+        } @else {
+          <ul class="divide-y divide-slate-100">
+            @for (m of overdueList(); track m.memberId) {
+              <li class="flex items-center justify-between py-3">
+                <div>
+                  <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
+                  <p class="text-xs text-slate-500">
+                    {{ 'dashboard.dueWord' | t }} {{ (m.dueDate.toDate()) | date: 'mediumDate' }}
+                  </p>
+                </div>
+                <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">{{
+                  overdueByLine(m)
+                }}</span>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    </div>
+     <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-blue-900">{{ 'dashboard.partialPending' | t }}</h2>
+        <span class="text-xs font-medium text-blue-700">{{
+          'dashboard.partialBanner' | t: { count: partialPendingList().length }
+        }}</span>
+      </div>
+      @if (partialPendingList().length === 0) {
+        <p class="text-sm text-blue-900/80">{{ 'dashboard.noPartialPending' | t }}</p>
+      } @else {
+        <ul class="divide-y divide-blue-100">
+          @for (m of partialPendingList(); track m.memberId) {
+            <li class="flex items-center justify-between py-3">
+              <div>
+                <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
+                <p class="text-xs text-slate-600">
+                  {{ 'dashboard.pendingAmount' | t }}: ₹{{ (m.pendingAmount || 0) | number: '1.0-0' }}
+                </p>
+              </div>
+              <a routerLink="/members" class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-900">
+                {{ 'dashboard.pendingPayment' | t }}
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+<section class="saas-card overflow-hidden p-5">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 class="text-lg font-semibold text-slate-900">Recent joiners</h2>
+          <h2 class="text-lg font-semibold text-slate-900">{{ 'dashboard.recentJoiners' | t }}</h2>
           <p class="mt-1 text-sm text-slate-600">
-            Members who joined in the last <span class="font-semibold text-slate-800">10 days</span> (today back to 10 days ago).
+            {{ 'dashboard.recentJoinersBlurb' | t }}
           </p>
-          <p class="mt-1 text-xs font-medium text-indigo-600">{{ recentJoiners().length }} in this window</p>
+          <p class="mt-1 text-xs font-medium text-indigo-600">
+            {{ 'dashboard.recentWindow' | t: { count: recentJoiners().length } }}
+          </p>
         </div>
         <button
           type="button"
           class="saas-btn-secondary shrink-0 px-4 py-2.5 text-sm"
           (click)="toggleRecentJoinersExpanded()"
         >
-          {{ recentJoinersExpanded() ? 'Hide list' : 'View full list' }}
+          {{ recentJoinersExpanded() ? ('dashboard.hideList' | t) : ('dashboard.viewFullList' | t) }}
         </button>
       </div>
 
       @if (recentJoiners().length === 0) {
         <p class="mt-4 rounded-xl border border-slate-200/80 bg-white/50 px-4 py-6 text-center text-sm text-slate-500 backdrop-blur-sm">
-          No members joined in the last 10 days.
+          {{ 'dashboard.noJoinedTen' | t }}
         </p>
       } @else {
         <div class="mt-4 space-y-2 md:hidden">
@@ -134,7 +252,7 @@
               </div>
               <div class="shrink-0 text-right text-xs text-slate-600">
                 <p class="font-medium text-indigo-700">{{ memberJoinDate(m) | date: 'mediumDate' }}</p>
-                <p>Joined</p>
+                <p>{{ 'dashboard.joined' | t }}</p>
               </div>
             </button>
           }
@@ -144,11 +262,11 @@
           <table class="saas-table min-w-full text-left text-sm">
             <thead>
               <tr>
-                <th class="px-4 py-3">Name</th>
-                <th class="px-4 py-3">Mobile</th>
-                <th class="px-4 py-3">Join date</th>
-                <th class="px-4 py-3">{{ isGym() ? 'Plan' : 'Amount' }}</th>
-                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3">{{ 'dashboard.name' | t }}</th>
+                <th class="px-4 py-3">{{ 'dashboard.mobile' | t }}</th>
+                <th class="px-4 py-3">{{ 'dashboard.joinDate' | t }}</th>
+                <th class="px-4 py-3">{{ isGym() ? ('dashboard.plan' | t) : ('dashboard.amountCol' | t) }}</th>
+                <th class="px-4 py-3">{{ 'dashboard.status' | t }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -187,82 +305,7 @@
         </div>
       }
     </section>
-
-    <div class="grid gap-6 lg:grid-cols-2">
-      <section class="saas-card p-5">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-slate-900">Due today</h2>
-          <a routerLink="/members" class="text-sm font-semibold text-emerald-700 hover:underline">Members</a>
-        </div>
-        @if (dueTodayList().length === 0) {
-          <p class="text-sm text-slate-500">No one due today.</p>
-        } @else {
-          <ul class="divide-y divide-slate-100">
-            @for (m of dueTodayList(); track m.memberId) {
-              <li class="flex items-center justify-between py-3">
-                <div>
-                  <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
-                  <p class="text-xs text-slate-500">{{ m.mobile || '—' }}</p>
-                </div>
-                <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900"
-                  >Due today</span
-                >
-              </li>
-            }
-          </ul>
-        }
-      </section>
-
-      <section class="saas-card p-5">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-slate-900">Overdue</h2>
-          <span class="text-xs font-medium text-slate-500">{{ dueLabel() }}</span>
-        </div>
-        @if (overdueList().length === 0) {
-          <p class="text-sm text-slate-500">No overdue members.</p>
-        } @else {
-          <ul class="divide-y divide-slate-100">
-            @for (m of overdueList(); track m.memberId) {
-              <li class="flex items-center justify-between py-3">
-                <div>
-                  <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
-                  <p class="text-xs text-slate-500">
-                    Due {{ (m.dueDate.toDate()) | date: 'mediumDate' }}
-                  </p>
-                </div>
-                <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">{{
-                  overdueByLine(m)
-                }}</span>
-              </li>
-            }
-          </ul>
-        }
-      </section>
-    </div>
-
-    <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
-      <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-blue-900">Partial payment pending</h2>
-        <span class="text-xs font-medium text-blue-700">{{ partialPendingList().length }} members</span>
-      </div>
-      @if (partialPendingList().length === 0) {
-        <p class="text-sm text-blue-900/80">No partial payment pending members.</p>
-      } @else {
-        <ul class="divide-y divide-blue-100">
-          @for (m of partialPendingList(); track m.memberId) {
-            <li class="flex items-center justify-between py-3">
-              <div>
-                <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
-                <p class="text-xs text-slate-600">Pending amount: ₹{{ (m.pendingAmount || 0) | number: '1.0-0' }}</p>
-              </div>
-              <a routerLink="/members" class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-900">
-                Pending payment
-              </a>
-            </li>
-          }
-        </ul>
-      }
-    </section>
+   
   }
 </div>
 

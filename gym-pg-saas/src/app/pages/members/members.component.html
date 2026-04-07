@@ -1,45 +1,60 @@
 <div class="saas-page mx-auto max-w-6xl">
   <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-slate-900">Members</h1>
-      <p class="text-slate-600">Clean, searchable, and responsive member management.</p>
+      <h1 class="text-2xl font-bold text-slate-900">{{ 'members.title' | t }}</h1>
+      <p class="text-slate-600">{{ 'members.subtitle' | t }}</p>
     </div>
-    <button type="button" class="saas-btn-primary px-6 py-3 text-base" (click)="openAdd()">+ Add member</button>
+    <button type="button" class="saas-btn-primary px-6 py-3 text-base" (click)="openAdd()">
+      + {{ 'members.addMember' | t }}
+    </button>
   </div>
 
-  <div class="saas-card grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
-    <div class="md:col-span-2">
-      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Search</label>
+  <div class="saas-card grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
+    <div class="md:col-span-2 xl:col-span-2">
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.search' | t }}</label>
       <input
         type="search"
         class="saas-input w-full"
-        placeholder="Search by name or mobile"
+        [placeholder]="'members.searchPlaceholder' | t"
         [value]="search()"
         (input)="search.set($any($event.target).value)"
       />
     </div>
     <div>
-      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Member Status</label>
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.memberStatus' | t }}</label>
       <select class="saas-input w-full" [value]="statusFilter()" (change)="statusFilter.set($any($event.target).value)">
-        <option value="all">All</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
+        <option value="all">{{ 'members.all' | t }}</option>
+        <option value="active">{{ 'members.active' | t }}</option>
+        <option value="inactive">{{ 'members.inactive' | t }}</option>
       </select>
     </div>
     <div>
-      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">Payment</label>
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.payment' | t }}</label>
       <select class="saas-input w-full" [value]="payFilter()" (change)="payFilter.set($any($event.target).value)">
-        <option value="all">All</option>
-        <option value="paid">Paid</option>
-        <option value="pending">Overdue / Due</option>
+        <option value="all">{{ 'members.all' | t }}</option>
+        <option value="paid">{{ 'members.paid' | t }}</option>
+        <option value="pending">{{ 'members.pending' | t }}</option>
       </select>
+    </div>
+    <div class="md:col-span-2 xl:col-span-1 xl:max-w-none">
+      <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.sort' | t }}</label>
+      <div class="flex gap-2">
+        <select class="saas-input min-w-0 flex-1" [value]="sortKey()" (change)="sortKey.set($any($event.target).value)">
+          <option value="due">{{ 'members.dueUrgent' | t: { label: dueLabel() } }}</option>
+          <option value="name">{{ 'members.nameSort' | t }}</option>
+        </select>
+        <select class="saas-input w-36 shrink-0" [value]="sortDir()" (change)="sortDir.set($any($event.target).value)">
+          <option value="asc">{{ sortKey() === 'due' ? ('members.soonestFirst' | t) : ('members.az' | t) }}</option>
+          <option value="desc">{{ sortKey() === 'due' ? ('members.latestFirst' | t) : ('members.za' | t) }}</option>
+        </select>
+      </div>
     </div>
   </div>
 
   @if (displayMembers().length === 0) {
     <div class="saas-card p-10 text-center">
-      <p class="text-slate-600">No members found</p>
-      <button type="button" class="saas-btn-primary mt-4 px-5 py-2.5 text-sm" (click)="openAdd()">Add Member</button>
+      <p class="text-slate-600">{{ 'members.noneFound' | t }}</p>
+      <button type="button" class="saas-btn-primary mt-4 px-5 py-2.5 text-sm" (click)="openAdd()">{{ 'members.addMember' | t }}</button>
     </div>
   } @else {
     <section class="saas-card hidden overflow-hidden md:block">
@@ -51,6 +66,7 @@
               <th class="px-4 py-3">Mobile</th>
               <th class="px-4 py-3">Plan</th>
               <th class="px-4 py-3">{{ dueLabel() }}</th>
+              <th class="px-4 py-3">Time left</th>
               <th class="px-4 py-3">Status</th>
               <th class="px-4 py-3 text-right">Actions</th>
             </tr>
@@ -63,6 +79,9 @@
                 <td class="px-4 py-3.5 capitalize text-slate-600">{{ m.subscriptionType || 'monthly' }}</td>
                 <td class="px-4 py-3.5 text-slate-800">
                   <div class="font-medium">{{ m.dueDate.toDate() | date: 'mediumDate' }}</div>
+                </td>
+                <td class="max-w-[200px] px-4 py-3.5 text-xs text-slate-700 sm:text-sm">
+                  {{ dueStatusLabel(m) }}
                 </td>
                 <td class="px-4 py-3.5">
                   @if (rowTone(m) === 'red') {
@@ -138,6 +157,8 @@
             <p class="justify-self-end capitalize text-slate-700">{{ m.subscriptionType || 'monthly' }}</p>
             <p class="text-slate-500">{{ dueLabel() }}</p>
             <p class="justify-self-end text-slate-700">{{ m.dueDate.toDate() | date: 'mediumDate' }}</p>
+            <p class="text-slate-500">Time left</p>
+            <p class="justify-self-end text-right text-slate-700">{{ dueStatusLabel(m) }}</p>
           </div>
           <div class="flex flex-wrap gap-2 pt-1">
             @if (m.status === 'active' && rowTone(m) !== 'green') {
@@ -180,6 +201,14 @@
       @if (memberForm.controls.mobile.touched && memberForm.controls.mobile.hasError('digitsLen')) {
         <p class="mt-1 text-sm text-red-600">Enter 10 digits or leave blank</p>
       }
+    </div>
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Email</label>
+      <input
+        type="email"
+        formControlName="email"
+        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+      />
     </div>
     <div>
       <label class="mb-1 block text-sm font-medium text-slate-700">Address</label>
@@ -258,9 +287,9 @@
         <p class="mt-1 text-xs text-slate-500">Next due after payment moves by this period from the current due date.</p>
       </div>
     }
-    <div class="grid gap-4 sm:grid-cols-2">
+    <div class="grid gap-4 sm:grid-cols-3">
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700">Monthly amount (₹)</label>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Amount (₹)</label>
         <input
           type="number"
           formControlName="amount"
@@ -273,8 +302,31 @@
         }
       </div>
       <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Payment Method</label>
+        <select formControlName="paymentMethod" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base">
+          <option value="cash">Cash</option>
+          <option value="upi">UPI</option>
+          <option value="card">Card</option>
+        </select>
+        @if (memberForm.controls.paymentMethod.touched && memberForm.controls.paymentMethod.invalid) {
+          <p class="mt-1 text-sm text-red-600">Payment method is required</p>
+        }
+      </div>
+      <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">Join date</label>
         <input type="date" formControlName="joinDate" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
+        @if (memberForm.controls.joinDate.touched && memberForm.controls.joinDate.invalid) {
+          <p class="mt-1 text-sm text-red-600">Join date is required</p>
+        }
+      </div>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Start billing (end date)</label>
+        <input type="date" formControlName="dueDate" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
+        @if (memberForm.controls.dueDate.touched && memberForm.controls.dueDate.invalid) {
+          <p class="mt-1 text-sm text-red-600">Due date is required</p>
+        }
       </div>
     </div>
     <div>
@@ -378,7 +430,7 @@
         Recording payment for <span class="font-semibold text-slate-900">{{ m.firstName }} {{ m.lastName }}</span>
       </p>
       <p class="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
-        Next {{ dueLabel().toLowerCase() }} will be one billing period after the current due date ({{
+        Next {{ dueLabel() }} will be one billing period after the current due date ({{
           m.dueDate.toDate() | date: 'mediumDate'
         }}), not from today.
       </p>
