@@ -28,6 +28,13 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
   readonly fromDate = signal<string>('');
   readonly toDate = signal<string>('');
 
+  // Pagination signals
+  readonly itemsPerPage = 10;
+  readonly dueTodayPage = signal<number>(1);
+  readonly overduePage = signal<number>(1);
+  readonly paidUpPage = signal<number>(1);
+  readonly paymentsTablePage = signal<number>(1);
+
   readonly dueLabel = computed(() => {
     this.i18n.lang();
     return this.auth.profile()?.businessType === 'pg'
@@ -101,6 +108,51 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
       const d = timestampToDate(m.dueDate);
       return d && d > end;
     });
+  });
+
+  // Paginated data computed signals
+  readonly paginatedDueToday = computed(() => {
+    const data = this.dueToday();
+    const page = this.dueTodayPage();
+    const start = (page - 1) * this.itemsPerPage;
+    return data.slice(start, start + this.itemsPerPage);
+  });
+
+  readonly dueTodayPages = computed(() => {
+    return Math.ceil(this.dueToday().length / this.itemsPerPage);
+  });
+
+  readonly paginatedOverdue = computed(() => {
+    const data = this.overdue();
+    const page = this.overduePage();
+    const start = (page - 1) * this.itemsPerPage;
+    return data.slice(start, start + this.itemsPerPage);
+  });
+
+  readonly overduePages = computed(() => {
+    return Math.ceil(this.overdue().length / this.itemsPerPage);
+  });
+
+  readonly paginatedPaidUp = computed(() => {
+    const data = this.paidUp();
+    const page = this.paidUpPage();
+    const start = (page - 1) * this.itemsPerPage;
+    return data.slice(start, start + this.itemsPerPage);
+  });
+
+  readonly paidUpPages = computed(() => {
+    return Math.ceil(this.paidUp().length / this.itemsPerPage);
+  });
+
+  readonly paginatedPayments = computed(() => {
+    const data = this.filteredPayments();
+    const page = this.paymentsTablePage();
+    const start = (page - 1) * this.itemsPerPage;
+    return data.slice(start, start + this.itemsPerPage);
+  });
+
+  readonly paymentsTablePages = computed(() => {
+    return Math.ceil(this.filteredPayments().length / this.itemsPerPage);
   });
 
   private unsubM: (() => void) | null = null;
@@ -222,15 +274,43 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
   onMethodFilterChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
     this.methodFilter.set(target.value);
+    this.paymentsTablePage.set(1); // Reset to first page when filter changes
   }
 
   onFromDateChange(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.fromDate.set(target.value);
+    this.paymentsTablePage.set(1); // Reset to first page when filter changes
   }
 
   onToDateChange(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.toDate.set(target.value);
+    this.paymentsTablePage.set(1); // Reset to first page when filter changes
+  }
+
+  // Pagination methods
+  setDueTodayPage(page: number): void {
+    if (page >= 1 && page <= this.dueTodayPages()) {
+      this.dueTodayPage.set(page);
+    }
+  }
+
+  setOverduePage(page: number): void {
+    if (page >= 1 && page <= this.overduePages()) {
+      this.overduePage.set(page);
+    }
+  }
+
+  setPaidUpPage(page: number): void {
+    if (page >= 1 && page <= this.paidUpPages()) {
+      this.paidUpPage.set(page);
+    }
+  }
+
+  setPaymentsTablePage(page: number): void {
+    if (page >= 1 && page <= this.paymentsTablePages()) {
+      this.paymentsTablePage.set(page);
+    }
   }
 }

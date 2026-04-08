@@ -63,6 +63,12 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly historyPayments = signal<Payment[]>([]);
   readonly bedPickerOpen = signal(false);
   readonly pgLayout = signal<PgLayout | null>(null);
+  readonly importModalOpen = signal(false);
+  readonly importRows = signal<ImportPreviewRow[]>([]);
+  readonly importFileName = signal('');
+  readonly importBusy = signal(false);
+  readonly importDueDateForAll = this.fb.nonNullable.control(false);
+  readonly importDueDate = this.fb.nonNullable.control('');
   private historyUnsub: (() => void) | null = null;
   private layoutUnsub: (() => void) | null = null;
   private readonly i18n = inject(TranslationService);
@@ -254,6 +260,14 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   readonly canNextPageGroup = computed(() => {
     return this.pageGroupStart() + this.pagesPerGroup - 1 < this.totalPages();
+  });
+
+  readonly importValidCount = computed(() => {
+    return this.importRows().filter((r) => r.valid).length;
+  });
+
+  readonly importInvalidCount = computed(() => {
+    return this.importRows().filter((r) => !r.valid).length;
   });
 
   readonly memberForm = this.fb.nonNullable.group({
@@ -759,4 +773,300 @@ export class MembersComponent implements OnInit, OnDestroy {
     if (f <= 0 || r <= 0 || b <= 0) return '';
     return `${Math.trunc(f)}-${Math.trunc(r)}-${Math.trunc(b)}`;
   }
+
+  // ===== Import Methods =====
+
+  openImportModal(): void {
+    this.importRows.set([]);
+    this.importFileName.set('');
+    this.importDueDateForAll.setValue(false);
+    this.importDueDate.setValue('');
+    this.importModalOpen.set(true);
+  }
+
+  closeImportModal(): void {
+    this.importModalOpen.set(false);
+  }
+
+  downloadSampleCsv(): void {
+    let sample: string;
+    if (this.isPg()) {
+      sample = [
+        'name,mobile,plan,dueDate,subscriptionType,floor,room,bed',
+        'Ravi Kumar,9876543210,4000,2026-04-30,monthly,1,1,1',
+        'Priya Singh,9988776655,5000,2026-05-15,quarterly,2,3,2',
+        'Amit Patel,9123456789,3500,2026-06-10,monthly,1,4,3',
+      ].join('\n');
+    } else {
+      sample = [
+        'name,mobile,plan,dueDate,subscriptionType,floor,room,bed',
+        'Ravi Kumar,9876543210,2500,2026-04-30,monthly,,',
+        'Anita Sharma,9988776655,3200,2026-05-15,quarterly,,',
+        'Vikram Singh,9123456789,2000,2026-05-20,monthly,,',
+      ].join('\n');
+    }
+    const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'members-import-sample.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async onImportFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.importFileName.set(file.name);
+    try {
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+        const XLSX = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const firstSheet = wb.SheetNames[0];
+        if (!firstSheet) {
+          this.importRows.set([]);
+          this.toast.error('Excel file has no sheets');
+          return;
+        }
+        const sheet = wb.Sheets[firstSheet];
+        const rows = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(sheet, {
+          header: 1,
+          raw: false,
+          blankrows: false,
+          defval: '',
+        });
+        const csvText = rows
+          .map((r) =>
+            r
+              .map((cell) => {
+                const s = String(cell ?? '').trim();
+                return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+              })
+              .join(','),
+          )
+          .join('\n');
+        this.parseImportCsv(csvText);
+      } else {
+        const text = await file.text();
+        this.parseImportCsv(text);
+      }
+    } catch {
+      this.toast.error('Could not read file. Upload CSV or Excel.');
+    } finally {
+      input.value = '';
+    }
+  }
+
+  private parseImportCsv(text: string): void {
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    if (lines.length < 2) {
+      this.importRows.set([]);
+      this.toast.error('CSV is empty');
+      return;
+    }
+
+    const headers = this.parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
+    const idx = {
+      name: headers.indexOf('name'),
+      mobile: headers.indexOf('mobile'),
+      plan: headers.indexOf('plan'),
+      dueDate: headers.indexOf('duedate'),
+      subscriptionType: headers.indexOf('subscriptiontype'),
+      floor: headers.indexOf('floor'),
+      room: headers.indexOf('room'),
+      bed: headers.indexOf('bed'),
+    };
+    if (idx.name < 0 || idx.plan < 0 || idx.dueDate < 0 || idx.subscriptionType < 0) {
+      this.importRows.set([]);
+      this.toast.error('CSV headers missing. Use sample format.');
+      return;
+    }
+
+    const existingKeys = new Set<string>();
+    for (const m of this.members()) {
+      const loc = this.identityLocationParts(m.floorNumber || '', m.roomNumber || '', m.bedNumber || '');
+      existingKeys.add(this.memberIdentityKey(m.firstName, m.lastName || '', m.mobile || '', loc.floorNumber, loc.roomNumber, loc.bedNumber));
+    }
+    const fileKeys = new Set<string>();
+    const rows: ImportPreviewRow[] = [];
+
+    for (let i = 1; i < lines.length; i += 1) {
+      const cols = this.parseCsvLine(lines[i]);
+      const rawName = this.readCol(cols, idx.name);
+      const [firstName, ...lastParts] = rawName.trim().split(/\s+/);
+      const lastName = lastParts.join(' ');
+      const mobile = this.readCol(cols, idx.mobile).replace(/\D/g, '');
+      const planText = this.readCol(cols, idx.plan);
+      const dueDateText = this.readCol(cols, idx.dueDate);
+      const subText = this.readCol(cols, idx.subscriptionType).toLowerCase();
+      const floor = this.readCol(cols, idx.floor);
+      const room = this.readCol(cols, idx.room);
+      const bed = this.readCol(cols, idx.bed);
+
+      const errors: string[] = [];
+      if (!firstName) errors.push('Name is required');
+      const amount = Number(planText);
+      if (!Number.isFinite(amount) || amount <= 0) errors.push('Plan should be a positive number');
+      const subscriptionType = (subText || 'monthly') as SubscriptionType;
+      if (!['monthly', 'quarterly', 'yearly'].includes(subscriptionType)) {
+        errors.push('subscriptionType should be monthly/quarterly/yearly');
+      }
+      const dueDate = this.parseDateInput(dueDateText);
+      if (!dueDate) errors.push('dueDate should be YYYY-MM-DD');
+      if (mobile && mobile.length !== 10) errors.push('Mobile should be 10 digits');
+
+      const assignedBed = this.resolveBedForImport(floor, room, bed);
+      const identityLoc = this.identityLocationParts(assignedBed.floorNumber, assignedBed.roomNumber, assignedBed.bedNumber);
+      const key = this.memberIdentityKey(firstName, lastName, mobile, identityLoc.floorNumber, identityLoc.roomNumber, identityLoc.bedNumber);
+      if (existingKeys.has(key)) errors.push('Member details already exist');
+      if (fileKeys.has(key)) errors.push('Duplicate row in file');
+      fileKeys.add(key);
+
+      if (assignedBed.error) errors.push(assignedBed.error);
+
+      rows.push({
+        rowNo: i,
+        valid: errors.length === 0,
+        errors,
+        firstName,
+        lastName,
+        mobile,
+        amount: Number.isFinite(amount) ? amount : 0,
+        dueDate: dueDateText,
+        subscriptionType,
+        floorNumber: assignedBed.floorNumber,
+        roomNumber: assignedBed.roomNumber,
+        bedNumber: assignedBed.bedNumber,
+      });
+    }
+
+    this.importRows.set(rows);
+  }
+
+  async importValidMembers(): Promise<void> {
+    const owner = this.auth.profile();
+    if (!owner?.ownerId) return;
+    const rows = this.importRows();
+    const dueForAll = this.importDueDateForAll.value ? this.parseDateInput(this.importDueDate.value) : null;
+    if (this.importDueDateForAll.value && !dueForAll) {
+      this.toast.error('Please select a valid due date for all');
+      return;
+    }
+    const validRows = rows.filter((r) => r.valid);
+    if (validRows.length === 0) {
+      this.toast.error('No valid rows to import');
+      return;
+    }
+    this.importBusy.set(true);
+    let imported = 0;
+    for (const row of validRows) {
+      const due = dueForAll || this.parseDateInput(row.dueDate);
+      if (!due) continue;
+      const join = new Date(due);
+      join.setMonth(join.getMonth() - 1);
+      try {
+        await this.membersApi.addMember({
+          firstName: row.firstName,
+          lastName: row.lastName || undefined,
+          mobile: row.mobile || undefined,
+          floorNumber: row.floorNumber || '',
+          roomNumber: row.roomNumber || '',
+          bedNumber: row.bedNumber || '',
+          joinDate: join,
+          dueDate: due,
+          amount: row.amount,
+          paymentMethod: 'cash',
+          status: 'active',
+          subscriptionType: owner.businessType === 'gym' ? row.subscriptionType : 'monthly',
+        });
+        imported += 1;
+      } catch {
+        // Skip failed row, continue import.
+      }
+    }
+    this.importBusy.set(false);
+    this.toast.success(`Imported ${imported} members. Skipped ${validRows.length - imported}.`);
+    this.closeImportModal();
+  }
+
+  private parseCsvLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current);
+    return result;
+  }
+
+  private readCol(cols: string[], idx: number): string {
+    return idx >= 0 && idx < cols.length ? cols[idx].trim() : '';
+  }
+
+  private parseDateInput(dateStr: string): Date | null {
+    const match = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const d = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00Z`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  private resolveBedForImport(floorStr: string, roomStr: string, bedStr: string): { floorNumber: string; roomNumber: string; bedNumber: string; error?: string } {
+    const floor = floorStr.trim();
+    const room = roomStr.trim();
+    const bed = bedStr.trim();
+    if (!room && !floor) return { floorNumber: '', roomNumber: '', bedNumber: '' };
+    if (!room) return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Room is required if floor is provided' };
+    if (!floor && room) {
+      const roomNum = String(room);
+      if (roomNum.length === 3) {
+        const extracted = roomNum.substring(0, 1);
+        const remaining = roomNum.substring(1);
+        return { floorNumber: extracted, roomNumber: remaining, bedNumber: bed };
+      }
+    }
+    return { floorNumber: floor, roomNumber: room, bedNumber: bed };
+  }
+
+  private memberIdentityKey(firstName: string, lastName: string, mobile: string, floor: string, room: string, bed: string): string {
+    return `${firstName}|${lastName}|${mobile}|${floor}|${room}|${bed}`;
+  }
+
+  private identityLocationParts(floor: string, room: string, bed: string): { floorNumber: string; roomNumber: string; bedNumber: string } {
+    return { floorNumber: floor, roomNumber: room, bedNumber: bed };
+  }
+}
+
+interface ImportPreviewRow {
+  rowNo: number;
+  valid: boolean;
+  errors: string[];
+  firstName: string;
+  lastName: string;
+  mobile: string;
+  amount: number;
+  dueDate: string;
+  subscriptionType: SubscriptionType;
+  floorNumber: string;
+  roomNumber: string;
+  bedNumber: string;
 }
