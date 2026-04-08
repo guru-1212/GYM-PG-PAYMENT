@@ -5,6 +5,7 @@ import { authGuard } from './core/guards/auth.guard';
 import { loginGuard } from './core/guards/login.guard';
 import { ownerGuard } from './core/guards/owner.guard';
 import { pendingApprovalGuard } from './core/guards/pending-approval.guard';
+import { subscriptionGuard } from './core/guards/subscription.guard';
 import { AdminShellComponent } from './layout/admin-shell.component';
 import { OwnerShellComponent } from './layout/owner-shell.component';
 import { AccountRejectedComponent } from './pages/account-rejected/account-rejected.component';
@@ -16,6 +17,7 @@ import { MembersComponent } from './pages/members/members.component';
 import { PaymentsPageComponent } from './pages/payments/payments-page.component';
 import { PendingApprovalComponent } from './pages/pending-approval/pending-approval.component';
 import { RoomsPageComponent } from './pages/rooms/rooms-page.component';
+import { SubscriptionExpiredComponent } from './pages/subscription-expired/subscription-expired.component';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
@@ -31,6 +33,11 @@ export const routes: Routes = [
     component: AccountRejectedComponent,
   },
   {
+    path: 'subscription-expired',
+    canActivate: [authGuard],
+    component: SubscriptionExpiredComponent,
+  },
+  {
     path: 'admin',
     canActivate: [authGuard, adminGuard],
     component: AdminShellComponent,
@@ -42,7 +49,7 @@ export const routes: Routes = [
   },
   {
     path: '',
-    canActivate: [authGuard, ownerGuard],
+    canActivate: [authGuard, ownerGuard, subscriptionGuard],
     component: OwnerShellComponent,
     children: [
       { path: 'dashboard', component: OwnerDashboardComponent },

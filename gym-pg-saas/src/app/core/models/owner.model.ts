@@ -13,4 +13,19 @@ export interface Owner {
   role: OwnerRole;
   status: OwnerStatus;
   createdAt: Timestamp;
+  // Subscription fields
+  planStartDate?: Timestamp;
+  planEndDate?: Timestamp;
+  emailVerified?: boolean;
+}
+
+export interface AdminPayment {
+  id?: string;
+  ownerId: string;
+  ownerName: string;
+  ownerEmail: string;
+  amount: number;
+  planDays: number;
+  date: Timestamp;
+  createdAt: Timestamp;
 }

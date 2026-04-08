@@ -1,0 +1,68 @@
+<div class="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0">
+    <div class="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-red-500/25 blur-3xl"></div>
+    <div class="absolute -right-24 top-20 h-72 w-72 rounded-full bg-orange-500/20 blur-3xl"></div>
+  </div>
+
+  <div class="relative w-full max-w-md">
+    <div class="rounded-2xl border border-white/70 bg-white/50 p-8 shadow-xl backdrop-blur-xl">
+      <div class="mb-6 flex justify-center">
+        <div class="rounded-full bg-red-100 p-4">
+          <span class="material-icons text-3xl text-red-600">lock_clock</span>
+        </div>
+      </div>
+
+      <h1 class="mb-2 text-center text-2xl font-bold text-slate-900">{{ 'subscription.expired' | t }}</h1>
+      <p class="mb-6 text-center text-sm text-slate-600">{{ 'subscription.expiredMessage' | t }}</p>
+
+      <div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+        <p class="text-sm text-red-700">
+          {{ 'subscription.expiredNotice' | t }}
+        </p>
+      </div>
+
+      <div class="space-y-3">
+        <div class="rounded-lg bg-slate-50 p-4">
+          <p class="text-xs font-medium text-slate-500 uppercase">{{ 'subscription.whatNext' | t }}</p>
+          <ul class="mt-2 space-y-2">
+            <li class="flex gap-2 text-sm text-slate-700">
+              <span class="text-indigo-600">✓</span>
+              <span>{{ 'subscription.step1' | t }}</span>
+            </li>
+            <li class="flex gap-2 text-sm text-slate-700">
+              <span class="text-indigo-600">✓</span>
+              <span>{{ 'subscription.step2' | t }}</span>
+            </li>
+            <li class="flex gap-2 text-sm text-slate-700">
+              <span class="text-indigo-600">✓</span>
+              <span>{{ 'subscription.step3' | t }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <button
+          type="button"
+          (click)="signOut()"
+          class="w-full rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition-all hover:bg-red-100"
+        >
+          {{ 'subscription.signOut' | t }}
+        </button>
+
+        <a
+          href="https://wa.me/917522935014?text=Hi%20Admin%2C%20my%20subscription%20has%20expired%20and%20I%20need%20to%20renew%20it."
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 transition-all hover:bg-green-100"
+        >
+          <svg viewBox="0 0 32 32" class="h-4 w-4" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M19.11 17.53c-.28-.14-1.64-.81-1.9-.9-.26-.1-.45-.14-.64.14-.19.28-.74.9-.9 1.09-.17.19-.33.21-.61.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.4-1.66-1.56-1.94-.17-.28-.02-.43.12-.57.12-.12.28-.33.43-.5.14-.17.19-.28.28-.47.1-.19.05-.36-.02-.5-.07-.14-.64-1.55-.88-2.12-.23-.55-.47-.48-.64-.48h-.55c-.19 0-.5.07-.76.36-.26.28-1 1-1 2.44s1.02 2.83 1.16 3.03c.14.19 2.01 3.07 4.87 4.3.68.29 1.21.46 1.63.59.68.22 1.3.19 1.79.12.55-.08 1.64-.67 1.87-1.31.23-.64.23-1.19.16-1.31-.07-.12-.26-.19-.55-.33zM16 3.2c-7.06 0-12.8 5.64-12.8 12.58 0 2.21.59 4.37 1.71 6.27L3.2 28.8l6.98-1.83c1.85 1 3.93 1.53 6.06 1.53 7.06 0 12.8-5.64 12.8-12.58C28.8 8.84 23.06 3.2 16 3.2zm0 23.05c-2.01 0-3.97-.55-5.66-1.58l-.4-.24-4.14 1.08 1.11-3.98-.26-.4c-1.08-1.66-1.65-3.58-1.65-5.55 0-5.78 4.8-10.49 10.99-10.49 6.19 0 10.99 4.71 10.99 10.49 0 5.78-4.8 10.49-10.99 10.49z"
+            />
+          </svg>
+          {{ 'subscription.contactAdmin' | t }}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

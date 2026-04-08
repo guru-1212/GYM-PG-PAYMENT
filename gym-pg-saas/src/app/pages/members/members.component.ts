@@ -67,6 +67,12 @@ export class MembersComponent implements OnInit, OnDestroy {
   private layoutUnsub: (() => void) | null = null;
   private readonly i18n = inject(TranslationService);
 
+  // Pagination signals
+  readonly currentPage = signal(1);
+  readonly pageGroupStart = signal(1); // For showing page numbers 1-5, 6-10, etc
+  readonly itemsPerPage = 20;
+  readonly pagesPerGroup = 5;
+
   readonly dueLabel = computed(() => {
     this.i18n.lang();
     return this.auth.profile()?.businessType === 'pg'
@@ -223,6 +229,33 @@ export class MembersComponent implements OnInit, OnDestroy {
       .filter((s) => s.members.length > 0);
   });
 
+  // Pagination computed functions
+  readonly totalPages = computed(() => Math.ceil(this.displayMembers().length / this.itemsPerPage));
+
+  readonly membersPagedList = computed(() => {
+    const list = this.displayMembers();
+    const page = this.currentPage();
+    const start = (page - 1) * this.itemsPerPage;
+    return list.slice(start, start + this.itemsPerPage);
+  });
+
+  readonly visiblePageNumbers = computed(() => {
+    const total = this.totalPages();
+    const groupStart = this.pageGroupStart();
+    const groupEnd = Math.min(groupStart + this.pagesPerGroup - 1, total);
+    const pages: number[] = [];
+    for (let i = groupStart; i <= groupEnd; i++) {
+      pages.push(i);
+    }
+    return pages;
+  });
+
+  readonly canPrevPageGroup = computed(() => this.pageGroupStart() > 1);
+
+  readonly canNextPageGroup = computed(() => {
+    return this.pageGroupStart() + this.pagesPerGroup - 1 < this.totalPages();
+  });
+
   readonly memberForm = this.fb.nonNullable.group({
     firstName: ['', Validators.required],
     lastName: [''],
@@ -289,6 +322,38 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   clearDueSectionFilter(): void {
     this.dueSectionFilter.set('all');
+  }
+
+  // Pagination methods
+  goToPage(page: number): void {
+    if (page >= 1 && page <= this.totalPages()) {
+      this.currentPage.set(page);
+      // Adjust page group if needed
+      if (page < this.pageGroupStart()) {
+        this.pageGroupStart.set(Math.max(1, Math.floor((page - 1) / this.pagesPerGroup) * this.pagesPerGroup + 1));
+      } else if (page > this.pageGroupStart() + this.pagesPerGroup - 1) {
+        this.pageGroupStart.set(page - this.pagesPerGroup + 1);
+      }
+    }
+  }
+
+  prevPageGroup(): void {
+    const newStart = Math.max(1, this.pageGroupStart() - this.pagesPerGroup);
+    this.pageGroupStart.set(newStart);
+    const currentPage = this.currentPage();
+    if (currentPage < newStart) {
+      this.currentPage.set(newStart);
+    }
+  }
+
+  nextPageGroup(): void {
+    const total = this.totalPages();
+    const newStart = Math.min(total - this.pagesPerGroup + 1, this.pageGroupStart() + this.pagesPerGroup);
+    this.pageGroupStart.set(newStart);
+    const currentPage = this.currentPage();
+    if (currentPage < newStart) {
+      this.currentPage.set(newStart);
+    }
   }
 
   openAdd(): void {
@@ -496,6 +561,10 @@ export class MembersComponent implements OnInit, OnDestroy {
     const key = this.bedKey(floor, room, bed);
     if (!key) return false;
     return this.occupiedBedKeys().has(key);
+  }
+
+  formatRoomNumber(floorNumber: number, roomNumber: number): string {
+    return `${floorNumber}${roomNumber.toString().padStart(2, '0')}`;
   }
 
   selectBed(floor: number, room: number, bed: number): void {
