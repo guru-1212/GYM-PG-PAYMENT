@@ -75,17 +75,27 @@
       <div class="saas-card p-5">
         <div class="flex items-center justify-between gap-2">
           <p class="text-sm font-medium text-slate-500">{{ 'dashboard.monthEarnings' | t }}</p>
-          <button
-            type="button"
-            class="rounded-lg p-1.5 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-700"
-            (click)="showMonthEarnings.set(!showMonthEarnings())"
-            [attr.aria-label]="showMonthEarnings() ? ('dashboard.hideEarnings' | t) : ('dashboard.showEarnings' | t)"
-            [attr.title]="showMonthEarnings() ? ('dashboard.hideEarnings' | t) : ('dashboard.showEarnings' | t)"
-          >
-            <span class="material-icons-outlined text-lg">{{
-              showMonthEarnings() ? 'visibility_off' : 'visibility'
-            }}</span>
-          </button>
+          <div class="flex gap-1">
+            <button
+              type="button"
+              class="rounded-lg p-1.5 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-700"
+              (click)="showMonthlyEarningsModal.set(true)"
+              title="View monthly earnings details"
+            >
+              <span class="material-icons-outlined text-lg">history</span>
+            </button>
+            <button
+              type="button"
+              class="rounded-lg p-1.5 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-700"
+              (click)="showMonthEarnings.set(!showMonthEarnings())"
+              [attr.aria-label]="showMonthEarnings() ? ('dashboard.hideEarnings' | t) : ('dashboard.showEarnings' | t)"
+              [attr.title]="showMonthEarnings() ? ('dashboard.hideEarnings' | t) : ('dashboard.showEarnings' | t)"
+            >
+              <span class="material-icons-outlined text-lg">{{
+                showMonthEarnings() ? 'visibility_off' : 'visibility'
+              }}</span>
+            </button>
+          </div>
         </div>
         @if (showMonthEarnings()) {
           <p class="mt-2 text-3xl font-bold text-emerald-700">₹{{ monthEarnings() | number: '1.0-0' }}</p>
@@ -368,6 +378,21 @@
    
   }
 </div>
+
+<!-- Monthly Earnings Details Modal -->
+@if (showMonthlyEarningsModal()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" (click)="showMonthlyEarningsModal.set(false)">
+    <div class="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/60 bg-white/95 shadow-2xl backdrop-blur-xl" (click)="$event.stopPropagation()">
+      <div class="p-6">
+        <app-monthly-earnings-detailed 
+          [paymentsInput]="payments()" 
+          [membersInput]="members()"
+          (closed)="showMonthlyEarningsModal.set(false)"
+        ></app-monthly-earnings-detailed>
+      </div>
+    </div>
+  </div>
+}
 
 <!-- Go to Top Button -->
 @if (showScrollTopButton()) {
@@ -737,3 +762,6 @@
     </div>
   }
 </app-modal>
+
+<!-- Monthly Earnings Sidebar (Deprecated - use main section component instead) -->
+

@@ -2,14 +2,13 @@ import { Component, HostListener, computed, inject, signal } from '@angular/core
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
 import { TranslationService } from '../core/services/translation.service';
-import { LanguageSwitcherComponent } from '../shared/language-switcher.component';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../shared/brand-logo.component';
 
 @Component({
   selector: 'app-admin-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, LanguageSwitcherComponent, BrandLogoComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe,  BrandLogoComponent],
   templateUrl: './admin-shell.component.html',
 })
 export class AdminShellComponent {

@@ -41,15 +41,22 @@
                 <div class="mt-2 grid grid-cols-3 gap-2">
                   @for (_ of [].constructor(room.beds); track $index; let bedIdx = $index) {
                     <div
-                      class="seat-block flex h-8 items-center justify-center rounded-md border text-xs font-semibold"
-                      [class.border-red-200]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                      class="seat-block flex h-8 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-200"
+                      [class.border-red-300]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                       [class.bg-red-100]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                       [class.text-red-800]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                      [class.cursor-not-allowed]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                       [class.border-emerald-200]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                       [class.bg-emerald-50]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                       [class.text-emerald-800]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                      [attr.aria-label]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1) ? 'Bed ' + (bedIdx + 1) + ' - Occupied (locked)' : 'Bed ' + (bedIdx + 1)"
                     >
-                      Bed {{ bedIdx + 1 }}
+                      <span class="flex items-center gap-1">
+                        @if (isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)) {
+                          <span class="material-icons text-sm">lock</span>
+                        }
+                        {{ bedIdx + 1 }}
+                      </span>
                     </div>
                   }
                 </div>
@@ -64,6 +71,31 @@
 
 <app-modal [open]="setupModalOpen()" title="Setup Bed Availability" (closed)="closeSetup()">
   <form [formGroup]="setupForm" class="space-y-4">
+    <!-- Validation Error Alert -->
+    @if (getValidationError()) {
+      <div class="rounded-lg border-2 border-red-200 bg-red-50 p-4">
+        <div class="flex gap-3">
+          <span class="material-icons text-xl text-red-600 shrink-0">error</span>
+          <div>
+            <p class="font-semibold text-red-900">Cannot Reduce Bed Capacity</p>
+            <p class="mt-1 text-sm text-red-800">{{ getValidationError() }}</p>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Bed Status Info -->
+    @if (occupiedBedCount() > 0) {
+      <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
+        <p class="text-sm text-blue-900">
+          <strong>Current Status:</strong> {{ occupiedBedCount() }} bed{{ occupiedBedCount() !== 1 ? 's' : '' }} occupied, {{ totalBeds() - occupiedBedCount() }} empty
+        </p>
+        <p class="mt-1 text-xs text-blue-800">
+          Proposed capacity: {{ proposedTotalBeds() }} bed{{ proposedTotalBeds() !== 1 ? 's' : '' }}
+        </p>
+      </div>
+    }
+
     <div>
       <label class="mb-1 block text-sm font-medium text-slate-700">Number of floors (1-8)</label>
       <input
@@ -112,10 +144,22 @@
       <button type="button" class="rounded-xl border border-slate-200 px-5 py-3 font-semibold" (click)="closeSetup()">
         Continue Later
       </button>
-      <button type="button" class="rounded-xl border border-emerald-300 px-5 py-3 font-semibold text-emerald-700" (click)="saveDraft(true)">
+      <button
+        type="button"
+        class="rounded-xl border border-emerald-300 px-5 py-3 font-semibold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+        [disabled]="!isValidCapacity()"
+        (click)="saveDraft(true)"
+        [title]="!isValidCapacity() ? getValidationError() : 'Save changes as draft'"
+      >
         Save Draft
       </button>
-      <button type="button" class="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700" (click)="saveDraft(false)">
+      <button
+        type="button"
+        class="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+        [disabled]="!isValidCapacity()"
+        (click)="saveDraft(false)"
+        [title]="!isValidCapacity() ? getValidationError() : 'Save and close'"
+      >
         Save & Close
       </button>
     </div>

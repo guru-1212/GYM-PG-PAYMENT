@@ -54,6 +54,14 @@
           {{ 'nav.rooms' | t }}
         </a>
       }
+      <button
+        type="button"
+        (click)="openMonthlyEarnings()"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+      >
+        <span class="material-icons-outlined">bar_chart</span>
+        Monthly Earnings
+      </button>
     </nav>
     <div class="border-t border-slate-100 p-3">
       <button
@@ -199,3 +207,11 @@
     </main>
   </div>
 </div>
+
+@if (showMonthlyEarnings()) {
+  <app-monthly-earnings 
+    [paymentsInput]="payments()" 
+    [membersInput]="members()"
+    (closed)="showMonthlyEarnings.set(false)"
+  ></app-monthly-earnings>
+}

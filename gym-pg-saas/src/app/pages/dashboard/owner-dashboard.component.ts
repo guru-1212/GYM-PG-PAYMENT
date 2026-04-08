@@ -12,6 +12,8 @@ import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { ToastService } from '../../core/services/toast.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { ModalComponent } from '../../shared/modal.component';
+import { MonthlyEarningsComponent } from '../../shared/monthly-earnings.component';
+import { MonthlyEarningsDetailedComponent } from '../../shared/monthly-earnings-detailed.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import {
   coerceFirestoreDate,
@@ -29,7 +31,7 @@ import {
 @Component({
   selector: 'app-owner-dashboard',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, NgClass, RouterLink, ReactiveFormsModule, ModalComponent, TranslatePipe],
+  imports: [DatePipe, DecimalPipe, NgClass, RouterLink, ReactiveFormsModule, ModalComponent, MonthlyEarningsComponent, MonthlyEarningsDetailedComponent, TranslatePipe],
   templateUrl: './owner-dashboard.component.html',
 })
 export class OwnerDashboardComponent implements OnInit, OnDestroy {
@@ -54,6 +56,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly importDueDate = this.fb.nonNullable.control('');
   readonly pgLayout = signal<PgLayout | null>(null);
   readonly showMonthEarnings = signal(false);
+  readonly showMonthlyEarningsModal = signal(false);
   readonly recentJoinersExpanded = signal(false);
   readonly memberDetailTarget = signal<Member | null>(null);
   readonly showScrollTopButton = signal(false);

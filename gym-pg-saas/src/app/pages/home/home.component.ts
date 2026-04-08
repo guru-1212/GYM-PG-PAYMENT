@@ -2,13 +2,12 @@ import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { LanguageSwitcherComponent } from '../../shared/language-switcher.component';
 import { BrandLogoComponent } from '../../shared/brand-logo.component';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterModule, TranslatePipe, LanguageSwitcherComponent, BrandLogoComponent],
+  imports: [CommonModule, RouterModule, TranslatePipe, BrandLogoComponent],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
 })
