@@ -4,11 +4,12 @@ import { AuthService } from '../core/services/auth.service';
 import { TranslationService } from '../core/services/translation.service';
 import { LanguageSwitcherComponent } from '../shared/language-switcher.component';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
+import { BrandLogoComponent } from '../shared/brand-logo.component';
 
 @Component({
   selector: 'app-owner-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, LanguageSwitcherComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, LanguageSwitcherComponent, BrandLogoComponent],
   templateUrl: './owner-shell.component.html',
 })
 export class OwnerShellComponent {

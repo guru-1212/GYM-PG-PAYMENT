@@ -6,11 +6,12 @@ import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
 import { LanguageSwitcherComponent } from '../../shared/language-switcher.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { BrandLogoComponent } from '../../shared/brand-logo.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule, TranslatePipe, LanguageSwitcherComponent],
+  imports: [ReactiveFormsModule, TranslatePipe, LanguageSwitcherComponent, BrandLogoComponent],
   templateUrl: './login.component.html',
 })
 export class LoginComponent implements OnInit {

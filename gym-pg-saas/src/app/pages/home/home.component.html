@@ -1,0 +1,147 @@
+<div class="home-container">
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <div class="nav-wrapper">
+      <div class="nav-brand">
+        <app-brand-logo [logoSize]="'40px'" [showText]="true" brandName="OurPgTracker"></app-brand-logo>
+      </div>
+      <div class="nav-actions">
+        <!-- <app-language-switcher></app-language-switcher> -->
+        <a routerLink="/login" class="nav-login-btn">
+          {{ 'nav.login' | t }}     
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="hero-wrapper">
+      <div class="hero-content">
+        <h1 class="hero-title">
+          Manage Your
+          <span class="hero-gradient">Gym & PG</span>
+          Effortlessly
+        </h1>
+        <p class="hero-description">
+          Complete management solution for gyms and paying guest accommodations. Track members, payments, subscriptions,
+          and room availability—all in one platform.
+        </p>
+        <div class="hero-buttons">
+          <a routerLink="/login" class="btn-primary">Login</a>
+          <a routerLink="/login"  class="btn-secondary">Sign Up</a>
+        </div>
+      </div>
+
+      <!-- Hero Illustration -->
+      <div class="hero-illustration">
+        <div class="illustration-bg"></div>
+        <div class="illustration-card">
+          <div class="illustration-content">
+            <div class="illustration-line"></div>
+            <div class="illustration-line short"></div>
+            <div class="illustration-grid">
+              <div class="grid-item"></div>
+              <div class="grid-item"></div>
+            </div>
+            <div class="grid-item"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features-section">
+    <div class="features-header">
+      <h2>Powerful Features</h2>
+      <p>Everything you need to manage your business efficiently</p>
+    </div>
+
+    <div class="features-grid">
+      <div *ngFor="let feature of features" class="feature-card">
+        <div class="feature-icon">
+          <span>{{ feature.icon }}</span>
+        </div>
+        <h3>{{ feature.title }}</h3>
+        <p>{{ feature.description }}</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Plans Section -->
+  <!-- <section class="plans-section">
+    <div class="plans-header">
+      <h2>Simple Pricing</h2>
+      <p>Choose the plan that works for you</p>
+    </div>
+
+    <div class="plans-grid">
+      <div *ngFor="let plan of plans" class="plan-card" [class.plan-featured]="plan.featured">
+        <h3 class="plan-name">{{ plan.name }}</h3>
+        <p class="plan-description">{{ plan.description }}</p>
+        <div class="plan-price">
+          <span class="price">₹{{ plan.price }}</span>
+          <span class="period">/month</span>
+        </div>
+        <button type="button" class="plan-btn">Get Started</button>
+        <ul class="plan-features">
+          <li *ngFor="let feature of plan.features">
+            <span class="checkmark">✓</span>
+            {{ feature }}
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section> -->
+
+  <!-- CTA Section -->
+  <section class="cta-section">
+    <div class="cta-card">
+      <h2>Ready to Transform Your Business?</h2>
+      <p>Join thousands of gym owners and PG operators who trust OurPgTracker</p>
+      <a routerLink="/login" class="cta-btn">Start Your Free Trial</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-wrapper">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <div class="footer-brand">
+           
+            <span class="footer-brand-name">OurPgTracker</span>
+          </div>
+          <p class="footer-tagline">Management made simple</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <ul>
+            <li><a href="#">Features</a></li>
+            <li><a href="#">Pricing</a></li>
+            <li><a href="#">Security</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Company</h4>
+          <ul>
+            <li><a href="#">About</a></li>
+            <li><a href="#">Blog</a></li>
+            <li><a href="#">Contact</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Legal</h4>
+          <ul>
+            <li><a href="#">Privacy</a></li>
+            <li><a href="#">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 OurPgTracker. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+</div>

@@ -11,6 +11,7 @@ import { OwnerShellComponent } from './layout/owner-shell.component';
 import { AccountRejectedComponent } from './pages/account-rejected/account-rejected.component';
 import { AdminDashboardComponent } from './pages/admin/admin-dashboard.component';
 import { AdminOwnersComponent } from './pages/admin/admin-owners.component';
+import { HomeComponent } from './pages/home/home.component';
 import { OwnerDashboardComponent } from './pages/dashboard/owner-dashboard.component';
 import { LoginComponent } from './pages/login/login.component';
 import { MembersComponent } from './pages/members/members.component';
@@ -20,7 +21,7 @@ import { RoomsPageComponent } from './pages/rooms/rooms-page.component';
 import { SubscriptionExpiredComponent } from './pages/subscription-expired/subscription-expired.component';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'login' },
+  { path: '', pathMatch: 'full', component: HomeComponent },
   { path: 'login', canActivate: [loginGuard], component: LoginComponent },
   {
     path: 'pending-approval',

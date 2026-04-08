@@ -1,10 +1,12 @@
 import { Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { BrandLogoComponent } from '../../shared/brand-logo.component';
 
 @Component({
   selector: 'app-pending-approval',
   standalone: true,
+  imports: [BrandLogoComponent],
   template: `
     <div class="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
       <div aria-hidden="true" class="pointer-events-none absolute inset-0">
@@ -14,6 +16,9 @@ import { AuthService } from '../../core/services/auth.service';
       </div>
 
       <div class="relative w-full max-w-md space-y-4">
+        <div class="flex justify-center mb-4">
+          <app-brand-logo [logoSize]="'48px'" [showText]="true" brandName="OurPgTracker"></app-brand-logo>
+        </div>
         <div class="saas-card border-amber-200 bg-amber-50/60 p-8 text-center">
           <span class="material-icons-outlined mb-4 text-4xl text-amber-700">hourglass_top</span>
           <h1 class="text-xl font-bold text-slate-900">Waiting for admin approval</h1>

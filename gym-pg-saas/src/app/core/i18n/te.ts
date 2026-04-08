@@ -11,6 +11,7 @@ export const TE: Record<string, unknown> = {
     payments: 'చెల్లింపులు',
     rooms: 'గదులు',
     menu: 'మెనూ',
+    login: 'లాగిన్',
     signOut: 'సైన్ అవుట్',
     owners: 'యజమానులు',
     admin: 'అడ్మిన్',

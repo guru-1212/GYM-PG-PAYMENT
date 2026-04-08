@@ -11,6 +11,7 @@ export const EN: Record<string, unknown> = {
     payments: 'Payments',
     rooms: 'Rooms',
     menu: 'Menu',
+    login: 'Login',
     signOut: 'Sign out',
     owners: 'Owners',
     admin: 'Admin',
