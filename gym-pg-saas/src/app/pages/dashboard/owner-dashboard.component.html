@@ -5,13 +5,21 @@
         <h1 class="text-2xl font-bold text-slate-900">{{ 'dashboard.title' | t }}</h1>
         <p class="text-slate-600">{{ 'dashboard.subtitle' | t }}</p>
       </div>
-      <!-- <button
-        type="button"
-        class="saas-btn-primary px-4 py-2 text-sm"
-        (click)="openImportModal()"
-      >
-        {{ 'dashboard.importMembers' | t }}
-      </button> -->
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+        @if (subscriptionDaysRemaining() !== null) {
+          <div class="rounded-lg border px-4 py-2" [ngClass]="(subscriptionDaysRemaining() ?? 0) <= 7 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'">
+            <p class="text-xs font-medium" [ngClass]="(subscriptionDaysRemaining() ?? 0) <= 7 ? 'text-red-700' : 'text-emerald-700'">
+              @if (subscriptionDaysRemaining() === 0) {
+                Expires Today
+              } @else if (subscriptionDaysRemaining() === 1) {
+                Expires Tomorrow
+              } @else {
+                {{ subscriptionDaysRemaining() }} days remaining
+              }
+            </p>
+          </div>
+        }
+      </div>
     </div>
   </div>
 

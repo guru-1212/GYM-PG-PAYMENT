@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -29,7 +29,7 @@ import {
 @Component({
   selector: 'app-owner-dashboard',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, RouterLink, ReactiveFormsModule, ModalComponent, TranslatePipe],
+  imports: [DatePipe, DecimalPipe, NgClass, RouterLink, ReactiveFormsModule, ModalComponent, TranslatePipe],
   templateUrl: './owner-dashboard.component.html',
 })
 export class OwnerDashboardComponent implements OnInit, OnDestroy {
@@ -74,6 +74,14 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     return this.auth.profile()?.businessType === 'pg'
       ? this.i18n.t('fees.rentDue')
       : this.i18n.t('fees.planExpiry');
+  });
+
+  readonly subscriptionDaysRemaining = computed(() => {
+    const profile = this.auth.profile();
+    if (!profile?.planEndDate) return null;
+    const planEndDate = profile.planEndDate.toDate?.() || new Date(profile.planEndDate as any);
+    const daysRemaining = calendarDaysBetween(startOfToday(), planEndDate);
+    return Math.max(0, daysRemaining);
   });
 
   readonly totalMembers = computed(() => this.members().filter((m) => m.status === 'active').length);
