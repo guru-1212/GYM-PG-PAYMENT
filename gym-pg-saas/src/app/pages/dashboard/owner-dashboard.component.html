@@ -369,6 +369,19 @@
   }
 </div>
 
+<!-- Go to Top Button -->
+@if (showScrollTopButton()) {
+  <button
+    type="button"
+    (click)="scrollToTop()"
+    class="fixed saas-btn-primary bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg transition-all duration-200 hover:bg-emerald-700 hover:shadow-xl active:scale-95"
+    [attr.aria-label]="'Go to top'"
+    [attr.title]="'Go to top'"
+  >
+    <span class="material-icons-outlined">arrow_upward</span>
+  </button>
+}
+
 <app-modal
   [open]="memberDetailTarget() !== null"
   [title]="memberDetailTitle()"

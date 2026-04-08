@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Member, SubscriptionType } from '../../core/models/member.model';
@@ -56,6 +56,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly showMonthEarnings = signal(false);
   readonly recentJoinersExpanded = signal(false);
   readonly memberDetailTarget = signal<Member | null>(null);
+  readonly showScrollTopButton = signal(false);
 
   // Pagination signals
   readonly dueTodayPage = signal(1);
@@ -304,6 +305,16 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     this.unsubM?.();
     this.unsubP?.();
     this.unsubLayout?.();
+  }
+
+  @HostListener('window:scroll', [])
+  onWindowScroll(): void {
+    const scrollPosition = window.scrollY;
+    this.showScrollTopButton.set(scrollPosition > 300);
+  }
+
+  scrollToTop(): void {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   private attach(ownerId: string): void {
