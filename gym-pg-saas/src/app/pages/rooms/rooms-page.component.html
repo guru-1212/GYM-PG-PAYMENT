@@ -71,19 +71,6 @@
 
 <app-modal [open]="setupModalOpen()" title="Setup Bed Availability" (closed)="closeSetup()">
   <form [formGroup]="setupForm" class="space-y-4">
-    <!-- Validation Error Alert -->
-    @if (getValidationError()) {
-      <div class="rounded-lg border-2 border-red-200 bg-red-50 p-4">
-        <div class="flex gap-3">
-          <span class="material-icons text-xl text-red-600 shrink-0">error</span>
-          <div>
-            <p class="font-semibold text-red-900">Cannot Reduce Bed Capacity</p>
-            <p class="mt-1 text-sm text-red-800">{{ getValidationError() }}</p>
-          </div>
-        </div>
-      </div>
-    }
-
     <!-- Bed Status Info -->
     @if (occupiedBedCount() > 0) {
       <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
@@ -146,19 +133,15 @@
       </button>
       <button
         type="button"
-        class="rounded-xl border border-emerald-300 px-5 py-3 font-semibold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-        [disabled]="!isValidCapacity()"
+        class="rounded-xl border border-emerald-300 px-5 py-3 font-semibold text-emerald-700"
         (click)="saveDraft(true)"
-        [title]="!isValidCapacity() ? getValidationError() : 'Save changes as draft'"
       >
         Save Draft
       </button>
       <button
         type="button"
-        class="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-        [disabled]="!isValidCapacity()"
+        class="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700"
         (click)="saveDraft(false)"
-        [title]="!isValidCapacity() ? getValidationError() : 'Save and close'"
       >
         Save & Close
       </button>

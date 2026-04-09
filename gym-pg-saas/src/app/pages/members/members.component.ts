@@ -26,7 +26,7 @@ import {
   startOfToday,
   timestampToDate,
 } from '../../core/utils/date.utils';
-import { optionalDigitsLen, positiveAmount } from '../../core/utils/validators';
+import { optionalDigitsLen, positiveAmount, dueDateAfterJoinDate } from '../../core/utils/validators';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
@@ -285,7 +285,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     aadhaarLast4: ['', optionalDigitsLen(4)],
     notes: [''],
     joinDate: ['', Validators.required],
-    dueDate: ['', Validators.required],
+    dueDate: ['', [Validators.required, dueDateAfterJoinDate()]],
     amount: [0, [Validators.required, positiveAmount()]],
     paymentMethod: this.fb.nonNullable.control<PaymentMethod>('cash', Validators.required),
     status: this.fb.nonNullable.control<'active' | 'inactive'>('active', Validators.required),
@@ -315,6 +315,11 @@ export class MembersComponent implements OnInit, OnDestroy {
 
     effect(() => {
       this.pgLayout.set(this.cache.layout());
+    });
+
+    // Update dueDate validation when joinDate changes
+    this.memberForm.get('joinDate')?.valueChanges.subscribe(() => {
+      this.memberForm.get('dueDate')?.updateValueAndValidity();
     });
   }
 

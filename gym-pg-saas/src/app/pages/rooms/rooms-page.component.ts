@@ -67,23 +67,6 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
     return total;
   });
 
-  /**
-   * Validation: Check if proposed beds >= occupied beds
-   */
-  readonly isValidCapacity = computed(() => {
-    return this.proposedTotalBeds() >= this.occupiedBedCount();
-  });
-
-  /**
-   * Get validation error message
-   */
-  readonly getValidationError = computed(() => {
-    if (this.isValidCapacity()) return null;
-    const occupied = this.occupiedBedCount();
-    const proposed = this.proposedTotalBeds();
-    return `You have ${occupied} occupied bed${occupied !== 1 ? 's' : ''}. Cannot reduce capacity to ${proposed} bed${proposed !== 1 ? 's' : ''}. Please move or remove tenants first.`;
-  });
-
   readonly setupForm = this.fb.nonNullable.group({
     floorCount: [1, [Validators.required, Validators.min(1), Validators.max(8)]],
     floors: this.fb.array([]),
@@ -157,14 +140,6 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
   }
 
   async saveDraft(stayOpen = true): Promise<void> {
-    // Validate capacity before saving
-    if (!this.isValidCapacity()) {
-      const error = this.getValidationError();
-      this.validationError.set(error);
-      this.toast.error(error || 'Invalid bed capacity');
-      return;
-    }
-
     const ownerId = this.auth.profile()?.ownerId;
     if (!ownerId) return;
     const floors = this.formToLayoutFloors();

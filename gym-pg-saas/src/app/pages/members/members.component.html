@@ -403,9 +403,14 @@
       </div>
       <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">End date</label>
-        <input type="date" formControlName="dueDate" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
+        <input type="date" formControlName="dueDate" [min]="memberForm.get('joinDate')?.value" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
         @if (memberForm.controls.dueDate.touched && memberForm.controls.dueDate.invalid) {
-          <p class="mt-1 text-sm text-red-600">Due date is required</p>
+          @if (memberForm.controls.dueDate.errors?.['required']) {
+            <p class="mt-1 text-sm text-red-600">Due date is required</p>
+          }
+          @if (memberForm.controls.dueDate.errors?.['dueDateBeforeJoinDate']) {
+            <p class="mt-1 text-sm text-red-600">End date cannot be before join date</p>
+          }
         }
       </div>
       
