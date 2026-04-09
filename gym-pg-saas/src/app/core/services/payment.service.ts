@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   limit,
   onSnapshot,
@@ -9,6 +10,7 @@ import {
   query,
   serverTimestamp,
   Unsubscribe,
+  updateDoc,
   where,
 } from 'firebase/firestore';
 import { Observable } from 'rxjs';
@@ -191,5 +193,30 @@ export class PaymentService {
 
   paymentDate(p: Payment): Date | null {
     return timestampToDate(p.date);
+  }
+
+  /**
+   * Get the latest payment for a member (most recent by date)
+   */
+  async getLatestPaymentForMember(memberId: string): Promise<Payment | null> {
+    const q = query(
+      collection(this.fb.db, 'payments'),
+      where('memberId', '==', memberId),
+      orderBy('date', 'desc'),
+      limit(1),
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const doc = snap.docs[0];
+    const data = doc.data() as Payment;
+    return { ...data, paymentId: doc.id };
+  }
+
+  /**
+   * Update the amount of an existing payment
+   */
+  async updatePaymentAmount(paymentId: string, newAmount: number): Promise<void> {
+    const ref = doc(this.fb.db, 'payments', paymentId);
+    await updateDoc(ref, { amount: newAmount });
   }
 }

@@ -310,7 +310,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     roomNumber: ['', Validators.required],
     bedNumber: ['', Validators.required],
     gender: this.fb.control<'male' | 'female' | 'other' | ''>(''),
-    aadhaarLast4: ['', optionalDigitsLen(4)],
+    aadhaarLast4: ['', optionalDigitsLen(12)],
     notes: [''],
     joinDate: ['', Validators.required],
     dueDate: ['', [Validators.required, dueDateAfterJoinDate()]],
@@ -335,6 +335,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   private querySub: Subscription | null = null;
   private currentOwnerId: string | null = null;
   private payFormSubscription: Subscription | null = null;
+  private oldAmount: number = 0;
 
   constructor() {
     // Sync cache signals to component signals
@@ -489,6 +490,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   openEdit(m: Member): void {
+    this.oldAmount = m.amount;
     this.editingId.set(m.memberId);
     this.moreOpen.set(!!(m.gender || m.aadhaarLast4 || m.notes));
     const jd = timestampToDate(m.joinDate);
@@ -533,6 +535,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     }
     const join = new Date(v.joinDate + 'T12:00:00');
     const due = new Date(v.dueDate + 'T12:00:00');
+    const newAmount = Number(v.amount);
     const input = {
       firstName: v.firstName,
       lastName: v.lastName || undefined,
@@ -547,7 +550,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       notes: v.notes || undefined,
       joinDate: join,
       dueDate: due,
-      amount: Number(v.amount),
+      amount: newAmount,
       paymentMethod: v.paymentMethod,
       status: v.status,
       subscriptionType: this.isGym() ? v.subscriptionType : undefined,
@@ -557,6 +560,29 @@ export class MembersComponent implements OnInit, OnDestroy {
       if (id) {
         await this.membersApi.updateMember(id, input);
         this.toast.success('Member updated');
+        
+        // Check if amount changed and update latest payment if confirmed
+        if (this.oldAmount !== newAmount) {
+          const amountChanged = confirm(
+            `Amount changed from ₹${this.oldAmount} to ₹${newAmount}. Do you want to update the latest payment also?`
+          );
+          
+          if (amountChanged) {
+            try {
+              const latestPayment = await this.paymentsApi.getLatestPaymentForMember(id);
+              if (latestPayment) {
+                await this.paymentsApi.updatePaymentAmount(latestPayment.paymentId, newAmount);
+                this.toast.success('Payment updated successfully');
+                console.log(`✅ Payment updated: ${latestPayment.paymentId} amount changed from ₹${latestPayment.amount} to ₹${newAmount}`);
+              } else {
+                console.log('ℹ️ No payment records found for this member');
+              }
+            } catch (error) {
+              console.error('❌ Error updating payment:', error);
+              this.toast.error('Could not update payment');
+            }
+          }
+        }
       } else {
         await this.membersApi.addMember(input);
         this.toast.success('Member added');
