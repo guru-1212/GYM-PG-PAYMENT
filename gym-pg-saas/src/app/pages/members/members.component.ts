@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, JsonPipe } from '@angular/common';
 import { Component, computed, inject, OnDestroy, OnInit, signal, effect } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -33,7 +33,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 @Component({
   selector: 'app-members',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, ModalComponent, TranslatePipe],
+  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, JsonPipe, ModalComponent, TranslatePipe],
   templateUrl: './members.component.html',
 })
 export class MembersComponent implements OnInit, OnDestroy {
@@ -93,6 +93,34 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly hasSeatLayout = computed(
     () => this.isPg() && (this.pgLayout()?.floors?.length ?? 0) > 0,
   );
+
+  /** Safely get the due date for a member, with fallback handling */
+  getPayTargetDueDate(): Date | null {
+    const m = this.payTarget();
+    if (!m) return null;
+    return timestampToDate(m.dueDate);
+  }
+
+  /** Safely get the formatted due date for a member in the members list */
+  getMemberDueDate(m: Member | null): Date | null {
+    if (!m) return null;
+    return timestampToDate(m.dueDate);
+  }
+
+  /** Debug helper to check if submit button should be enabled */
+  isPayFormSubmitDisabled(): boolean {
+    const isDisabled = this.payForm.invalid;
+    console.log('🔵 isPayFormSubmitDisabled check:', {
+      formInvalid: this.payForm.invalid,
+      formStatus: this.payForm.status,
+      formErrors: this.payForm.errors,
+      controls: Object.fromEntries(
+        Object.entries(this.payForm.controls).map(([k, c]) => [k, { value: c.value, errors: c.errors, status: c.status }])
+      ),
+      isDisabled,
+    });
+    return isDisabled;
+  }
   readonly occupiedBedKeys = computed(() => {
     const set = new Set<string>();
     const editing = this.editingId();
@@ -300,12 +328,13 @@ export class MembersComponent implements OnInit, OnDestroy {
     method: this.fb.nonNullable.control<PaymentMethod>('cash', Validators.required),
     subscriptionType: this.fb.nonNullable.control<SubscriptionType>('monthly', Validators.required),
     isPartialPayment: this.fb.nonNullable.control(false),
-    pendingAmount: [0, [positiveAmount()]],
+    pendingAmount: [0], // No validators initially - will be added conditionally
   });
 
   private unsub: (() => void) | null = null;
   private querySub: Subscription | null = null;
   private currentOwnerId: string | null = null;
+  private payFormSubscription: Subscription | null = null;
 
   constructor() {
     // Sync cache signals to component signals
@@ -321,6 +350,21 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.memberForm.get('joinDate')?.valueChanges.subscribe(() => {
       this.memberForm.get('dueDate')?.updateValueAndValidity();
     });
+
+    // Set up conditional validation for pendingAmount based on isPartialPayment
+    this.payFormSubscription = this.payForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial) => {
+      const pendingAmountControl = this.payForm.get('pendingAmount');
+      if (!pendingAmountControl) return;
+
+      if (isPartial) {
+        // When partial payment is enabled, make it required and positive
+        pendingAmountControl.setValidators([Validators.required, positiveAmount()]);
+      } else {
+        // When partial payment is disabled, remove validators
+        pendingAmountControl.setValidators([]);
+      }
+      pendingAmountControl.updateValueAndValidity();
+    }) ?? null;
   }
 
   async ngOnInit(): Promise<void> {
@@ -357,6 +401,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.historyUnsub?.();
     this.querySub?.unsubscribe();
+    this.payFormSubscription?.unsubscribe();
   }
 
   /**
@@ -533,6 +578,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   openPay(m: Member): void {
+    console.log('🔵 openPay called for:', m.firstName, 'Amount:', m.amount, 'Subscription:', m.subscriptionType);
     this.payTarget.set(m);
     this.payForm.reset({
       amount: m.amount,
@@ -541,33 +587,120 @@ export class MembersComponent implements OnInit, OnDestroy {
       isPartialPayment: false,
       pendingAmount: Number(m.pendingAmount) || 0,
     });
+    console.log('🔵 payForm after reset - Valid:', this.payForm.valid, 'Errors:', this.payForm.errors);
+    console.log('🔵 Form controls state:', Object.fromEntries(
+      Object.entries(this.payForm.controls).map(([k, c]) => [k, { value: c.value, valid: c.valid, errors: c.errors }])
+    ));
+    
+    // Set up value change listener for debugging
+    const subscription = this.payForm.valueChanges.subscribe((newValue) => {
+      console.log('🔵 Form values changed:', newValue);
+      console.log('🔵 Form valid after change:', this.payForm.valid);
+      console.log('🔵 Form status:', this.payForm.status);
+      if (!this.payForm.valid) {
+        console.log('🔵 Form invalid:');
+        Object.entries(this.payForm.controls).forEach(([key, control]) => {
+          if (control.errors) {
+            console.log(`  ${key} errors:`, control.errors);
+          }
+        });
+      }
+    });
+    
+    // Store subscription to unsubscribe later
+    (this as any)._payFormValueChangesSubscription = subscription;
+    
     this.payModalOpen.set(true);
   }
 
   closePay(): void {
+    console.log('🔵 closePay called');
     this.payModalOpen.set(false);
     this.payTarget.set(null);
+    // Clean up subscription
+    const sub = (this as any)._payFormValueChangesSubscription;
+    if (sub) {
+      sub.unsubscribe();
+      (this as any)._payFormValueChangesSubscription = null;
+    }
   }
 
   async submitPay(): Promise<void> {
+    console.log('═══════════════════════════════════════════');
+    console.log('🔵 SUBMIT PAY CALLED');
+    console.log('Form valid?', this.payForm.valid);
+    console.log('Form touched?', this.payForm.touched);
+    console.log('Form dirty?', this.payForm.dirty);
+    console.log('Form pending?', this.payForm.pending);
+    console.log('Form status:', this.payForm.status);
+    console.log('Form errors:', this.payForm.errors);
+    
     if (this.payForm.invalid) {
+      console.log('❌ FORM INVALID - Detailed errors:');
+      Object.entries(this.payForm.controls).forEach(([key, control]) => {
+        console.log(`  ${key}:`, {
+          value: control.value,
+          valid: control.valid,
+          errors: control.errors,
+          status: control.status,
+          touched: control.touched,
+          dirty: control.dirty,
+        });
+      });
       this.payForm.markAllAsTouched();
       return;
     }
+    
     const m = this.payTarget();
     const owner = this.auth.profile();
-    if (!m || !owner) return;
+    console.log('🔵 Member info:', m?.firstName, m?.memberId);
+    console.log('🔵 Owner info:', owner?.ownerId);
+    
+    if (!m || !owner) {
+      console.log('❌ Missing member or owner');
+      return;
+    }
+    
     const due = timestampToDate(m.dueDate);
+    console.log('🔵 Current due date:', due);
     if (!due) {
+      console.log('❌ Invalid due date');
       this.toast.error('Invalid due date');
       return;
     }
+    
     const v = this.payForm.getRawValue();
-    if (v.isPartialPayment && (!Number.isFinite(Number(v.pendingAmount)) || Number(v.pendingAmount) <= 0)) {
-      this.toast.error('Enter pending amount for partial payment');
-      return;
+    console.log('🔵 Form values extracted:', {
+      amount: v.amount,
+      method: v.method,
+      subscriptionType: v.subscriptionType,
+      isPartialPayment: v.isPartialPayment,
+      pendingAmount: v.pendingAmount,
+    });
+    
+    if (v.isPartialPayment) {
+      console.log('🔵 PARTIAL PAYMENT MODE');
+      if (!Number.isFinite(Number(v.pendingAmount)) || Number(v.pendingAmount) <= 0) {
+        console.log('❌ Invalid pending amount:', v.pendingAmount);
+        this.toast.error('Enter pending amount for partial payment');
+        return;
+      }
+    } else {
+      console.log('🔵 FULL PAYMENT MODE - Member being renewed');
     }
+    
     try {
+      console.log('🔵 CALLING MARK PAID API with params:', {
+        memberId: m.memberId,
+        ownerId: owner.ownerId,
+        amount: Number(v.amount),
+        method: v.method,
+        currentDueDate: due,
+        subscriptionType: this.isGym() ? v.subscriptionType : undefined,
+        isPartialPayment: v.isPartialPayment,
+        pendingAmount: v.isPartialPayment ? Number(v.pendingAmount) : 0,
+      });
+      
       await this.paymentsApi.markPaid({
         memberId: m.memberId,
         ownerId: owner.ownerId,
@@ -578,11 +711,19 @@ export class MembersComponent implements OnInit, OnDestroy {
         isPartialPayment: v.isPartialPayment,
         pendingAmount: v.isPartialPayment ? Number(v.pendingAmount) : 0,
       });
+      
+      console.log('✅ PAYMENT RECORDED SUCCESSFULLY');
       this.toast.success(v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded');
       this.closePay();
-    } catch {
+    } catch (error) {
+      console.error('❌ ERROR RECORDING PAYMENT:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       this.toast.error('Could not record payment');
     }
+    console.log('═══════════════════════════════════════════');
   }
 
   openHistory(m: Member): void {

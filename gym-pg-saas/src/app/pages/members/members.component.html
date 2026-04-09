@@ -516,9 +516,13 @@
         Recording payment for <span class="font-semibold text-slate-900">{{ m.firstName }} {{ m.lastName }}</span>
       </p>
       <p class="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
-        Next {{ dueLabel() }} will be one billing period after the current due date ({{
-          m.dueDate.toDate() | date: 'mediumDate'
-        }}), not from today.
+        @if (getPayTargetDueDate(); as dueDate) {
+          Next {{ dueLabel() }} will be one billing period after the current due date ({{
+            dueDate | date: 'mediumDate'
+          }}), not from today.
+        } @else {
+          <span class="text-red-600">Error: Invalid due date. Please refresh and try again.</span>
+        }
       </p>
       <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">Amount (₹)</label>
@@ -528,6 +532,9 @@
           class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
           min="1"
         />
+        @if (payForm.controls.amount.touched && payForm.controls.amount.invalid) {
+          <p class="mt-1 text-sm text-red-600">Amount is required and must be positive</p>
+        }
       </div>
       <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">Method</label>
@@ -536,6 +543,9 @@
           <option value="upi">UPI</option>
           <option value="card">Card</option>
         </select>
+        @if (payForm.controls.method.touched && payForm.controls.method.invalid) {
+          <p class="mt-1 text-sm text-red-600">Payment method is required</p>
+        }
       </div>
       @if (isGym()) {
         <div>
@@ -545,6 +555,9 @@
             <option value="quarterly">Quarterly (3 months)</option>
             <option value="yearly">Yearly (12 months)</option>
           </select>
+          @if (payForm.controls.subscriptionType.touched && payForm.controls.subscriptionType.invalid) {
+            <p class="mt-1 text-sm text-red-600">Subscription type is required</p>
+          }
         </div>
       }
       <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
@@ -562,11 +575,39 @@
           />
         </div>
       }
+      <div class="rounded-xl bg-yellow-50 border border-yellow-200 p-3">
+        <p class="text-xs text-yellow-800">
+          Form Status: 
+          <span [class]="payForm.valid ? 'text-green-600 font-bold' : 'text-red-600 font-bold'">
+            {{ payForm.valid ? '✅ VALID' : '❌ INVALID (' + payForm.status + ')' }}
+          </span>
+        </p>
+        @if (payForm.errors) {
+          <p class="text-xs text-red-600 mt-2 font-bold">⚠️ Form-Level Errors: {{ payForm.errors | json }}</p>
+        }
+        @if (!payForm.valid) {
+          <p class="text-xs text-yellow-800 mt-2 font-semibold">Control Errors:</p>
+          <ul class="text-xs text-yellow-800 ml-4 list-disc space-y-1">
+            @for (key of ['amount', 'method', 'subscriptionType', 'isPartialPayment', 'pendingAmount']; track key) {
+              @if (payForm.get(key)?.errors) {
+                <li><strong>{{ key }}</strong>: {{ payForm.get(key)?.errors | json }} [value: {{ payForm.get(key)?.value }}]</li>
+              } @else if (payForm.get(key)) {
+                <li><strong>{{ key }}</strong>: ✓ (value: {{ payForm.get(key)?.value }})</li>
+              }
+            }
+          </ul>
+        }
+      </div>
       <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" class="rounded-xl border border-slate-200 px-5 py-3 font-semibold" (click)="closePay()">
           Cancel
         </button>
-        <button type="submit" class="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700">
+        <button 
+          type="submit" 
+          [disabled]="payForm.invalid"
+          [class.opacity-50]="payForm.invalid"
+          [class.cursor-not-allowed]="payForm.invalid"
+          class="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-400">
           {{ payForm.controls.isPartialPayment.value ? 'Partial payment done' : 'Confirm payment' }}
         </button>
       </div>
