@@ -1,11 +1,12 @@
 import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
-import { Component, computed, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, HostListener, inject, OnDestroy, OnInit, signal, effect } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Member, SubscriptionType } from '../../core/models/member.model';
 import { Payment } from '../../core/models/payment.model';
 import { PgFloorLayout, PgLayout } from '../../core/models/pg-layout.model';
 import { AuthService } from '../../core/services/auth.service';
+import { DataCacheService } from '../../core/services/data-cache.service';
 import { MemberService } from '../../core/services/member.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
@@ -34,7 +35,8 @@ import {
   templateUrl: './owner-dashboard.component.html',
 })
 export class OwnerDashboardComponent implements OnInit, OnDestroy {
-  private readonly auth = inject(AuthService);
+  readonly auth = inject(AuthService);
+  private readonly cache = inject(DataCacheService);
   private readonly membersApi = inject(MemberService);
   private readonly paymentsApi = inject(PaymentService);
   private readonly pgLayoutApi = inject(PgLayoutService);
@@ -283,13 +285,33 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     floors: this.fb.array([]),
   });
 
-  private unsubM: (() => void) | null = null;
-  private unsubP: (() => void) | null = null;
-  private unsubLayout: (() => void) | null = null;
+  private currentOwnerId: string | null = null;
+
+  constructor() {
+    // Sync cache signals to component signals
+    effect(() => {
+      this.members.set(this.cache.members());
+    });
+
+    effect(() => {
+      this.payments.set(this.cache.payments());
+    });
+
+    effect(() => {
+      this.pgLayout.set(this.cache.layout());
+    });
+
+    effect(() => {
+      // Stop loading when all data is loaded
+      const anyLoading = Object.values(this.cache.isLoading()).some((v) => v);
+      if (!anyLoading) {
+        this.loading.set(false);
+      }
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     this.loading.set(true);
-    this.payments.set([]);
     console.log('🚀 Dashboard init started');
     await this.auth.refreshProfile();
     const uid = this.auth.profile()?.ownerId;
@@ -299,14 +321,37 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       console.error('❌ No owner ID found');
       return;
     }
-    console.log('📡 Setting up data listeners for owner:', uid);
-    this.attach(uid);
+    
+    this.currentOwnerId = uid;
+    console.log('📡 Loading data from cache...');
+    
+    try {
+      await this.cache.loadAllData(uid);
+      console.log('✅ Dashboard data loaded');
+    } catch (error) {
+      console.error('❌ Error loading dashboard data:', error);
+      this.toast.error('Failed to load data');
+    }
   }
 
   ngOnDestroy(): void {
-    this.unsubM?.();
-    this.unsubP?.();
-    this.unsubLayout?.();
+    // Cache service handles listener cleanup
+  }
+
+  /**
+   * Manual refresh button - forces re-fetch from Firestore
+   */
+  async refreshData(): Promise<void> {
+    if (!this.currentOwnerId) return;
+    this.loading.set(true);
+    console.log('🔄 Refreshing data...');
+    try {
+      await this.cache.refresh(this.currentOwnerId);
+      this.toast.success('Data refreshed');
+    } catch (error) {
+      console.error('❌ Error refreshing data:', error);
+      this.toast.error('Failed to refresh data');
+    }
   }
 
   @HostListener('window:scroll', [])
@@ -317,39 +362,6 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   scrollToTop(): void {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  private attach(ownerId: string): void {
-    this.unsubM?.();
-    this.unsubP?.();
-    this.unsubLayout?.();
-
-    // Members listener
-    this.unsubM = this.membersApi.watchMembersForOwner(ownerId, (list) => {
-      console.log('👥 Members loaded:', list.length);
-      this.members.set(list);
-    });
-
-    // Payments listener - CRITICAL: Verify ownerId matches
-    this.unsubP = this.paymentsApi.watchPaymentsForOwner(ownerId, (list) => {
-      const filtered = list.filter((p) => p.ownerId === ownerId);
-      console.log(
-        `💳 Payments loaded: ${filtered.length} out of ${list.length} (filtered for ownerId: ${ownerId})`,
-      );
-      filtered.forEach((p, i) => {
-        const pDate = (p.date as any) instanceof Object && 'toDate' in (p.date as any) ? (p.date as any).toDate() : p.date;
-        console.log(`  Payment ${i + 1}: Amount=${p.amount}, Date=${pDate}, OwnerId=${p.ownerId}`);
-      });
-      this.payments.set(filtered);
-      // Mark loading as complete once payments are loaded
-      this.loading.set(false);
-    });
-
-    // Layout listener
-    this.unsubLayout = this.pgLayoutApi.watchLayout(ownerId, (layout) => {
-      console.log('🏗️ PG Layout loaded');
-      this.pgLayout.set(layout);
-    });
   }
 
   overdueByLine(m: Member): string {

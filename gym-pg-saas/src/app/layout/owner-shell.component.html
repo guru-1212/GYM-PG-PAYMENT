@@ -83,9 +83,19 @@
         <p class="text-base font-bold leading-tight tracking-tight text-slate-900">{{ 'brand.gmPg' | t }}</p>
         <p class="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">{{ 'brand.paybook' | t }}</p>
       </div> -->
-      <div class="flex shrink-0 items-center gap-2">
+      <div class="flex shrink-0 items-center gap-2" style="width: 100% !important; justify-content: space-between;">
         <!-- <app-language-switcher /> -->
-        <div class="relative" data-user-menu-root>
+      
+        <button
+          type="button"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50"
+          (click)="openMobileMenu()"
+          [attr.aria-label]="'a11y.openMenu' | t"
+          [attr.aria-expanded]="mobileMenuOpen()"
+        >
+          <span class="material-icons-outlined text-2xl">menu</span>
+        </button>
+          <div class="relative" data-user-menu-root>
           <button
             type="button"
             class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-blue-600 text-sm font-bold text-white shadow-md ring-2 ring-white"
@@ -114,15 +124,6 @@
             </div>
           }
         </div>
-        <button
-          type="button"
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50"
-          (click)="openMobileMenu()"
-          [attr.aria-label]="'a11y.openMenu' | t"
-          [attr.aria-expanded]="mobileMenuOpen()"
-        >
-          <span class="material-icons-outlined text-2xl">menu</span>
-        </button>
       </div>
     </header>
 

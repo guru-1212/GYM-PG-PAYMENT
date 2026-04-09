@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -59,10 +60,12 @@ export class PaymentService {
 
   watchPaymentsForOwner(ownerId: string, callback: (payments: Payment[]) => void): Unsubscribe {
     console.log('📡 Setting up payments listener for ownerId:', ownerId);
+    // OPTIMIZATION: Limit to 500 most recent payments per owner for cost reduction
     const q = query(
       collection(this.fb.db, 'payments'),
       where('ownerId', '==', ownerId),
       orderBy('date', 'desc'),
+      limit(500),
     );
     return onSnapshot(
       q,
@@ -130,10 +133,12 @@ export class PaymentService {
     memberId: string,
     callback: (payments: Payment[]) => void,
   ): Unsubscribe {
+    // OPTIMIZATION: Limit to 100 most recent payments per member
     const q = query(
       collection(this.fb.db, 'payments'),
       where('memberId', '==', memberId),
       orderBy('date', 'desc'),
+      limit(100),
     );
     return onSnapshot(q, (snap) => {
       const list: Payment[] = [];

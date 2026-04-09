@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal, effect } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { jsPDF } from 'jspdf';
@@ -8,6 +8,7 @@ import { Member, SubscriptionType } from '../../core/models/member.model';
 import { PgLayout } from '../../core/models/pg-layout.model';
 import { Payment, PaymentMethod } from '../../core/models/payment.model';
 import { AuthService } from '../../core/services/auth.service';
+import { DataCacheService } from '../../core/services/data-cache.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { MemberService } from '../../core/services/member.service';
 import { PaymentService } from '../../core/services/payment.service';
@@ -38,6 +39,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 export class MembersComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly cache = inject(DataCacheService);
   private readonly membersApi = inject(MemberService);
   private readonly paymentsApi = inject(PaymentService);
   private readonly pgLayoutApi = inject(PgLayoutService);
@@ -303,6 +305,18 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   private unsub: (() => void) | null = null;
   private querySub: Subscription | null = null;
+  private currentOwnerId: string | null = null;
+
+  constructor() {
+    // Sync cache signals to component signals
+    effect(() => {
+      this.members.set(this.cache.members());
+    });
+
+    effect(() => {
+      this.pgLayout.set(this.cache.layout());
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     this.querySub = this.route.queryParamMap.subscribe((params) => {
@@ -322,16 +336,37 @@ export class MembersComponent implements OnInit, OnDestroy {
     await this.auth.refreshProfile();
     const id = this.auth.profile()?.ownerId;
     if (id) {
-      this.unsub = this.membersApi.watchMembersForOwner(id, (list) => this.members.set(list));
-      this.layoutUnsub = this.pgLayoutApi.watchLayout(id, (layout) => this.pgLayout.set(layout));
+      this.currentOwnerId = id;
+      console.log('📥 Members page loading data from cache...');
+      try {
+        await this.cache.loadMembers(id);
+        await this.cache.loadLayout(id);
+        console.log('✅ Members page data loaded');
+      } catch (error) {
+        console.error('❌ Error loading members data:', error);
+        this.toast.error('Failed to load members');
+      }
     }
   }
 
   ngOnDestroy(): void {
-    this.unsub?.();
     this.historyUnsub?.();
-    this.layoutUnsub?.();
     this.querySub?.unsubscribe();
+  }
+
+  /**
+   * Manual refresh - forces re-fetch from Firestore
+   */
+  async refreshMembers(): Promise<void> {
+    if (!this.currentOwnerId) return;
+    console.log('🔄 Refreshing members...');
+    try {
+      await this.cache.refresh(this.currentOwnerId);
+      this.toast.success('Members refreshed');
+    } catch (error) {
+      console.error('❌ Error refreshing members:', error);
+      this.toast.error('Failed to refresh members');
+    }
   }
 
   clearDueSectionFilter(): void {
