@@ -12,7 +12,6 @@ import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { ToastService } from '../../core/services/toast.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { ModalComponent } from '../../shared/modal.component';
-import { MonthlyEarningsComponent } from '../../shared/monthly-earnings.component';
 import { MonthlyEarningsDetailedComponent } from '../../shared/monthly-earnings-detailed.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import {
@@ -31,7 +30,7 @@ import {
 @Component({
   selector: 'app-owner-dashboard',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, NgClass, RouterLink, ReactiveFormsModule, ModalComponent, MonthlyEarningsComponent, MonthlyEarningsDetailedComponent, TranslatePipe],
+  imports: [DatePipe, DecimalPipe, NgClass, RouterLink, ReactiveFormsModule, ModalComponent,  MonthlyEarningsDetailedComponent, TranslatePipe],
   templateUrl: './owner-dashboard.component.html',
 })
 export class OwnerDashboardComponent implements OnInit, OnDestroy {
