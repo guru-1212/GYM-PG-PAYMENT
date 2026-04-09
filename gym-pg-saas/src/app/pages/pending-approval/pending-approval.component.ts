@@ -17,7 +17,7 @@ import { BrandLogoComponent } from '../../shared/brand-logo.component';
 
       <div class="relative w-full max-w-md space-y-4">
         <div class="flex justify-center mb-4">
-          <app-brand-logo [logoSize]="'48px'" [showText]="true" brandName="OurPgTracker"></app-brand-logo>
+          <app-brand-logo [logoSize]="'48px'" [showText]="true" brandName="OurPGTracker"></app-brand-logo>
         </div>
         <div class="saas-card border-amber-200 bg-amber-50/60 p-8 text-center">
           <span class="material-icons-outlined mb-4 text-4xl text-amber-700">hourglass_top</span>

@@ -32,5 +32,5 @@ import { Component, Input } from '@angular/core';
 export class BrandLogoComponent {
   @Input() logoSize = '32px';
   @Input() showText = false;
-  @Input() brandName = 'OurPgTracker';
+  @Input() brandName = 'OurPGTracker';
 }

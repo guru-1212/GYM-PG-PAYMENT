@@ -1,0 +1,77 @@
+// Monthly Earnings Page Styles
+.saas-page {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Responsive adjustments for different screen sizes
+@media (max-width: 1024px) {
+  // On tablets and smaller, the layout adjusts to 2 columns or single column
+  .lg\:grid-cols-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .lg\:col-span-1 {
+    grid-column: auto;
+  }
+
+  .lg\:col-span-3 {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  // Mobile styles
+  .saas-page {
+    margin-bottom: 2rem;
+  }
+
+  .md\:grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+
+  // Make the grid layout more mobile-friendly
+  .grid.gap-6 {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Month/Year button hover effects
+button {
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+// Card animations
+.saas-card {
+  animation: slideIn 0.3s ease-in-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+// Payment details hover effect
+.rounded-xl.border {
+  &:hover {
+    transform: translateY(-2px);
+  }
+}

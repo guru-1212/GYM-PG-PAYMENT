@@ -1,0 +1,275 @@
+<div class="saas-page mx-auto max-w-7xl">
+  <!-- Header -->
+  <div class="mb-8">
+    <h1 class="text-4xl font-bold text-slate-900">Monthly Earnings</h1>
+    <p class="mt-2 text-lg text-slate-600">Track and manage your income by month</p>
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-4">
+    <!-- Sidebar - Month & Year Selection -->
+    <div class="space-y-6 lg:col-span-1">
+      <!-- Month Selection -->
+      <div class="saas-card space-y-4 p-6">
+        <h3 class="text-sm font-bold uppercase tracking-wide text-slate-900">Select Month</h3>
+        <div class="grid grid-cols-3 gap-2">
+          @for (month of months; track month; let i = $index) {
+            <button
+              type="button"
+              (click)="selectMonth(i)"
+              [class.bg-gradient-to-r]="selectedMonth() === i"
+              [class.from-blue-600]="selectedMonth() === i"
+              [class.to-blue-800]="selectedMonth() === i"
+              [class.text-white]="selectedMonth() === i"
+              [class.shadow-lg]="selectedMonth() === i"
+              [class.font-bold]="selectedMonth() === i"
+              [class.bg-white]="selectedMonth() !== i"
+              [class.text-slate-700]="selectedMonth() !== i"
+              [class.border]="selectedMonth() !== i"
+              [class.border-slate-300]="selectedMonth() !== i"
+              [class.hover:bg-slate-50]="selectedMonth() !== i"
+              class="rounded-lg px-3 py-2 text-xs transition-all duration-200"
+            >
+              {{ month }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Year Selection -->
+      <div class="saas-card space-y-4 p-6">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-bold uppercase tracking-wide text-slate-900">Year</h3>
+          <div class="flex gap-1">
+            <button
+              type="button"
+              (click)="previousYear()"
+              class="rounded-lg p-1 text-slate-600 transition hover:bg-slate-100"
+              title="Previous year"
+            >
+              <span class="material-icons-outlined text-xl">navigate_before</span>
+            </button>
+            <button
+              type="button"
+              (click)="nextYear()"
+              class="rounded-lg p-1 text-slate-600 transition hover:bg-slate-100"
+              title="Next year"
+            >
+              <span class="material-icons-outlined text-xl">navigate_after</span>
+            </button>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          @for (year of years; track year) {
+            <button
+              type="button"
+              (click)="selectYear(year)"
+              [class.bg-gradient-to-r]="selectedYear() === year"
+              [class.from-blue-600]="selectedYear() === year"
+              [class.to-blue-800]="selectedYear() === year"
+              [class.text-white]="selectedYear() === year"
+              [class.shadow-lg]="selectedYear() === year"
+              [class.font-bold]="selectedYear() === year"
+              [class.bg-white]="selectedYear() !== year"
+              [class.text-slate-700]="selectedYear() !== year"
+              [class.border]="selectedYear() !== year"
+              [class.border-slate-300]="selectedYear() !== year"
+              [class.hover:bg-slate-50]="selectedYear() !== year"
+              class="rounded-lg px-3 py-2 text-sm transition-all duration-200"
+            >
+              {{ year }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="saas-card space-y-3 p-6">
+        <div class="text-center">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Monthly Total</p>
+          <p class="mt-2 text-3xl font-bold text-slate-900">{{ formatCurrency(monthlyEarnings()) }}</p>
+        </div>
+      </div>
+
+      <!-- Year Summary -->
+      <div class="saas-card space-y-4 p-6">
+        <h3 class="text-sm font-bold uppercase tracking-wide text-slate-900">{{ selectedYear() }} Summary</h3>
+        <div class="space-y-2">
+          @for (month of months; track month; let i = $index) {
+            <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+              <span class="text-xs font-medium text-slate-600">{{ month }}</span>
+              <span class="text-sm font-bold text-slate-900">{{ formatCurrency(yearlyEarnings()[i]) }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="space-y-6 lg:col-span-3">
+      <!-- Monthly Stats -->
+      <div class="grid gap-4 md:grid-cols-3">
+        <div class="saas-card space-y-2 p-6">
+          <p class="text-sm font-medium uppercase tracking-wide text-slate-500">Total Earnings</p>
+          <p class="text-3xl font-bold text-slate-900">{{ formatCurrency(monthlyEarnings()) }}</p>
+          <div class="mt-2 flex items-center gap-1 text-xs text-slate-600">
+            <span class="material-icons-outlined text-sm">data_usage</span>
+            {{ paymentsByDay().length }} payments this month
+          </div>
+        </div>
+
+        <div class="saas-card space-y-2 p-6">
+          <p class="text-sm font-medium uppercase tracking-wide text-slate-500">Average Payment</p>
+          <p class="text-3xl font-bold text-slate-900">
+            {{ formatCurrency(paymentsByDay().length > 0 ? monthlyEarnings() / paymentsByDay().length : 0) }}
+          </p>
+          <div class="mt-2 flex items-center gap-1 text-xs text-slate-600">
+            <span class="material-icons-outlined text-sm">trending_up</span>
+            Per transaction
+          </div>
+        </div>
+
+        <div class="saas-card space-y-2 p-6">
+          <p class="text-sm font-medium uppercase tracking-wide text-slate-500">Max Payment</p>
+          <p class="text-3xl font-bold text-slate-900">
+            {{ formatCurrency(maxPayment()) }}
+          </p>
+          <div class="mt-2 flex items-center gap-1 text-xs text-slate-600">
+            <span class="material-icons-outlined text-sm">arrow_upward</span>
+            Highest payment
+          </div>
+        </div>
+      </div>
+
+      <!-- Payments by Day -->
+      <div class="saas-card space-y-6 p-6">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-900">
+            {{ months[selectedMonth()] }} {{ selectedYear() }} Payments
+          </h2>
+          <p class="mt-1 text-sm text-slate-600">Daily breakdown of all payments</p>
+        </div>
+
+        @if (paymentsByDay().length === 0) {
+          <div class="rounded-lg bg-slate-50 py-12 text-center">
+            <span class="material-icons-outlined mb-2 text-4xl text-slate-400">receipt</span>
+            <p class="text-sm text-slate-600">No payments recorded in {{ months[selectedMonth()] }} {{ selectedYear() }}</p>
+          </div>
+        } @else {
+          <div class="space-y-3">
+            @for (dayData of paymentsByDay(); track dayData.day) {
+              <div class="rounded-xl border border-slate-200 p-4 transition hover:border-slate-300 hover:shadow-sm">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">
+                      {{ months[selectedMonth()] }} {{ dayData.day }}, {{ selectedYear() }}
+                    </p>
+                    <p class="mt-1 text-xs text-slate-500">{{ dayData.count }} payment(s)</p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-2xl font-bold text-slate-900">{{ formatCurrency(dayData.amount) }}</p>
+                  </div>
+                </div>
+
+                <!-- Payment details for this day -->
+                <div class="mt-4 space-y-2 border-t border-slate-100 pt-4">
+                  @for (payment of dayData.payments; track payment.paymentId) {
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <span class="material-icons-outlined text-sm text-slate-400">attach_money</span>
+                        <span class="text-xs text-slate-600">{{ payment.method || 'Cash' }}</span>
+                      </div>
+                      <span class="font-semibold text-slate-900">{{ formatCurrency(payment.amount) }}</span>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Who Paid Table Section -->
+      <div class="saas-card space-y-6 p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-2xl font-bold text-slate-900">Who Paid</h2>
+            <p class="mt-1 text-sm text-slate-600">Complete list of members who made payments</p>
+          </div>
+          <button
+            type="button"
+            (click)="generatePDF()"
+            class="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-800 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl"
+            title="Generate PDF report"
+          >
+            <span class="material-icons-outlined text-base">picture_as_pdf</span>
+            Download PDF
+          </button>
+        </div>
+
+        @if (monthlyPaymentsWithMembers().length === 0) {
+          <div class="rounded-lg bg-slate-50 py-12 text-center">
+            <span class="material-icons-outlined mb-2 text-4xl text-slate-400">person_off</span>
+            <p class="text-sm text-slate-600">No payments recorded in {{ months[selectedMonth()] }} {{ selectedYear() }}</p>
+          </div>
+        } @else {
+          <!-- Desktop Table -->
+          <div class="hidden overflow-x-auto md:block">
+            <table class="w-full text-sm">
+              <thead class="border-b border-slate-200 bg-slate-50">
+                <tr>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-900">Date</th>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-900">Member Name</th>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-900">Mobile</th>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-900">Amount</th>
+                  <th class="px-4 py-3 text-left font-semibold text-slate-900">Method</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (payment of monthlyPaymentsWithMembers(); track payment.paymentId; let odd = $odd) {
+                  <tr [class.bg-slate-50]="odd" class="transition hover:bg-slate-100">
+                    <td class="px-4 py-3 text-slate-600">
+                      {{ getPaymentDate(payment) | date : 'dd MMM yyyy' }}
+                    </td>
+                    <td class="px-4 py-3 font-medium text-slate-900">{{ payment.memberName }}</td>
+                    <td class="px-4 py-3 text-slate-600">{{ payment.memberMobile }}</td>
+                    <td class="px-4 py-3 font-semibold text-slate-900">{{ formatCurrency(payment.amount) }}</td>
+                    <td class="px-4 py-3 text-slate-600">
+                      <span class="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700">
+                        {{ payment.method || 'Cash' }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile Cards -->
+          <div class="space-y-3 md:hidden">
+            @for (payment of monthlyPaymentsWithMembers(); track payment.paymentId) {
+              <div class="rounded-lg border border-slate-200 p-4">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex-1">
+                    <p class="font-semibold text-slate-900">{{ payment.memberName }}</p>
+                    <p class="mt-1 text-sm text-slate-600">📞 {{ payment.memberMobile }}</p>
+                  </div>
+                  <span class="text-right">
+                    <p class="text-lg font-bold text-slate-900">{{ formatCurrency(payment.amount) }}</p>
+                  </span>
+                </div>
+                <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+                  <span class="text-xs text-slate-600">
+                    {{ getPaymentDate(payment) | date : 'dd MMM yyyy' }}
+                  </span>
+                  <span class="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700">
+                    {{ payment.method || 'Cash' }}
+                  </span>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

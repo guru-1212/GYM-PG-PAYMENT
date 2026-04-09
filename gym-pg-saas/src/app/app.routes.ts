@@ -18,6 +18,7 @@ import { MembersComponent } from './pages/members/members.component';
 import { PaymentsPageComponent } from './pages/payments/payments-page.component';
 import { PendingApprovalComponent } from './pages/pending-approval/pending-approval.component';
 import { RoomsPageComponent } from './pages/rooms/rooms-page.component';
+import { MonthlyEarningsPageComponent } from './pages/monthly-earnings/monthly-earnings-page.component';
 import { SubscriptionExpiredComponent } from './pages/subscription-expired/subscription-expired.component';
 
 export const routes: Routes = [
@@ -57,6 +58,7 @@ export const routes: Routes = [
       { path: 'members', component: MembersComponent },
       { path: 'payments', component: PaymentsPageComponent },
       { path: 'rooms', component: RoomsPageComponent },
+      { path: 'monthly-earnings', component: MonthlyEarningsPageComponent },
     ],
   },
   { path: '**', redirectTo: 'login' },

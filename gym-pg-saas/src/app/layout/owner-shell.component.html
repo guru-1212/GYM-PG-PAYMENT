@@ -4,7 +4,7 @@
   >
     <div class="border-b border-slate-100/80 px-5 py-6">
       <div class="mb-3">
-        <app-brand-logo [logoSize]="'32px'" [showText]="true" brandName="OurPgTracker"></app-brand-logo>
+        <app-brand-logo [logoSize]="'32px'" [showText]="true" brandName="OurPGTracker"></app-brand-logo>
       </div>
       <div class="flex items-start justify-between gap-2">
         <!-- <div class="min-w-0 flex-1">
@@ -54,14 +54,14 @@
           {{ 'nav.rooms' | t }}
         </a>
       }
-      <button
-        type="button"
-        (click)="openMonthlyEarnings()"
+      <a
+        routerLink="/monthly-earnings"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
         class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
       >
         <span class="material-icons-outlined">bar_chart</span>
         Monthly Earnings
-      </button>
+      </a>
     </nav>
     <div class="border-t border-slate-100 p-3">
       <button
@@ -208,11 +208,3 @@
     </main>
   </div>
 </div>
-
-@if (showMonthlyEarnings()) {
-  <app-monthly-earnings 
-    [paymentsInput]="payments()" 
-    [membersInput]="members()"
-    (closed)="showMonthlyEarnings.set(false)"
-  ></app-monthly-earnings>
-}
