@@ -1,6 +1,6 @@
-import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Owner } from '../../core/models/owner.model';
+import { BusinessType, Owner, OwnerStatus } from '../../core/models/owner.model';
 import { OwnerAdminChatMessage } from '../../core/models/owner-admin-chat.model';
 import { AdminService } from '../../core/services/admin.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -36,6 +36,11 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
   readonly unreadByOwner = signal<Record<string, number>>({});
   readonly dayAdjustByOwner = signal<Record<string, number>>({});
   readonly calendarDateByOwner = signal<Record<string, string>>({});
+  /** Owners list filters (admin). */
+  readonly filterSearch = signal('');
+  readonly filterStatus = signal<'all' | OwnerStatus>('all');
+  readonly filterPlan = signal<'all' | 'active' | 'expired' | 'expiring-soon'>('all');
+  readonly filterBusinessType = signal<'all' | BusinessType>('all');
   private unsub: (() => void) | null = null;
   private unsubUnread: (() => void) | null = null;
   private unsubThread: (() => void) | null = null;
@@ -51,8 +56,66 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
     this.unsubThread?.();
   }
 
-  ownerRows(): Owner[] {
-    return this.owners().filter((o) => o.role === 'owner');
+  readonly ownerRows = computed(() => this.owners().filter((o) => o.role === 'owner'));
+
+  readonly filteredOwnerRows = computed(() => {
+    let list = this.ownerRows();
+    const q = this.filterSearch().trim().toLowerCase();
+    if (q) {
+      list = list.filter((o) => {
+        const name = (o.name || '').toLowerCase();
+        const email = (o.email || '').toLowerCase();
+        const bn = (o.businessName || '').toLowerCase();
+        return name.includes(q) || email.includes(q) || bn.includes(q);
+      });
+    }
+    const st = this.filterStatus();
+    if (st !== 'all') {
+      list = list.filter((o) => o.status === st);
+    }
+    const pl = this.filterPlan();
+    if (pl !== 'all') {
+      list = list.filter((o) => this.getPlanStatus(o) === pl);
+    }
+    const bt = this.filterBusinessType();
+    if (bt !== 'all') {
+      list = list.filter((o) => o.businessType === bt);
+    }
+    return list;
+  });
+
+  readonly hasActiveOwnerFilters = computed(() => {
+    return (
+      this.filterSearch().trim() !== '' ||
+      this.filterStatus() !== 'all' ||
+      this.filterPlan() !== 'all' ||
+      this.filterBusinessType() !== 'all'
+    );
+  });
+
+  setFilterStatus(raw: string): void {
+    if (raw === 'all' || raw === 'pending' || raw === 'approved' || raw === 'rejected' || raw === 'inactive') {
+      this.filterStatus.set(raw);
+    }
+  }
+
+  setFilterPlan(raw: string): void {
+    if (raw === 'all' || raw === 'active' || raw === 'expired' || raw === 'expiring-soon') {
+      this.filterPlan.set(raw);
+    }
+  }
+
+  setFilterBusinessType(raw: string): void {
+    if (raw === 'all' || raw === 'gym' || raw === 'pg') {
+      this.filterBusinessType.set(raw);
+    }
+  }
+
+  clearOwnerFilters(): void {
+    this.filterSearch.set('');
+    this.filterStatus.set('all');
+    this.filterPlan.set('all');
+    this.filterBusinessType.set('all');
   }
 
   getDaysRemaining(owner: Owner): number {

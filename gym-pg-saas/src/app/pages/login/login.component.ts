@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { merge } from 'rxjs';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/services/auth.service';
@@ -27,9 +28,12 @@ export class LoginComponent implements OnInit {
 
   readonly mode = signal<'signin' | 'signup'>('signin');
   readonly busy = signal(false);
+  /** Inline sign-in failure (e.g. wrong email/password), shown above the submit button. */
+  readonly signInError = signal('');
   readonly showSignInPassword = signal(false);
   readonly showSignUpPassword = signal(false);
-  readonly businessTypeSignal = signal<'gym' | 'pg'>('gym');
+  /** PG-only sign-up for now; restore `'gym'` when gym onboarding returns. */
+  readonly businessTypeSignal = signal<'gym' | 'pg'>('pg');
 
   readonly signInForm = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
@@ -40,8 +44,8 @@ export class LoginComponent implements OnInit {
     name: ['', Validators.required],
     businessName: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.required, Validators.minLength(6)]],
-    businessType: this.fb.nonNullable.control<'gym' | 'pg'>('gym', Validators.required),
+    password: ['', [Validators.required, strongSignupPasswordValidator]],
+    businessType: this.fb.nonNullable.control<'gym' | 'pg'>('pg', Validators.required),
   });
 
   readonly businessNameLabel = computed(() => {
@@ -57,13 +61,26 @@ export class LoginComponent implements OnInit {
     const requestedMode = (this.route.snapshot.queryParamMap.get('mode') || '').toLowerCase().trim();
     if (requestedMode === 'signup') this.mode.set('signup');
     if (requestedMode === 'signin') this.mode.set('signin');
-    this.signUpForm.controls.businessType.valueChanges.subscribe((value) => {
-      this.businessTypeSignal.set(value);
-    });
+    // Re-enable when gym / PG toggle is shown again on sign-up.
+    // this.signUpForm.controls.businessType.valueChanges.subscribe((value) => {
+    //   this.businessTypeSignal.set(value);
+    // });
+    merge(
+      this.signInForm.controls.email.valueChanges,
+      this.signInForm.controls.password.valueChanges,
+    ).subscribe(() => this.signInError.set(''));
   }
 
   setMode(m: 'signin' | 'signup'): void {
     this.mode.set(m);
+    this.signInError.set('');
+  }
+
+  /** For sign-up template: missing password rules when `strongPassword` error is set. */
+  passwordStrongErrors(): Record<string, true> | null {
+    const c = this.signUpForm.controls.password;
+    if (!c.hasError('strongPassword')) return null;
+    return c.getError('strongPassword') as Record<string, true>;
   }
 
   async onSignIn(): Promise<void> {
@@ -71,6 +88,7 @@ export class LoginComponent implements OnInit {
       this.signInForm.markAllAsTouched();
       return;
     }
+    this.signInError.set('');
     this.busy.set(true);
     try {
       console.log(
@@ -108,7 +126,7 @@ export class LoginComponent implements OnInit {
       }
       await this.redirectAfterProfile(p);
     } catch (e: unknown) {
-      this.toast.error(this.msg(e, 'Sign in failed'));
+      this.signInError.set(this.signInErrorMessage(e));
     } finally {
       this.busy.set(false);
     }
@@ -136,6 +154,10 @@ export class LoginComponent implements OnInit {
       if (code === 'permission-denied') {
         this.toast.error(
           'Could not save your profile (Firestore blocked). Deploy firestore.rules in Firebase Console → Rules.',
+        );
+      } else if (code === 'auth/weak-password') {
+        this.toast.error(
+          'Password is too weak for Firebase. Use at least 8 characters with uppercase, lowercase, a number, and a symbol.',
         );
       } else {
         this.toast.error(this.msg(e, 'Sign up failed'));
@@ -181,4 +203,43 @@ export class LoginComponent implements OnInit {
     }
     return fallback;
   }
+
+  /** Friendly copy for Firebase Auth failures on sign-in (wrong email/password, etc.). */
+  private signInErrorMessage(e: unknown): string {
+    const code =
+      e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+    switch (code) {
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+      case 'auth/invalid-credential':
+      case 'auth/invalid-login-credentials':
+        return 'Email or password is incorrect. Please check and try again.';
+      case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+      case 'auth/user-disabled':
+        return 'This account has been disabled. Contact support if you need help.';
+      case 'auth/too-many-requests':
+        return 'Too many sign-in attempts. Please wait a moment and try again.';
+      case 'auth/network-request-failed':
+        return 'Network error. Check your connection and try again.';
+      default:
+        return this.msg(e, 'Sign in failed. Please try again.');
+    }
+  }
+}
+
+/** Sign-up only: ≥8 chars, uppercase, lowercase, digit, special symbol. */
+function strongSignupPasswordValidator(control: AbstractControl): ValidationErrors | null {
+  const raw = control.value;
+  if (raw === null || raw === undefined || String(raw).length === 0) {
+    return null;
+  }
+  const v = String(raw);
+  const missing: Record<string, true> = {};
+  if (v.length < 8) missing['minLen'] = true;
+  if (!/[A-Z]/.test(v)) missing['uppercase'] = true;
+  if (!/[a-z]/.test(v)) missing['lowercase'] = true;
+  if (!/\d/.test(v)) missing['digit'] = true;
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(v)) missing['special'] = true;
+  return Object.keys(missing).length ? { strongPassword: missing } : null;
 }

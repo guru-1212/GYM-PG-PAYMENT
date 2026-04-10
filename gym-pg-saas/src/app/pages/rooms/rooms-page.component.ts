@@ -26,6 +26,48 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
       -moz-appearance: textfield;
       appearance: textfield;
     }
+
+    /* Seat tooltip: avoid clipping when centered popover overflows narrow grid cells */
+    .seat-tooltip-panel {
+      width: min(16rem, calc(100vw - 2rem));
+      max-width: min(16rem, calc(100vw - 2rem));
+    }
+
+    .seat-tooltip-pos-left {
+      left: 0;
+      right: auto;
+      transform: translateX(0);
+    }
+
+    .seat-tooltip-pos-center {
+      left: 50%;
+      right: auto;
+      transform: translateX(-50%);
+    }
+
+    .seat-tooltip-pos-right {
+      left: auto;
+      right: 0;
+      transform: translateX(0);
+    }
+
+    .seat-tooltip-arrow-left {
+      left: 1.25rem;
+      right: auto;
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    .seat-tooltip-arrow-center {
+      left: 50%;
+      right: auto;
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    .seat-tooltip-arrow-right {
+      left: auto;
+      right: 1.25rem;
+      transform: translate(50%, -50%) rotate(45deg);
+    }
   `],
 })
 export class RoomsPageComponent implements OnInit, OnDestroy {

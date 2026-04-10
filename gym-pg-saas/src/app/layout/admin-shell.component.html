@@ -48,15 +48,19 @@
 
   <div class="flex min-w-0 flex-1 flex-col">
     <header
-      class="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-white/60 bg-white/85 px-3 py-2.5 backdrop-blur-xl md:hidden"
+      class="sticky top-0 z-20 flex w-full items-center border-b border-white/60 bg-white/85 px-3 py-2.5 backdrop-blur-xl md:hidden"
     >
-      <!-- <div class="min-w-0 shrink-0">
-        <p class="text-base font-bold leading-tight tracking-tight text-slate-900">{{ 'brand.gmPg' | t }}</p>
-        <p class="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">{{ 'nav.admin' | t }}</p>
-      </div> -->
-      <div class="flex shrink-0 items-center gap-2">
-        <!-- <app-language-switcher /> -->
-        <div class="relative" data-admin-user-menu-root>
+      <div class="flex w-full min-w-0 items-center justify-between gap-3">
+        <button
+          type="button"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50"
+          (click)="openMobileMenu()"
+          [attr.aria-label]="'a11y.openMenu' | t"
+          [attr.aria-expanded]="mobileMenuOpen()"
+        >
+          <span class="material-icons-outlined text-2xl">menu</span>
+        </button>
+        <div class="relative shrink-0" data-admin-user-menu-root>
           <button
             type="button"
             class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-blue-600 text-sm font-bold text-white shadow-md ring-2 ring-white"
@@ -85,15 +89,6 @@
             </div>
           }
         </div>
-        <button
-          type="button"
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50"
-          (click)="openMobileMenu()"
-          [attr.aria-label]="'a11y.openMenu' | t"
-          [attr.aria-expanded]="mobileMenuOpen()"
-        >
-          <span class="material-icons-outlined text-2xl">menu</span>
-        </button>
       </div>
     </header>
 
@@ -106,7 +101,7 @@
       >
         <div class="absolute inset-0 bg-slate-900/45 backdrop-blur-sm" (click)="closeMobileMenu()"></div>
         <aside
-          class="absolute right-0 top-0 flex h-full w-[min(18rem,88vw)] flex-col border-l border-white/60 bg-white/95 shadow-2xl backdrop-blur-xl"
+          class="absolute left-0 top-0 flex h-full w-[min(18rem,88vw)] flex-col border-r border-white/60 bg-white/95 shadow-2xl backdrop-blur-xl"
           (click)="$event.stopPropagation()"
         >
           <div class="flex items-center justify-between border-b border-slate-100 px-4 py-4">

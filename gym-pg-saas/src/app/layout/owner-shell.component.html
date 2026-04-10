@@ -121,38 +121,32 @@
 
   <div class="flex min-w-0 flex-1 flex-col">
     <header
-      class="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-white/60 bg-white/85 px-3 py-2.5 backdrop-blur-xl md:hidden"
+      class="sticky top-0 z-20 flex w-full min-w-0 items-center justify-between gap-3 border-b border-white/60 bg-white/85 px-3 py-2.5 backdrop-blur-xl md:hidden"
     >
-      <!-- <div class="min-w-0 shrink-0">
-        <p class="text-base font-bold leading-tight tracking-tight text-slate-900">{{ 'brand.gmPg' | t }}</p>
-        <p class="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">{{ 'brand.paybook' | t }}</p>
-      </div> -->
-      <div class="flex shrink-0 items-center gap-2" style="width: 100% !important; justify-content: space-between;">
-        <!-- <app-language-switcher /> -->
-      
+      <button
+        type="button"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50"
+        (click)="openMobileMenu()"
+        [attr.aria-label]="'a11y.openMenu' | t"
+        [attr.aria-expanded]="mobileMenuOpen()"
+      >
+        <span class="material-icons-outlined text-2xl">menu</span>
+      </button>
+      <div class="flex shrink-0 items-center gap-2">
         <button
           type="button"
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50"
-          (click)="openMobileMenu()"
-          [attr.aria-label]="'a11y.openMenu' | t"
-          [attr.aria-expanded]="mobileMenuOpen()"
+          class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm"
+          (click)="openNotifications()"
+          aria-label="Notifications"
         >
-          <span class="material-icons-outlined text-2xl">menu</span>
+          <span class="material-icons-outlined">notifications</span>
+          @if (unreadCount() > 0) {
+            <span class="absolute -right-1 -top-1 min-w-[1rem] rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+              {{ unreadCount() }}
+            </span>
+          }
         </button>
-          <button
-            type="button"
-            class="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm"
-            (click)="openNotifications()"
-            aria-label="Notifications"
-          >
-            <span class="material-icons-outlined">notifications</span>
-            @if (unreadCount() > 0) {
-              <span class="absolute -right-1 -top-1 min-w-[1rem] rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
-                {{ unreadCount() }}
-              </span>
-            }
-          </button>
-          <div class="relative" data-user-menu-root>
+        <div class="relative shrink-0" data-user-menu-root>
           <button
             type="button"
             class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-blue-600 text-sm font-bold text-white shadow-md ring-2 ring-white"
