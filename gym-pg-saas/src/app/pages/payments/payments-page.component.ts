@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { jsPDF } from 'jspdf';
 import { Member } from '../../core/models/member.model';
 import { Payment } from '../../core/models/payment.model';
@@ -28,12 +28,17 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
   readonly fromDate = signal<string>('');
   readonly toDate = signal<string>('');
 
-  // Pagination signals
+  // Pagination — summary lists (due today / overdue / paid ahead)
   readonly itemsPerPage = 10;
   readonly dueTodayPage = signal<number>(1);
   readonly overduePage = signal<number>(1);
   readonly paidUpPage = signal<number>(1);
+
+  /** All payments table */
   readonly paymentsTablePage = signal<number>(1);
+  readonly paymentsPageSize = signal<number>(10);
+  readonly paymentsPageGroupStart = signal<number>(1);
+  readonly paymentsPagesPerGroup = 5;
 
   readonly dueLabel = computed(() => {
     this.i18n.lang();
@@ -147,16 +152,62 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
   readonly paginatedPayments = computed(() => {
     const data = this.filteredPayments();
     const page = this.paymentsTablePage();
-    const start = (page - 1) * this.itemsPerPage;
-    return data.slice(start, start + this.itemsPerPage);
+    const size = this.paymentsPageSize();
+    const start = (page - 1) * size;
+    return data.slice(start, start + size);
   });
 
   readonly paymentsTablePages = computed(() => {
-    return Math.ceil(this.filteredPayments().length / this.itemsPerPage);
+    const n = this.filteredPayments().length;
+    const size = this.paymentsPageSize();
+    if (n === 0) return 0;
+    return Math.ceil(n / size);
+  });
+
+  readonly visiblePaymentsPageNumbers = computed(() => {
+    const total = this.paymentsTablePages();
+    const groupStart = this.paymentsPageGroupStart();
+    const groupEnd = Math.min(groupStart + this.paymentsPagesPerGroup - 1, total);
+    const pages: number[] = [];
+    for (let i = groupStart; i <= groupEnd; i++) {
+      pages.push(i);
+    }
+    return pages;
+  });
+
+  readonly canPrevPaymentsPageGroup = computed(() => this.paymentsPageGroupStart() > 1);
+
+  readonly canNextPaymentsPageGroup = computed(() => {
+    return this.paymentsPageGroupStart() + this.paymentsPagesPerGroup - 1 < this.paymentsTablePages();
+  });
+
+  readonly paymentsTableRange = computed(() => {
+    const total = this.filteredPayments().length;
+    const size = this.paymentsPageSize();
+    const page = this.paymentsTablePage();
+    if (total === 0) return { from: 0, to: 0, total: 0 };
+    const from = (page - 1) * size + 1;
+    const to = Math.min(page * size, total);
+    return { from, to, total };
   });
 
   private unsubM: (() => void) | null = null;
   private unsubP: (() => void) | null = null;
+
+  constructor() {
+    effect(() => {
+      const len = this.filteredPayments().length;
+      const size = this.paymentsPageSize();
+      const pages = len === 0 ? 0 : Math.ceil(len / size);
+      const cur = this.paymentsTablePage();
+      if (pages === 0) {
+        if (cur !== 1) this.paymentsTablePage.set(1);
+        return;
+      }
+      if (cur > pages) this.paymentsTablePage.set(pages);
+      if (cur < 1) this.paymentsTablePage.set(1);
+    });
+  }
 
   ngOnInit(): void {
     const id = this.auth.profile()?.ownerId;
@@ -274,19 +325,31 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
   onMethodFilterChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
     this.methodFilter.set(target.value);
-    this.paymentsTablePage.set(1); // Reset to first page when filter changes
+    this.resetPaymentsPagination();
   }
 
   onFromDateChange(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.fromDate.set(target.value);
-    this.paymentsTablePage.set(1); // Reset to first page when filter changes
+    this.resetPaymentsPagination();
   }
 
   onToDateChange(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.toDate.set(target.value);
-    this.paymentsTablePage.set(1); // Reset to first page when filter changes
+    this.resetPaymentsPagination();
+  }
+
+  onPaymentsPageSizeChange(event: Event): void {
+    const raw = Number((event.target as HTMLSelectElement).value);
+    if (![10, 25, 50].includes(raw)) return;
+    this.paymentsPageSize.set(raw);
+    this.resetPaymentsPagination();
+  }
+
+  private resetPaymentsPagination(): void {
+    this.paymentsTablePage.set(1);
+    this.paymentsPageGroupStart.set(1);
   }
 
   // Pagination methods
@@ -308,9 +371,29 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  setPaymentsTablePage(page: number): void {
-    if (page >= 1 && page <= this.paymentsTablePages()) {
-      this.paymentsTablePage.set(page);
+  goToPaymentsTablePage(page: number): void {
+    const total = this.paymentsTablePages();
+    if (total < 1 || page < 1 || page > total) return;
+    this.paymentsTablePage.set(page);
+    const ppg = this.paymentsPagesPerGroup;
+    let groupStart = this.paymentsPageGroupStart();
+    if (page < groupStart) {
+      groupStart = Math.max(1, Math.floor((page - 1) / ppg) * ppg + 1);
+    } else if (page > groupStart + ppg - 1) {
+      groupStart = Math.max(1, page - ppg + 1);
     }
+    this.paymentsPageGroupStart.set(groupStart);
+  }
+
+  prevPaymentsPageGroup(): void {
+    const next = Math.max(1, this.paymentsPageGroupStart() - this.paymentsPagesPerGroup);
+    this.paymentsPageGroupStart.set(next);
+  }
+
+  nextPaymentsPageGroup(): void {
+    const total = this.paymentsTablePages();
+    const ppg = this.paymentsPagesPerGroup;
+    const newStart = Math.min(Math.max(1, total - ppg + 1), this.paymentsPageGroupStart() + ppg);
+    this.paymentsPageGroupStart.set(newStart);
   }
 }

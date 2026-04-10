@@ -125,9 +125,9 @@
         {{ 'payments.downloadPdf' | t }}
       </button>
     </div>
-    <div class="px-4 py-4 border-b border-slate-100 grid gap-4 md:grid-cols-2 xl:grid-cols-4 items-center">
-      <div class="flex items-center gap-3 flex-wrap">
-        <label for="methodFilter" class="text-sm font-medium text-slate-700 whitespace-nowrap">{{ 'payments.filterByMethod' | t }}</label>
+    <div class="grid gap-4 border-b border-slate-100 px-4 py-4 md:grid-cols-2 xl:grid-cols-5 xl:items-center">
+      <div class="flex flex-wrap items-center gap-3">
+        <label for="methodFilter" class="whitespace-nowrap text-sm font-medium text-slate-700">{{ 'payments.filterByMethod' | t }}</label>
         <select id="methodFilter" [value]="methodFilter()" (change)="onMethodFilterChange($event)" class="saas-input w-48">
           <option value="">{{ 'payments.all' | t }}</option>
           <option value="cash">{{ 'payments.cash' | t }}</option>
@@ -135,15 +135,28 @@
           <option value="card">{{ 'payments.card' | t }}</option>
         </select>
       </div>
-      <div class="flex items-center gap-3 flex-wrap">
-        <label for="fromDate" class="text-sm font-medium text-slate-700 whitespace-nowrap">{{ 'payments.fromDate' | t }}</label>
-        <input id="fromDate" type="date" [value]="fromDate()" (change)="onFromDateChange($event)" class="saas-input w-40 min-w-[170px]" />
+      <div class="flex flex-wrap items-center gap-3">
+        <label for="fromDate" class="whitespace-nowrap text-sm font-medium text-slate-700">{{ 'payments.fromDate' | t }}</label>
+        <input id="fromDate" type="date" [value]="fromDate()" (change)="onFromDateChange($event)" class="saas-input min-w-[170px] w-40" />
       </div>
-      <div class="flex items-center gap-3 flex-wrap">
-        <label for="toDate" class="text-sm font-medium text-slate-700 whitespace-nowrap">{{ 'payments.toDate' | t }}</label>
-        <input id="toDate" type="date" [value]="toDate()" (change)="onToDateChange($event)" class="saas-input w-40 min-w-[170px]" />
+      <div class="flex flex-wrap items-center gap-3">
+        <label for="toDate" class="whitespace-nowrap text-sm font-medium text-slate-700">{{ 'payments.toDate' | t }}</label>
+        <input id="toDate" type="date" [value]="toDate()" (change)="onToDateChange($event)" class="saas-input min-w-[170px] w-40" />
       </div>
-      <div class="grid gap-2 text-sm text-slate-700 sm:grid-cols-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <label for="paymentsPageSize" class="whitespace-nowrap text-sm font-medium text-slate-700">{{ 'payments.rowsPerPage' | t }}</label>
+        <select
+          id="paymentsPageSize"
+          class="saas-input w-28"
+          [value]="paymentsPageSize()"
+          (change)="onPaymentsPageSizeChange($event)"
+        >
+          <option [value]="10">10</option>
+          <option [value]="25">25</option>
+          <option [value]="50">50</option>
+        </select>
+      </div>
+      <div class="grid gap-2 text-sm text-slate-700 sm:grid-cols-3 xl:col-span-1">
         <span class="rounded-full bg-slate-100 px-3 py-2 text-center">{{ 'payments.cashSummary' | t }}<br /><strong>₹{{ paymentMethodSums().cash | number:'1.0-0' }}</strong></span>
         <span class="rounded-full bg-slate-100 px-3 py-2 text-center">{{ 'payments.upiSummary' | t }}<br /><strong>₹{{ paymentMethodSums().upi | number:'1.0-0' }}</strong></span>
         <span class="rounded-full bg-slate-100 px-3 py-2 text-center">{{ 'payments.cardSummary' | t }}<br /><strong>₹{{ paymentMethodSums().card | number:'1.0-0' }}</strong></span>
@@ -164,7 +177,7 @@
             <tr>
               <td class="px-4 py-3">{{ p.date.toDate() | date: 'dd/MM/yy' }}</td>
               <td class="px-4 py-3 font-medium text-slate-900">{{ nameForPayment(p) }}</td>
-              <td class="px-4 py-3">₹{{ p.amount }}</td>
+              <td class="px-4 py-3">₹{{ p.amount | number: '1.0-0' }}</td>
               <td class="px-4 py-3 uppercase text-slate-600">{{ p.method }}</td>
             </tr>
           }
@@ -174,29 +187,65 @@
     @if (filteredPayments().length === 0) {
       <p class="px-4 py-10 text-center text-slate-500">{{ 'payments.noPaymentsYet' | t }}</p>
     }
-    @if (paymentsTablePages() > 1) {
-      <div class="border-t border-slate-100 px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            [disabled]="paymentsTablePage() === 1"
-            (click)="setPaymentsTablePage(paymentsTablePage() - 1)"
-            class="saas-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            ← Previous
-          </button>
-          <span class="text-sm font-medium text-slate-700">{{ paymentsTablePage() }} / {{ paymentsTablePages() }}</span>
-          <button
-            type="button"
-            [disabled]="paymentsTablePage() === paymentsTablePages()"
-            (click)="setPaymentsTablePage(paymentsTablePage() + 1)"
-            class="saas-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Next →
-          </button>
+    @if (paymentsTableRange(); as range) {
+      @if (range.total > 0) {
+        <div class="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm text-slate-600">
+            {{ 'payments.showingRange' | t: { from: range.from, to: range.to, total: range.total } }}
+          </p>
+          @if (paymentsTablePages() > 1) {
+            <div class="flex flex-wrap items-center justify-center gap-1 sm:justify-end">
+              <button
+                type="button"
+                class="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                [disabled]="paymentsTablePage() === 1"
+                (click)="goToPaymentsTablePage(1)"
+              >
+                {{ 'payments.firstPage' | t }}
+              </button>
+              <button
+                type="button"
+                class="rounded-lg border border-slate-200 bg-white px-2 py-2 text-slate-600 transition-all disabled:cursor-not-allowed disabled:opacity-40 hover:enabled:border-indigo-200 hover:enabled:bg-indigo-50"
+                [disabled]="!canPrevPaymentsPageGroup()"
+                (click)="prevPaymentsPageGroup()"
+                [attr.aria-label]="'payments.prevPages' | t"
+              >
+                <span class="material-icons-outlined text-base">chevron_left</span>
+              </button>
+              @for (num of visiblePaymentsPageNumbers(); track num) {
+                <button
+                  type="button"
+                  class="min-w-[2.5rem] rounded-md px-3 py-2 text-sm font-medium transition-colors"
+                  [class.bg-indigo-100]="paymentsTablePage() === num"
+                  [class.text-indigo-900]="paymentsTablePage() === num"
+                  [class.bg-slate-100]="paymentsTablePage() !== num"
+                  [class.text-slate-600]="paymentsTablePage() !== num"
+                  (click)="goToPaymentsTablePage(num)"
+                >
+                  {{ num }}
+                </button>
+              }
+              <button
+                type="button"
+                class="rounded-lg border border-slate-200 bg-white px-2 py-2 text-slate-600 transition-all disabled:cursor-not-allowed disabled:opacity-40 hover:enabled:border-indigo-200 hover:enabled:bg-indigo-50"
+                [disabled]="!canNextPaymentsPageGroup()"
+                (click)="nextPaymentsPageGroup()"
+                [attr.aria-label]="'payments.nextPages' | t"
+              >
+                <span class="material-icons-outlined text-base">chevron_right</span>
+              </button>
+              <button
+                type="button"
+                class="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                [disabled]="paymentsTablePage() === paymentsTablePages()"
+                (click)="goToPaymentsTablePage(paymentsTablePages())"
+              >
+                {{ 'payments.lastPage' | t }}
+              </button>
+            </div>
+          }
         </div>
-        <span class="text-sm text-slate-600">Showing {{ (paymentsTablePage() - 1) * itemsPerPage + 1 }} - {{ paginatedPayments().length + (paymentsTablePage() - 1) * itemsPerPage }} of {{ filteredPayments().length }} payments</span>
-      </div>
+      }
     }
   </section>
 </div>

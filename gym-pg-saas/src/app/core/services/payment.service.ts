@@ -152,6 +152,11 @@ export class PaymentService {
   /**
    * Record payment. Next due date is derived from the existing due date + subscription period
    * (calendar months), not from the payment date.
+   *
+   * When the member already had a balance (`priorPendingAmount`), paying toward that balance does
+   * not advance the billing cycle. The due date moves forward only if there is no prior balance,
+   * or the payment clears the balance and the amount above the balance is at least the plan fee
+   * (`memberPlanAmount`).
    */
   async markPaid(params: {
     memberId: string;
@@ -162,11 +167,19 @@ export class PaymentService {
     subscriptionType?: SubscriptionType | null;
     isPartialPayment?: boolean;
     pendingAmount?: number;
+    /** Member's balance before this payment (from `member.pendingAmount`). */
+    priorPendingAmount?: number;
+    /** Recurring plan amount (`member.amount`); used to allow renew in same txn after balance cleared. */
+    memberPlanAmount?: number;
   }): Promise<void> {
     const payDate = new Date();
     const nextDue = nextDueAfterPaid(params.currentDueDate, params.subscriptionType);
-    const pendingAmount = Math.max(0, Number(params.pendingAmount) || 0);
+    const pendingFromForm = Math.max(0, Number(params.pendingAmount) || 0);
     const isPartialPayment = !!params.isPartialPayment;
+    const paid = Math.max(0, Number(params.amount) || 0);
+    const priorPending = Math.max(0, Number(params.priorPendingAmount) || 0);
+    const planAmount = Math.max(0, Number(params.memberPlanAmount) || 0);
+
     await addDoc(collection(this.fb.db, 'payments'), {
       memberId: params.memberId,
       ownerId: params.ownerId,
@@ -174,16 +187,48 @@ export class PaymentService {
       date: dateToTimestamp(payDate),
       method: params.method,
       isPartialPayment,
-      pendingAmount: isPartialPayment ? pendingAmount : 0,
+      pendingAmount: isPartialPayment ? pendingFromForm : 0,
       createdAt: serverTimestamp(),
     });
+
     if (isPartialPayment) {
       await this.members.updateBillingState(params.memberId, {
         subscriptionType: params.subscriptionType ?? undefined,
-        pendingAmount,
+        pendingAmount: pendingFromForm,
       });
       return;
     }
+
+    if (priorPending > 0) {
+      const appliedToBalance = Math.min(paid, priorPending);
+      const excess = paid - appliedToBalance;
+      const newPending = priorPending - appliedToBalance;
+
+      if (newPending > 0) {
+        await this.members.updateBillingState(params.memberId, {
+          subscriptionType: params.subscriptionType ?? undefined,
+          pendingAmount: newPending,
+        });
+        return;
+      }
+
+      const renewsThisTxn = planAmount > 0 && excess >= planAmount;
+      if (!renewsThisTxn) {
+        await this.members.updateBillingState(params.memberId, {
+          subscriptionType: params.subscriptionType ?? undefined,
+          pendingAmount: 0,
+        });
+        return;
+      }
+
+      await this.members.updateBillingState(params.memberId, {
+        dueDate: nextDue,
+        subscriptionType: params.subscriptionType ?? undefined,
+        pendingAmount: 0,
+      });
+      return;
+    }
+
     await this.members.updateBillingState(params.memberId, {
       dueDate: nextDue,
       subscriptionType: params.subscriptionType ?? undefined,

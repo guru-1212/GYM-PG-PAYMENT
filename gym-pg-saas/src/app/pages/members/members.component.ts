@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe, JsonPipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, OnDestroy, OnInit, signal, effect } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -33,7 +33,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 @Component({
   selector: 'app-members',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, JsonPipe, ModalComponent, TranslatePipe],
+  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, ModalComponent, TranslatePipe],
   templateUrl: './members.component.html',
   styles: [`
     .seat-assign-highlight {
@@ -139,20 +139,6 @@ export class MembersComponent implements OnInit, OnDestroy {
     return timestampToDate(m.dueDate);
   }
 
-  /** Debug helper to check if submit button should be enabled */
-  isPayFormSubmitDisabled(): boolean {
-    const isDisabled = this.payForm.invalid;
-    console.log('🔵 isPayFormSubmitDisabled check:', {
-      formInvalid: this.payForm.invalid,
-      formStatus: this.payForm.status,
-      formErrors: this.payForm.errors,
-      controls: Object.fromEntries(
-        Object.entries(this.payForm.controls).map(([k, c]) => [k, { value: c.value, errors: c.errors, status: c.status }])
-      ),
-      isDisabled,
-    });
-    return isDisabled;
-  }
   readonly occupiedBedKeys = computed(() => {
     const set = new Set<string>();
     const editing = this.editingId();
@@ -346,9 +332,9 @@ export class MembersComponent implements OnInit, OnDestroy {
     mobile: ['', optionalDigitsLen(10)],
     email: [''],
     address: [''],
-    floorNumber: ['', Validators.required],
-    roomNumber: ['', Validators.required],
-    bedNumber: ['', Validators.required],
+    floorNumber: ['', [Validators.required, Validators.pattern(/^\d+$/)]],
+    roomNumber: ['', [Validators.required, Validators.pattern(/^\d+$/)]],
+    bedNumber: ['', [Validators.required, Validators.pattern(/^\d+$/)]],
     gender: this.fb.control<'male' | 'female' | 'other' | ''>(''),
     aadhaarLast4: ['', optionalDigitsLen(12)],
     notes: [''],
@@ -608,9 +594,9 @@ export class MembersComponent implements OnInit, OnDestroy {
       mobile: m.mobile || '',
       email: m.email || '',
       address: m.address || '',
-      floorNumber: m.floorNumber || '',
-      roomNumber: m.roomNumber || '',
-      bedNumber: m.bedNumber || '',
+      floorNumber: String(m.floorNumber || '').replace(/\D/g, ''),
+      roomNumber: String(m.roomNumber || '').replace(/\D/g, ''),
+      bedNumber: String(m.bedNumber || '').replace(/\D/g, ''),
       gender: (m.gender as 'male' | 'female' | 'other' | undefined) || '',
       aadhaarLast4: m.aadhaarLast4 || '',
       notes: m.notes || '',
@@ -749,129 +735,54 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   openPay(m: Member): void {
-    console.log('🔵 openPay called for:', m.firstName, 'Amount:', m.amount, 'Subscription:', m.subscriptionType);
     this.payTarget.set(m);
+    const pending = Math.max(0, Number(m.pendingAmount) || 0);
+    const plan = Math.max(0, Number(m.amount) || 0);
+    /** Default amount to outstanding balance when they owe a split; avoids accidental full renewal. */
+    const defaultAmount = pending > 0 ? pending : plan;
     this.payForm.reset({
-      amount: m.amount,
+      amount: defaultAmount,
       method: 'cash',
       subscriptionType: m.subscriptionType ?? 'monthly',
       isPartialPayment: false,
-      pendingAmount: Number(m.pendingAmount) || 0,
+      pendingAmount: pending,
     });
-    console.log('🔵 payForm after reset - Valid:', this.payForm.valid, 'Errors:', this.payForm.errors);
-    console.log('🔵 Form controls state:', Object.fromEntries(
-      Object.entries(this.payForm.controls).map(([k, c]) => [k, { value: c.value, valid: c.valid, errors: c.errors }])
-    ));
-    
-    // Set up value change listener for debugging
-    const subscription = this.payForm.valueChanges.subscribe((newValue) => {
-      console.log('🔵 Form values changed:', newValue);
-      console.log('🔵 Form valid after change:', this.payForm.valid);
-      console.log('🔵 Form status:', this.payForm.status);
-      if (!this.payForm.valid) {
-        console.log('🔵 Form invalid:');
-        Object.entries(this.payForm.controls).forEach(([key, control]) => {
-          if (control.errors) {
-            console.log(`  ${key} errors:`, control.errors);
-          }
-        });
-      }
-    });
-    
-    // Store subscription to unsubscribe later
-    (this as any)._payFormValueChangesSubscription = subscription;
-    
     this.payModalOpen.set(true);
   }
 
   closePay(): void {
-    console.log('🔵 closePay called');
     this.payModalOpen.set(false);
     this.payTarget.set(null);
-    // Clean up subscription
-    const sub = (this as any)._payFormValueChangesSubscription;
-    if (sub) {
-      sub.unsubscribe();
-      (this as any)._payFormValueChangesSubscription = null;
-    }
   }
 
   async submitPay(): Promise<void> {
-    console.log('═══════════════════════════════════════════');
-    console.log('🔵 SUBMIT PAY CALLED');
-    console.log('Form valid?', this.payForm.valid);
-    console.log('Form touched?', this.payForm.touched);
-    console.log('Form dirty?', this.payForm.dirty);
-    console.log('Form pending?', this.payForm.pending);
-    console.log('Form status:', this.payForm.status);
-    console.log('Form errors:', this.payForm.errors);
-    
     if (this.payForm.invalid) {
-      console.log('❌ FORM INVALID - Detailed errors:');
-      Object.entries(this.payForm.controls).forEach(([key, control]) => {
-        console.log(`  ${key}:`, {
-          value: control.value,
-          valid: control.valid,
-          errors: control.errors,
-          status: control.status,
-          touched: control.touched,
-          dirty: control.dirty,
-        });
-      });
       this.payForm.markAllAsTouched();
       return;
     }
-    
+
     const m = this.payTarget();
     const owner = this.auth.profile();
-    console.log('🔵 Member info:', m?.firstName, m?.memberId);
-    console.log('🔵 Owner info:', owner?.ownerId);
-    
-    if (!m || !owner) {
-      console.log('❌ Missing member or owner');
-      return;
-    }
-    
+    if (!m || !owner) return;
+
     const due = timestampToDate(m.dueDate);
-    console.log('🔵 Current due date:', due);
     if (!due) {
-      console.log('❌ Invalid due date');
       this.toast.error('Invalid due date');
       return;
     }
-    
+
     const v = this.payForm.getRawValue();
-    console.log('🔵 Form values extracted:', {
-      amount: v.amount,
-      method: v.method,
-      subscriptionType: v.subscriptionType,
-      isPartialPayment: v.isPartialPayment,
-      pendingAmount: v.pendingAmount,
-    });
-    
     if (v.isPartialPayment) {
-      console.log('🔵 PARTIAL PAYMENT MODE');
       if (!Number.isFinite(Number(v.pendingAmount)) || Number(v.pendingAmount) <= 0) {
-        console.log('❌ Invalid pending amount:', v.pendingAmount);
         this.toast.error('Enter pending amount for partial payment');
         return;
       }
-    } else {
-      console.log('🔵 FULL PAYMENT MODE - Member being renewed');
     }
-    
+
+    const priorPending = Math.max(0, Number(m.pendingAmount) || 0);
+    const planAmount = Math.max(0, Number(m.amount) || 0);
+
     try {
-      console.log('🔵 CALLING MARK PAID API with params:', {
-        memberId: m.memberId,
-        ownerId: owner.ownerId,
-        amount: Number(v.amount),
-        method: v.method,
-        currentDueDate: due,
-        subscriptionType: this.isGym() ? v.subscriptionType : undefined,
-        isPartialPayment: v.isPartialPayment,
-        pendingAmount: v.isPartialPayment ? Number(v.pendingAmount) : 0,
-      });
-      
       await this.paymentsApi.markPaid({
         memberId: m.memberId,
         ownerId: owner.ownerId,
@@ -881,20 +792,16 @@ export class MembersComponent implements OnInit, OnDestroy {
         subscriptionType: this.isGym() ? v.subscriptionType : undefined,
         isPartialPayment: v.isPartialPayment,
         pendingAmount: v.isPartialPayment ? Number(v.pendingAmount) : 0,
+        priorPendingAmount: priorPending,
+        memberPlanAmount: planAmount,
       });
-      
-      console.log('✅ PAYMENT RECORDED SUCCESSFULLY');
+
       this.toast.success(v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded');
       this.closePay();
     } catch (error) {
-      console.error('❌ ERROR RECORDING PAYMENT:', error);
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-      }
+      console.error('Record payment failed:', error);
       this.toast.error('Could not record payment');
     }
-    console.log('═══════════════════════════════════════════');
   }
 
   openHistory(m: Member): void {
@@ -1014,6 +921,17 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.manualSeatEntryTriggered.set(true);
     const v = this.memberForm.getRawValue();
     this.manualSeatError.set(this.getSeatAvailabilityIssue(v.floorNumber, v.roomNumber, v.bedNumber));
+  }
+
+  /** Floor, room, and bed: digits only (no letters or symbols). */
+  onNumericSeatField(field: 'floorNumber' | 'roomNumber' | 'bedNumber', event: Event): void {
+    const el = event.target as HTMLInputElement;
+    const digitsOnly = el.value.replace(/\D/g, '');
+    this.memberForm.controls[field].setValue(digitsOnly, { emitEvent: false });
+    if (el.value !== digitsOnly) {
+      el.value = digitsOnly;
+    }
+    this.onManualSeatInput();
   }
 
   /** Blue = partial payment pending, red = overdue, orange = due soon, green = active / further out, neutral = inactive / unknown */

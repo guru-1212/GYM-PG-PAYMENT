@@ -167,6 +167,12 @@ export const TE: Record<string, unknown> = {
     downloadPdf: 'PDF డౌన్లోడ్ చేయండి',
     generatedAt: 'తయారుచేసిన తేదీ {date}',
     noPaymentsYet: 'ఇంకా చెల్లింపులు నమోదు కాలేదు.',
+    rowsPerPage: 'ప్రతి పేజీ వరుసలు',
+    showingRange: '{total} లో {from}–{to} చూపిస్తున్నాం',
+    firstPage: 'మొదటి',
+    lastPage: 'చివరి',
+    prevPages: 'మునుపటి పేజీలు',
+    nextPages: 'తర్వాతి పేజీలు',
   },
   fees: {
     rentDue: 'రెంట్ గడువు',

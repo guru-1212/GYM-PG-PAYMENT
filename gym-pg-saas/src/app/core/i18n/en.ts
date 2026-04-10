@@ -167,6 +167,12 @@ export const EN: Record<string, unknown> = {
     downloadPdf: 'Download PDF',
     generatedAt: 'Generated on {date}',
     noPaymentsYet: 'No payments recorded yet.',
+    rowsPerPage: 'Rows per page',
+    showingRange: 'Showing {from}–{to} of {total}',
+    firstPage: 'First',
+    lastPage: 'Last',
+    prevPages: 'Previous page numbers',
+    nextPages: 'Next page numbers',
   },
   fees: {
     rentDue: 'Rent due',
