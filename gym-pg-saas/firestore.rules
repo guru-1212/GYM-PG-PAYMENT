@@ -40,6 +40,26 @@ service cloud.firestore {
         && request.resource.data.status == 'pending';
       allow update: if isAdmin();
       allow delete: if false;
+
+      /**
+       * Minimal docs used only to verify a 10-digit mobile belongs to this owner
+       * on the public complaint form (no PII in the doc). Synced from MemberService.
+       */
+      match /complaintMemberMobiles/{mobile} {
+        allow read: if exists(/databases/$(database)/documents/publicOwnerComplaintSettings/$(ownerId))
+          && get(/databases/$(database)/documents/publicOwnerComplaintSettings/$(ownerId)).data.complaintEnabled == true;
+        allow write: if isApprovedOwner() && request.auth.uid == ownerId;
+      }
+    }
+
+    /**
+     * Public complaint form reads this without auth. Any signed-in user may write
+     * (per product spec); tighten to request.auth.uid == ownerId in production if needed.
+     */
+    match /publicOwnerComplaintSettings/{ownerId} {
+      allow read: if true;
+      allow create, update: if request.auth != null;
+      allow delete: if false;
     }
 
     match /members/{memberId} {
@@ -60,6 +80,68 @@ service cloud.firestore {
     match /adminPayments/{paymentId} {
       allow read: if isAdmin();
       allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    /**
+     * Owner–admin chat: one thread per owner at chats/{ownerId}.
+     * Without these rules, writes hit permission-denied while the Firestore Write
+     * channel still shows HTTP 200 (the stream stays open; failures are per-op).
+     */
+    match /chats/{chatId} {
+      function canAccessChat() {
+        return isAdmin() || (isApprovedOwner() && request.auth.uid == chatId);
+      }
+
+      allow read: if canAccessChat();
+      allow create: if canAccessChat()
+        && request.resource.data.chatId == chatId
+        && request.resource.data.ownerId == chatId;
+      allow update: if canAccessChat()
+        && resource.data.chatId == chatId
+        && resource.data.ownerId == chatId;
+      allow delete: if false;
+    }
+
+    match /chats/{chatId}/messages/{messageId} {
+      function canReadThread() {
+        return isAdmin() || (isApprovedOwner() && request.auth.uid == chatId);
+      }
+
+      allow read: if canReadThread();
+
+      allow create: if canReadThread()
+        && request.resource.data.chatId == chatId
+        && request.resource.data.ownerId == chatId
+        && request.resource.data.senderRole in ['owner', 'admin']
+        && (
+          (request.resource.data.senderRole == 'owner'
+            && isApprovedOwner()
+            && request.auth.uid == chatId)
+          || (request.resource.data.senderRole == 'admin' && isAdmin())
+        );
+
+      allow update: if (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readByAdmin']))
+        || (isApprovedOwner()
+          && request.auth.uid == chatId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readByOwner']));
+      allow delete: if false;
+    }
+
+    match /complaints/{complaintId} {
+      allow read: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid) || isAdmin();
+
+      allow create: if request.resource.data.ownerId is string
+        && request.resource.data.memberMobile is string
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 5
+        && request.resource.data.message.size() <= 8000
+        && request.resource.data.status == 'open'
+        && exists(/databases/$(database)/documents/publicOwnerComplaintSettings/$(request.resource.data.ownerId))
+        && get(/databases/$(database)/documents/publicOwnerComplaintSettings/$(request.resource.data.ownerId)).data.complaintEnabled == true
+        && exists(/databases/$(database)/documents/owners/$(request.resource.data.ownerId)/complaintMemberMobiles/$(request.resource.data.memberMobile));
+
       allow update, delete: if false;
     }
   }

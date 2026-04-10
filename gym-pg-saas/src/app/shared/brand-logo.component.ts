@@ -1,10 +1,19 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { AuthService } from '../core/services/auth.service';
 
 @Component({
   selector: 'app-brand-logo',
   standalone: true,
   template: `
-    <div class="flex items-center gap-2">
+    <div
+      class="flex items-center gap-2 brand-link"
+      role="link"
+      tabindex="0"
+      (click)="navigateFromLogo()"
+      (keydown.enter)="navigateFromLogo()"
+      (keydown.space)="onSpaceNavigate($event)"
+    >
      
       @if (showText) {
         <span class="brand-name">{{ brandName }}</span>
@@ -27,10 +36,27 @@ import { Component, Input } from '@angular/core';
       background-clip: text;
       font-size: 24px;
     }
+    .brand-link {
+      cursor: pointer;
+      user-select: none;
+    }
   `]
 })
 export class BrandLogoComponent {
+  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+
   @Input() logoSize = '32px';
   @Input() showText = false;
   @Input() brandName = 'OurPGTracker';
+
+  navigateFromLogo(): void {
+    const target = this.auth.user() ? '/dashboard' : '/';
+    void this.router.navigateByUrl(target);
+  }
+
+  onSpaceNavigate(event: Event): void {
+    event.preventDefault();
+    this.navigateFromLogo();
+  }
 }

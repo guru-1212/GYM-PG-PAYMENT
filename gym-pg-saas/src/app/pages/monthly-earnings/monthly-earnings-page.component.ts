@@ -1,5 +1,5 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
-import { CommonModule, DatePipe, DecimalPipe } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import { Payment } from '../../core/models/payment.model';
 import { Member } from '../../core/models/member.model';
 import { AuthService } from '../../core/services/auth.service';
@@ -7,13 +7,12 @@ import { DataCacheService } from '../../core/services/data-cache.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { MemberService } from '../../core/services/member.service';
 import { TranslationService } from '../../core/services/translation.service';
-import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { jsPDF } from 'jspdf';
 
 @Component({
   selector: 'app-monthly-earnings-page',
   standalone: true,
-  imports: [CommonModule, DatePipe, DecimalPipe, TranslatePipe],
+  imports: [CommonModule, DatePipe],
   templateUrl: './monthly-earnings-page.component.html',
   styleUrl: './monthly-earnings-page.component.scss',
 })

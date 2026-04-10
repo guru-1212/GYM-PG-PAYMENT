@@ -6,16 +6,22 @@
         <p class="text-slate-600">{{ 'dashboard.subtitle' | t }}</p>
       </div>
       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-        @if (subscriptionDaysRemaining() !== null) {
-          <div class="rounded-lg border px-4 py-2" [ngClass]="(subscriptionDaysRemaining() ?? 0) <= 7 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'">
-            <p class="text-xs font-medium" [ngClass]="(subscriptionDaysRemaining() ?? 0) <= 7 ? 'text-red-700' : 'text-emerald-700'">
-              @if (subscriptionDaysRemaining() === 0) {
-                Expires Today
-              } @else if (subscriptionDaysRemaining() === 1) {
-                Expires Tomorrow
-              } @else {
-                {{ subscriptionDaysRemaining() }} days remaining
-              }
+        <!-- Complaints toggle disabled — restore when feature fixed
+        <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+          <input
+            type="checkbox"
+            class="h-4 w-4"
+            [checked]="complaintEnabled()"
+            [disabled]="complaintToggleBusy()"
+            (change)="setComplaintEnabled($any($event.target).checked)"
+          />
+          Complaints {{ complaintEnabled() ? 'Enabled' : 'Disabled' }}
+        </label>
+        -->
+        @if (subscriptionCountdown(); as c) {
+          <div class="hidden rounded-lg border px-4 py-2 md:block" [ngClass]="c.expired || c.days <= 7 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'">
+            <p class="text-xs font-medium" [ngClass]="c.expired || c.days <= 7 ? 'text-red-700' : 'text-emerald-700'">
+              Plan {{ c.text }}
             </p>
           </div>
         }
@@ -375,6 +381,31 @@
         </div>
       }
     </section>
+
+    <!-- Complaint QR section disabled — restore when feature fixed
+    <section class="saas-card p-5">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-900">Complaint QR</h2>
+          <p class="text-sm text-slate-600">Members can scan and submit complaint from mobile.</p>
+        </div>
+        <span class="rounded-full px-2 py-1 text-xs font-semibold" [class.bg-emerald-100]="complaintEnabled()" [class.text-emerald-800]="complaintEnabled()" [class.bg-slate-100]="!complaintEnabled()" [class.text-slate-600]="!complaintEnabled()">
+          {{ complaintEnabled() ? 'Enabled' : 'Disabled' }}
+        </span>
+      </div>
+      @if (complaintUrl()) {
+        <div class="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:gap-6">
+          <img [src]="complaintQrUrl()" alt="Complaint QR" class="h-44 w-44 rounded-xl border border-slate-200 bg-white p-2" />
+          <div class="w-full min-w-0">
+            <p class="text-xs font-medium text-slate-500">Complaint Link</p>
+            <a [href]="complaintUrl()" target="_blank" rel="noopener noreferrer" class="mt-1 block break-all text-sm font-semibold text-indigo-700 underline">
+              {{ complaintUrl() }}
+            </a>
+          </div>
+        </div>
+      }
+    </section>
+    -->
    
   }
 </div>
@@ -558,16 +589,36 @@
 
 <app-modal [open]="setupModalOpen()" title="Setup Bed Availability" (closed)="closeSetupModal()">
   <form [formGroup]="setupForm" class="space-y-4">
+    @if (validationError()) {
+      <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+        <p class="text-sm font-medium text-red-800">{{ validationError() }}</p>
+      </div>
+    }
     <div>
-      <label class="mb-1 block text-sm font-medium text-slate-700">Number of floors (1-8)</label>
-      <input
-        type="number"
-        min="1"
-        max="8"
-        formControlName="floorCount"
-        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-        (change)="onFloorCountChange($any($event.target).value)"
-      />
+      <label class="mb-1 block text-sm font-medium text-slate-700">Number of floors</label>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-lg font-semibold leading-none"
+          (click)="decrementFloorCount()"
+        >
+          -
+        </button>
+        <input
+          type="number"
+          min="1"
+          formControlName="floorCount"
+          class="w-28 rounded-xl border border-slate-200 px-4 py-2 text-center text-base"
+          (input)="onFloorCountChange($any($event.target).value)"
+        />
+        <button
+          type="button"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-lg font-semibold leading-none"
+          (click)="incrementFloorCount()"
+        >
+          +
+        </button>
+      </div>
     </div>
 
     <div class="max-h-[45vh] space-y-3 overflow-y-auto pr-1">
@@ -577,13 +628,27 @@
             <p class="text-sm font-semibold text-slate-900">Floor {{ floorIdx + 1 }}</p>
             <div class="flex items-center gap-2">
               <label class="text-xs text-slate-600">Rooms</label>
+              <button
+                type="button"
+                class="rounded border border-slate-200 px-2 py-0.5 text-base font-semibold leading-none"
+                (click)="decrementRoomCount(floorIdx)"
+              >
+                -
+              </button>
               <input
                 type="number"
                 min="1"
-                class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                class="w-16 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm"
                 [value]="floor.get('roomCount')?.value"
-                (change)="onRoomCountChange(floorIdx, $any($event.target).value)"
+                (input)="onRoomCountChange(floorIdx, $any($event.target).value)"
               />
+              <button
+                type="button"
+                class="rounded border border-slate-200 px-2 py-0.5 text-base font-semibold leading-none"
+                (click)="incrementRoomCount(floorIdx)"
+              >
+                +
+              </button>
             </div>
           </div>
           <div class="grid gap-2 sm:grid-cols-2">
@@ -591,12 +656,29 @@
               <div class="rounded-lg bg-slate-50 px-3 py-2" [formGroup]="$any(room)">
                 <p class="text-xs font-semibold text-slate-700">Room {{ formatRoomNumber(floorIdx + 1, roomIdx + 1) }}</p>
                 <label class="mt-1 block text-xs text-slate-500">Beds</label>
-                <input
-                  type="number"
-                  min="1"
-                  class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-                  formControlName="beds"
-                />
+                <div class="mt-1 flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="rounded border border-slate-200 px-2 py-0.5 text-base font-semibold leading-none"
+                    (click)="decrementBedsCount(floorIdx, roomIdx)"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    class="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-sm"
+                    formControlName="beds"
+                    (input)="onBedsCountChange(floorIdx, roomIdx, $any($event.target).value)"
+                  />
+                  <button
+                    type="button"
+                    class="rounded border border-slate-200 px-2 py-0.5 text-base font-semibold leading-none"
+                    (click)="incrementBedsCount(floorIdx, roomIdx)"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             }
           </div>
@@ -750,7 +832,16 @@
                       [class.bg-emerald-50]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                       [class.text-emerald-800]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                     >
-                      Bed {{ bedIdx + 1 }}
+                      <span class="flex items-center gap-1">
+                        <span
+                          class="material-icons text-sm drop-shadow-sm"
+                          [class.text-red-700]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                          [class.text-emerald-600]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                        >
+                          bed
+                        </span>
+                        {{ bedIdx + 1 }}
+                      </span>
                     </div>
                   }
                 </div>

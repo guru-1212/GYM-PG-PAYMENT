@@ -16,7 +16,7 @@ export const ownerGuard: CanActivateFn = async () => {
   if (p.status === 'pending') {
     return router.createUrlTree(['/pending-approval']);
   }
-  if (p.status === 'rejected') {
+  if (p.status === 'rejected' || p.status === 'inactive') {
     return router.createUrlTree(['/account-rejected']);
   }
   if (p.role !== 'owner' || p.status !== 'approved') {

@@ -1,18 +1,25 @@
-import { Component, HostListener, computed, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, HostListener, computed, effect, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { OwnerAdminChatMessage } from '../core/models/owner-admin-chat.model';
 import { AuthService } from '../core/services/auth.service';
+import { OwnerAdminChatService } from '../core/services/owner-admin-chat.service';
+// Complaints disabled — restore when feature fixed
+// import { ComplaintService } from '../core/services/complaint.service';
 import { TranslationService } from '../core/services/translation.service';
+import { ModalComponent } from '../shared/modal.component';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../shared/brand-logo.component';
 
 @Component({
   selector: 'app-owner-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, BrandLogoComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, BrandLogoComponent, ModalComponent],
   templateUrl: './owner-shell.component.html',
 })
 export class OwnerShellComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
+  private readonly chat = inject(OwnerAdminChatService);
+  // private readonly complaintApi = inject(ComplaintService);
   private readonly router = inject(Router);
   readonly i18n = inject(TranslationService);
 
@@ -26,6 +33,65 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
 
   readonly mobileMenuOpen = signal(false);
   readonly userMenuOpen = signal(false);
+  readonly nowMs = signal(Date.now());
+  readonly notificationsOpen = signal(false);
+  readonly chatMessages = signal<OwnerAdminChatMessage[]>([]);
+  readonly chatText = signal('');
+  readonly unreadCount = signal(0);
+  // readonly complaintToggleBusy = signal(false);
+  readonly planCountdown = computed(() => {
+    this.nowMs();
+    const end = this.profile()?.planEndDate?.toDate?.();
+    if (!end) return null;
+    const diffMs = end.getTime() - Date.now();
+    if (diffMs <= 0) {
+      return {
+        expired: true,
+        days: 0,
+        hours: 0,
+        minutes: 0,
+        seconds: 0,
+        display: 'Expired',
+      };
+    }
+    const totalSeconds = Math.floor(diffMs / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const pad = (v: number) => v.toString().padStart(2, '0');
+    return {
+      expired: false,
+      days,
+      hours,
+      minutes,
+      seconds,
+      display: `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`,
+    };
+  });
+  private unsubThread: (() => void) | null = null;
+  private unsubUnread: (() => void) | null = null;
+  private countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    effect(() => {
+      const ownerId = this.profile()?.ownerId;
+      this.unsubThread?.();
+      this.unsubUnread?.();
+      this.chatMessages.set([]);
+      this.unreadCount.set(0);
+      if (!ownerId) return;
+      this.unsubThread = this.chat.watchThread(ownerId, (messages) => this.chatMessages.set(messages));
+      this.unsubUnread = this.chat.watchOwnerUnreadCount(ownerId, (count) => this.unreadCount.set(count));
+      /* Complaints disabled — restore when feature fixed
+      const p = this.profile();
+      if (p?.role === 'owner') {
+        void this.complaintApi.publishPublicComplaintSettings(ownerId, Boolean(p.complaintEnabled));
+      }
+      void this.complaintApi.syncMemberMobileLookupsForOwner(ownerId);
+      */
+    });
+  }
 
   openMobileMenu(): void {
     this.closeUserMenu();
@@ -45,12 +111,58 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
     this.userMenuOpen.set(false);
   }
 
+  async openNotifications(): Promise<void> {
+    this.notificationsOpen.set(true);
+    const ownerId = this.profile()?.ownerId;
+    if (!ownerId) return;
+    await this.chat.markThreadReadByOwner(ownerId);
+  }
+
+  closeNotifications(): void {
+    this.notificationsOpen.set(false);
+    this.chatText.set('');
+  }
+
+  formatChatTime(msg: OwnerAdminChatMessage): string {
+    const date = msg.timestamp?.toDate?.();
+    if (!date) return '';
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  async sendMessageToAdmin(): Promise<void> {
+    const owner = this.profile();
+    const text = this.chatText().trim();
+    if (!owner?.ownerId || !text) return;
+    try {
+      await this.chat.sendMessage({
+        chatId: owner.ownerId,
+        senderRole: 'owner',
+        senderId: owner.ownerId,
+        senderName: owner.name,
+        text,
+      });
+      this.chatText.set('');
+    } catch {
+      // Keep shell resilient; avoid breaking navigation for transient chat errors.
+    }
+  }
+
   ngOnInit(): void {
-    // Component initialization if needed
+    this.countdownTimer = setInterval(() => this.nowMs.set(Date.now()), 1000);
   }
 
   ngOnDestroy(): void {
-    // Cleanup if needed
+    this.unsubThread?.();
+    this.unsubUnread?.();
+    if (this.countdownTimer) {
+      clearInterval(this.countdownTimer);
+      this.countdownTimer = null;
+    }
   }
 
   @HostListener('document:click', ['$event'])
@@ -76,4 +188,22 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
     await this.auth.signOut();
     await this.router.navigateByUrl('/login');
   }
+
+  /* Complaints disabled — restore when feature fixed
+  async setComplaintEnabled(enabled: boolean): Promise<void> {
+    const ownerId = this.profile()?.ownerId;
+    if (!ownerId || this.complaintToggleBusy()) return;
+    const profile = this.profile();
+    if (!profile) return;
+    this.complaintToggleBusy.set(true);
+    this.auth.profile.set({ ...profile, complaintEnabled: enabled });
+    try {
+      await this.complaintApi.setComplaintEnabled(ownerId, enabled);
+    } catch {
+      this.auth.profile.set({ ...profile, complaintEnabled: Boolean(profile.complaintEnabled) });
+    } finally {
+      this.complaintToggleBusy.set(false);
+    }
+  }
+  */
 }

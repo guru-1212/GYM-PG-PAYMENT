@@ -40,23 +40,66 @@
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">{{ 'rooms.room' | t }} {{ formatRoomNumber(floor.floorNumber, room.roomNumber) }}</p>
                 <div class="mt-2 grid grid-cols-3 gap-2">
                   @for (_ of [].constructor(room.beds); track $index; let bedIdx = $index) {
-                    <div
-                      class="seat-block flex h-8 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-200"
-                      [class.border-red-300]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
-                      [class.bg-red-100]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
-                      [class.text-red-800]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
-                      [class.cursor-not-allowed]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
-                      [class.border-emerald-200]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
-                      [class.bg-emerald-50]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
-                      [class.text-emerald-800]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
-                      [attr.aria-label]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1) ? 'Bed ' + (bedIdx + 1) + ' - Occupied (locked)' : 'Bed ' + (bedIdx + 1)"
-                    >
-                      <span class="flex items-center gap-1">
-                        @if (isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)) {
-                          <span class="material-icons text-sm">lock</span>
-                        }
-                        {{ bedIdx + 1 }}
-                      </span>
+                    <div class="relative group/seat">
+                      <div
+                        class="seat-block flex h-8 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-200"
+                        [class.border-red-300]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                        [class.bg-red-100]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                        [class.text-red-800]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                        [class.cursor-not-allowed]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                        [class.border-emerald-200]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                        [class.bg-emerald-50]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                        [class.text-emerald-800]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                        [attr.aria-label]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1) ? 'Bed ' + (bedIdx + 1) + ' - Occupied (locked)' : 'Bed ' + (bedIdx + 1)"
+                      >
+                        <span class="flex items-center gap-1">
+                          <span
+                            class="material-icons text-sm drop-shadow-sm"
+                            [class.text-red-700]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                            [class.text-emerald-600]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
+                          >
+                            bed
+                          </span>
+                          {{ bedIdx + 1 }}
+                        </span>
+                      </div>
+
+                      @if (isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)) {
+                        <div
+                          class="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-2 w-64 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 text-left opacity-0 shadow-xl ring-1 ring-slate-100 transition-all duration-150 group-hover/seat:visible group-hover/seat:opacity-100"
+                        >
+                          <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Assigned Seat</p>
+                          <div class="space-y-1.5">
+                            <div class="flex items-start justify-between gap-2">
+                              <span class="text-xs text-slate-500">Name</span>
+                              <span class="text-xs font-semibold text-slate-900">{{ memberDisplayName(getOccupiedMember(floor.floorNumber, room.roomNumber, bedIdx + 1)) }}</span>
+                            </div>
+                            <div class="flex items-start justify-between gap-2">
+                              <span class="text-xs text-slate-500">Mobile</span>
+                              <span class="text-xs font-medium text-slate-800">{{ getOccupiedMember(floor.floorNumber, room.roomNumber, bedIdx + 1)?.mobile || 'N/A' }}</span>
+                            </div>
+                            <div class="flex items-start justify-between gap-2">
+                              <span class="text-xs text-slate-500">Paid</span>
+                              <span class="text-xs font-semibold text-emerald-700">
+                                {{ formatCurrency(getOccupiedMember(floor.floorNumber, room.roomNumber, bedIdx + 1)?.amount) }}
+                              </span>
+                            </div>
+                            <div class="flex items-start justify-between gap-2">
+                              <span class="text-xs text-slate-500">Assigned Date</span>
+                              <span class="text-xs font-medium text-slate-800">
+                                {{ formatDateTime(getOccupiedMember(floor.floorNumber, room.roomNumber, bedIdx + 1)?.joinDate) }}
+                              </span>
+                            </div>
+                            <div class="flex items-start justify-between gap-2">
+                              <span class="text-xs text-slate-500">End Time</span>
+                              <span class="text-xs font-medium text-slate-800">
+                                {{ formatDateTime(getOccupiedMember(floor.floorNumber, room.roomNumber, bedIdx + 1)?.dueDate) }}
+                              </span>
+                            </div>
+                          </div>
+                          <div class="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-slate-200 bg-white"></div>
+                        </div>
+                      }
                     </div>
                   }
                 </div>
@@ -83,16 +126,37 @@
       </div>
     }
 
+    @if (validationError()) {
+      <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+        <p class="text-sm font-medium text-red-800">{{ validationError() }}</p>
+      </div>
+    }
+
     <div>
-      <label class="mb-1 block text-sm font-medium text-slate-700">Number of floors (1-8)</label>
-      <input
-        type="number"
-        min="1"
-        max="8"
-        formControlName="floorCount"
-        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-        (change)="onFloorCountChange($any($event.target).value)"
-      />
+      <label class="mb-1 block text-sm font-medium text-slate-700">Number of floors</label>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-lg font-semibold leading-none"
+          (click)="decrementFloorCount()"
+        >
+          -
+        </button>
+        <input
+          type="number"
+          min="1"
+          formControlName="floorCount"
+          class="w-28 rounded-xl border border-slate-200 px-4 py-2 text-center text-base"
+          (input)="onFloorCountChange($any($event.target).value)"
+        />
+        <button
+          type="button"
+          class="rounded-lg border border-slate-200 px-3 py-2 text-lg font-semibold leading-none"
+          (click)="incrementFloorCount()"
+        >
+          +
+        </button>
+      </div>
     </div>
     <div class="max-h-[45vh] space-y-3 overflow-y-auto pr-1">
       @for (floor of floorGroups.controls; track $index; let floorIdx = $index) {
@@ -101,13 +165,27 @@
             <p class="text-sm font-semibold text-slate-900">Floor {{ floorIdx + 1 }}</p>
             <div class="flex items-center gap-2">
               <label class="text-xs text-slate-600">Rooms</label>
+              <button
+                type="button"
+                class="rounded border border-slate-200 px-2 py-0.5 text-base font-semibold leading-none"
+                (click)="decrementRoomCount(floorIdx)"
+              >
+                -
+              </button>
               <input
                 type="number"
                 min="1"
-                class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                class="w-16 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm"
                 [value]="floor.get('roomCount')?.value"
-                (change)="onRoomCountChange(floorIdx, $any($event.target).value)"
+                (input)="onRoomCountChange(floorIdx, $any($event.target).value)"
               />
+              <button
+                type="button"
+                class="rounded border border-slate-200 px-2 py-0.5 text-base font-semibold leading-none"
+                (click)="incrementRoomCount(floorIdx)"
+              >
+                +
+              </button>
             </div>
           </div>
           <div class="grid gap-2 sm:grid-cols-2">
@@ -115,12 +193,29 @@
               <div class="rounded-lg bg-slate-50 px-3 py-2" [formGroup]="$any(room)">
                 <p class="text-xs font-semibold text-slate-700">Room {{ formatRoomNumber(floorIdx + 1, roomIdx + 1) }}</p>
                 <label class="mt-1 block text-xs text-slate-500">Beds</label>
-                <input
-                  type="number"
-                  min="1"
-                  class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-                  formControlName="beds"
-                />
+                <div class="mt-1 flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="rounded border border-slate-200 px-2 py-0.5 text-base font-semibold leading-none"
+                    (click)="decrementBedsCount(floorIdx, roomIdx)"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    class="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-sm"
+                    formControlName="beds"
+                    (input)="onBedsCountChange(floorIdx, roomIdx, $any($event.target).value)"
+                  />
+                  <button
+                    type="button"
+                    class="rounded border border-slate-200 px-2 py-0.5 text-base font-semibold leading-none"
+                    (click)="incrementBedsCount(floorIdx, roomIdx)"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             }
           </div>

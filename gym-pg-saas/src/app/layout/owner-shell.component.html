@@ -3,8 +3,21 @@
     class="hidden w-64 shrink-0 flex-col border-r border-white/60 bg-white/75 backdrop-blur-xl md:sticky md:top-0 md:flex md:h-screen"
   >
     <div class="border-b border-slate-100/80 px-5 py-6">
-      <div class="mb-3">
+      <div class="mb-3 flex items-center justify-between gap-2">
         <app-brand-logo [logoSize]="'32px'" [showText]="true" brandName="OurPGTracker"></app-brand-logo>
+        <!-- <button
+          type="button"
+          class="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
+          (click)="openNotifications()"
+          aria-label="Notifications"
+        >
+          <span class="material-icons-outlined text-lg">notifications</span>
+          @if (unreadCount() > 0) {
+            <span class="absolute -right-1 -top-1 min-w-[1rem] rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+              {{ unreadCount() }}
+            </span>
+          }
+        </button> -->
       </div>
       <div class="flex items-start justify-between gap-2">
         <!-- <div class="min-w-0 flex-1">
@@ -37,6 +50,14 @@
         {{ 'nav.members' | t }}
       </a>
       <a
+        routerLink="/inactive-members"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+      >
+        <span class="material-icons-outlined">person_off</span>
+        Inactive Members
+      </a>
+      <a
         routerLink="/payments"
         routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
         class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
@@ -62,8 +83,30 @@
         <span class="material-icons-outlined">bar_chart</span>
         Monthly Earnings
       </a>
+      <!-- Complaints disabled — restore when feature fixed
+      <a
+        routerLink="/complaints"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+      >
+        <span class="material-icons-outlined">report_problem</span>
+        Complaints
+      </a>
+      -->
     </nav>
     <div class="border-t border-slate-100 p-3">
+      <!-- Complaints toggle disabled — restore when feature fixed
+      <label class="mb-3 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+        <span class="text-xs font-semibold text-slate-700">Complaints</span>
+        <input
+          type="checkbox"
+          class="h-4 w-4"
+          [checked]="!!profile()?.complaintEnabled"
+          [disabled]="complaintToggleBusy()"
+          (change)="setComplaintEnabled($any($event.target).checked)"
+        />
+      </label>
+      -->
       <button
         type="button"
         class="saas-btn-secondary flex w-full items-center justify-center gap-2 py-3 text-sm"
@@ -95,6 +138,19 @@
         >
           <span class="material-icons-outlined text-2xl">menu</span>
         </button>
+          <button
+            type="button"
+            class="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm"
+            (click)="openNotifications()"
+            aria-label="Notifications"
+          >
+            <span class="material-icons-outlined">notifications</span>
+            @if (unreadCount() > 0) {
+              <span class="absolute -right-1 -top-1 min-w-[1rem] rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                {{ unreadCount() }}
+              </span>
+            }
+          </button>
           <div class="relative" data-user-menu-root>
           <button
             type="button"
@@ -148,6 +204,11 @@
                 {{ 'nav.menu' | t }}
               </p>
               <p class="truncate text-sm font-semibold text-slate-900">{{ profile()?.name }}</p>
+              @if (planCountdown(); as c) {
+                <p class="mt-1 text-xs font-semibold" [class.text-red-600]="c.expired" [class.text-emerald-700]="!c.expired">
+                  Plan: {{ c.display }}
+                </p>
+              }
             </div>
             <button
               type="button"
@@ -179,6 +240,15 @@
               {{ 'nav.members' | t }}
             </a>
             <a
+              routerLink="/inactive-members"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              (click)="closeMobileMenu()"
+            >
+              <span class="material-icons-outlined">person_off</span>
+              Inactive Members
+            </a>
+            <a
               routerLink="/payments"
               routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
               class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
@@ -198,6 +268,26 @@
                 {{ 'nav.rooms' | t }}
               </a>
             }
+            <a
+              routerLink="/monthly-earnings"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              (click)="closeMobileMenu()"
+            >
+              <span class="material-icons-outlined">bar_chart</span>
+              Monthly Earnings
+            </a>
+            <!-- Complaints nav disabled — restore when feature fixed
+            <a
+              routerLink="/complaints"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              (click)="closeMobileMenu()"
+            >
+              <span class="material-icons-outlined">report_problem</span>
+              Complaints
+            </a>
+            -->
           </nav>
         </aside>
       </div>
@@ -208,3 +298,41 @@
     </main>
   </div>
 </div>
+
+<app-modal [open]="notificationsOpen()" title="Admin Chat" [wide]="true" (closed)="closeNotifications()">
+  <div class="space-y-3">
+    <div class="max-h-[45vh] space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+      @if (chatMessages().length === 0) {
+        <p class="text-center text-sm text-slate-500">No messages yet.</p>
+      } @else {
+        @for (msg of chatMessages(); track msg.id) {
+          <div class="flex" [class.justify-end]="msg.senderRole === 'owner'" [class.justify-start]="msg.senderRole === 'admin'">
+            <div
+              class="max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm"
+              [class.bg-indigo-600]="msg.senderRole === 'owner'"
+              [class.text-white]="msg.senderRole === 'owner'"
+              [class.bg-white]="msg.senderRole === 'admin'"
+              [class.text-slate-800]="msg.senderRole === 'admin'"
+            >
+              <p>{{ msg.text }}</p>
+              <p class="mt-1 text-[10px]" [class.text-indigo-100]="msg.senderRole === 'owner'" [class.text-slate-400]="msg.senderRole === 'admin'">
+                {{ formatChatTime(msg) }}
+              </p>
+            </div>
+          </div>
+        }
+      }
+    </div>
+    <div class="flex gap-2">
+      <input
+        type="text"
+        class="saas-input flex-1"
+        placeholder="Type message to admin"
+        [value]="chatText()"
+        (input)="chatText.set($any($event.target).value)"
+        (keydown.enter)="sendMessageToAdmin()"
+      />
+      <button type="button" class="saas-btn-primary px-4 py-2 text-sm" (click)="sendMessageToAdmin()">Send</button>
+    </div>
+  </div>
+</app-modal>

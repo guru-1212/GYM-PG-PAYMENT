@@ -18,7 +18,7 @@ export const loginGuard: CanActivateFn = async () => {
   }
   if (p.role === 'owner') {
     if (p.status === 'pending') return router.createUrlTree(['/pending-approval']);
-    if (p.status === 'rejected') return router.createUrlTree(['/account-rejected']);
+    if (p.status === 'rejected' || p.status === 'inactive') return router.createUrlTree(['/account-rejected']);
     if (p.status === 'approved') return router.createUrlTree(['/dashboard']);
   }
   return true;

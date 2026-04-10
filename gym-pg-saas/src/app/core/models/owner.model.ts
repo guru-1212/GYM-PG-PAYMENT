@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 
 export type OwnerRole = 'admin' | 'owner';
-export type OwnerStatus = 'pending' | 'approved' | 'rejected';
+export type OwnerStatus = 'pending' | 'approved' | 'rejected' | 'inactive';
 export type BusinessType = 'gym' | 'pg';
 
 export interface Owner {
@@ -17,6 +17,7 @@ export interface Owner {
   planStartDate?: Timestamp;
   planEndDate?: Timestamp;
   emailVerified?: boolean;
+  complaintEnabled?: boolean;
 }
 
 export interface AdminPayment {

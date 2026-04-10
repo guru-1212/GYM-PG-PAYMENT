@@ -33,6 +33,14 @@ export interface MemberInput {
   notes?: string;
   joinDate: Date;
   amount: number;
+  /** Optional paid amount at onboarding (supports partial payment on create). */
+  paidAmount?: number;
+  /** Remaining balance when onboarding payment is partial. */
+  pendingAmount?: number;
+  /** Security deposit / advance paid by member. */
+  advancePaid?: number;
+  /** Internal advance lifecycle marker. */
+  advanceStatus?: 'held' | 'returned';
   paymentMethod: PaymentMethod;
   status: Member['status'];
   /** Optional explicit due date (used by bulk import). */
@@ -46,6 +54,31 @@ export class MemberService {
   private readonly fb = inject(FirebaseAppService);
   private readonly auth = inject(AuthService);
 
+  /* Complaints disabled — restore helpers + getDoc/setDoc imports when feature fixed
+  private normMobile10(raw: string): string {
+    return String(raw || '').replace(/\D/g, '').slice(-10);
+  }
+
+  private complaintLookupRef(ownerId: string, mobile10: string) {
+    return doc(this.fb.db, 'owners', ownerId, 'complaintMemberMobiles', mobile10);
+  }
+
+  private async upsertComplaintLookup(ownerId: string, mobileRaw: string): Promise<void> {
+    const m = this.normMobile10(mobileRaw);
+    if (m.length !== 10) return;
+    await setDoc(this.complaintLookupRef(ownerId, m), { _: true }, { merge: true });
+  }
+
+  private async removeComplaintLookup(ownerId: string, mobileRaw: string): Promise<void> {
+    const m = this.normMobile10(mobileRaw);
+    if (m.length !== 10) return;
+    try {
+      await deleteDoc(this.complaintLookupRef(ownerId, m));
+    } catch {
+    }
+  }
+  */
+
   watchMembersForOwner(ownerId: string, callback: (members: Member[]) => void): Unsubscribe {
     const q = query(collection(this.fb.db, 'members'), where('ownerId', '==', ownerId));
     return onSnapshot(q, (snap) => {
@@ -57,6 +90,8 @@ export class MemberService {
           memberId: d.id,
           subscriptionType: data.subscriptionType || 'monthly',
           pendingAmount: Number(data.pendingAmount) || 0,
+          advancePaid: Math.max(0, Number(data.advancePaid) || 0),
+          advanceStatus: data.advanceStatus === 'returned' ? 'returned' : 'held',
         });
       });
       callback(list);
@@ -73,10 +108,18 @@ export class MemberService {
   async addMember(input: MemberInput): Promise<void> {
     const owner = this.auth.profile();
     if (!owner || owner.role !== 'owner') throw new Error('Not an owner');
+    if (owner.status !== 'approved') {
+      throw new Error('Your gym account must be approved by admin before you can add members.');
+    }
     const join = input.joinDate;
     const sub: SubscriptionType =
       owner.businessType === 'gym' ? input.subscriptionType || 'monthly' : 'monthly';
     const due = input.dueDate || firstDueFromJoin(join, sub);
+    const totalAmount = Math.max(0, Number(input.amount) || 0);
+    const paidAmount = Math.max(0, Number(input.paidAmount ?? input.amount) || 0);
+    const pendingAmount = Math.max(0, Number(input.pendingAmount) || 0);
+    const advancePaid = Math.max(0, Number(input.advancePaid) || 0);
+    const isPartialPayment = pendingAmount > 0;
 
     // Create member document
     const memberRef = await addDoc(collection(this.fb.db, 'members'), {
@@ -94,39 +137,53 @@ export class MemberService {
       bedNumber: input.bedNumber.trim(),
       notes: input.notes?.trim() || '',
       joinDate: dateToTimestamp(join),
-      amount: input.amount,
+      amount: totalAmount,
       dueDate: dateToTimestamp(due),
       status: input.status,
       subscriptionType: sub,
-      pendingAmount: 0,
+      pendingAmount,
+      advancePaid,
+      advanceStatus: 'held',
       createdAt: serverTimestamp(),
     });
 
     // If an amount is provided (payment made during member creation), create payment record
-    if (input.amount > 0) {
-      console.log('💰 Creating payment record for new member:', input.amount);
+    if (paidAmount > 0) {
+      console.log('💰 Creating payment record for new member:', paidAmount);
       await addDoc(collection(this.fb.db, 'payments'), {
         memberId: memberRef.id,
         ownerId: owner.ownerId,
-        amount: input.amount,
+        amount: paidAmount,
         date: dateToTimestamp(join), // Use join date as payment date
         method: input.paymentMethod,
-        isPartialPayment: false,
-        pendingAmount: 0,
+        isPartialPayment,
+        pendingAmount,
         createdAt: serverTimestamp(),
       });
       console.log('✅ Payment record created for member:', memberRef.id);
     }
+
+    /* Complaints disabled — restore when feature fixed
+    try {
+      await this.upsertComplaintLookup(owner.ownerId, input.mobile || '');
+    } catch (e) {
+      console.warn('[MemberService] Member saved but complaint mobile index failed (public complaint form may miss this number):', e);
+    }
+    */
   }
 
   async updateMember(memberId: string, input: MemberInput): Promise<void> {
     const owner = this.auth.profile();
     const ref = doc(this.fb.db, 'members', memberId);
+    /* Complaints disabled — was: prevSnap/prevMobile for lookup sync
+    const prevSnap = await getDoc(ref);
+    const prevMobile = prevSnap.exists() ? String((prevSnap.data() as Member)['mobile'] ?? '') : '';
+    */
     const join = input.joinDate;
     const sub: SubscriptionType =
       owner?.businessType === 'gym' ? input.subscriptionType || 'monthly' : 'monthly';
     const due = input.dueDate || firstDueFromJoin(join, sub);
-    await updateDoc(ref, {
+    const payload: Record<string, any> = {
       firstName: input.firstName.trim(),
       lastName: input.lastName?.trim() || '',
       mobile: input.mobile?.trim() || '',
@@ -144,7 +201,26 @@ export class MemberService {
       status: input.status,
       subscriptionType: sub,
       pendingAmount: 0,
-    });
+      advancePaid: Math.max(0, Number(input.advancePaid) || 0),
+    };
+    if (input.status === 'inactive') {
+      payload['advanceStatus'] = 'returned';
+    }
+    await updateDoc(ref, payload);
+    /* Complaints disabled — restore when feature fixed
+    const oid = owner?.ownerId;
+    if (oid) {
+      try {
+        const nextMobile = input.mobile || '';
+        if (this.normMobile10(prevMobile) !== this.normMobile10(nextMobile)) {
+          await this.removeComplaintLookup(oid, prevMobile);
+        }
+        await this.upsertComplaintLookup(oid, nextMobile);
+      } catch (e) {
+        console.warn('[MemberService] Member updated but complaint mobile index failed:', e);
+      }
+    }
+    */
   }
 
   async updateBillingState(
@@ -164,6 +240,19 @@ export class MemberService {
   }
 
   async deleteMember(memberId: string): Promise<void> {
-    await deleteDoc(doc(this.fb.db, 'members', memberId));
+    const ref = doc(this.fb.db, 'members', memberId);
+    await deleteDoc(ref);
+    /* Complaints disabled — restore when feature fixed (was: getDoc + removeComplaintLookup)
+    const owner = this.auth.profile();
+    const snap = await getDoc(ref);
+    const prevMobile = snap.exists() ? String((snap.data() as Member)['mobile'] ?? '') : '';
+    if (owner?.ownerId) {
+      try {
+        await this.removeComplaintLookup(owner.ownerId, prevMobile);
+      } catch (e) {
+        console.warn('[MemberService] Member removed but complaint lookup cleanup failed:', e);
+      }
+    }
+    */
   }
 }

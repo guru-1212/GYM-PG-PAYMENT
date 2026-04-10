@@ -1,5 +1,6 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Timestamp } from 'firebase/firestore';
 import { Member } from '../../core/models/member.model';
 import { PgFloorLayout, PgLayout } from '../../core/models/pg-layout.model';
 import { AuthService } from '../../core/services/auth.service';
@@ -14,6 +15,18 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
   standalone: true,
   imports: [ReactiveFormsModule, ModalComponent, TranslatePipe],
   templateUrl: './rooms-page.component.html',
+  styles: [`
+    input[type='number']::-webkit-outer-spin-button,
+    input[type='number']::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    input[type='number'] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+  `],
 })
 export class RoomsPageComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
@@ -45,6 +58,15 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
     }
     return set;
   });
+  readonly occupiedMembersByBed = computed(() => {
+    const map = new Map<string, Member>();
+    for (const m of this.members()) {
+      if (m.status !== 'active') continue;
+      const key = this.bedKey(m.floorNumber, m.roomNumber, m.bedNumber);
+      if (key) map.set(key, m);
+    }
+    return map;
+  });
 
   readonly occupiedBedCount = computed(() => this.occupiedBedKeys().size);
 
@@ -68,7 +90,7 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
   });
 
   readonly setupForm = this.fb.nonNullable.group({
-    floorCount: [1, [Validators.required, Validators.min(1), Validators.max(8)]],
+    floorCount: [1, [Validators.required, Validators.min(1)]],
     floors: this.fb.array([]),
   });
 
@@ -115,17 +137,30 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
   }
 
   onFloorCountChange(raw: unknown): void {
-    const count = this.coerceCount(raw, 1, 8);
-    this.setupForm.controls.floorCount.setValue(count);
+    const current = this.floorGroups.length || 1;
+    const count = this.coerceCount(raw, 1, 500);
+    if (count < current && this.hasAssignedOnOrAboveFloor(count + 1)) {
+      this.setupForm.controls.floorCount.setValue(current);
+      this.validationError.set('Cannot reduce floors: assigned seats exist on removed floor(s).');
+      return;
+    }
+    this.setupForm.controls.floorCount.setValue(count, { emitEvent: false });
     this.rebuildFloors(count);
-    this.validationError.set(null); // Clear error on user change
+    this.validationError.set(null);
   }
 
   onRoomCountChange(floorIndex: number, raw: unknown): void {
     const rooms = this.roomGroupsAt(floorIndex);
-    const count = this.coerceCount(raw, 1, 100);
+    const count = this.coerceCount(raw, 1, 500);
+    const floorNumber = floorIndex + 1;
+    if (count < rooms.length && this.hasAssignedOnOrAboveRoom(floorNumber, count + 1)) {
+      this.validationError.set(`Cannot reduce rooms on floor ${floorNumber}: assigned seats exist in removed room(s).`);
+      const floorGroup = this.floorGroups.at(floorIndex);
+      floorGroup.get('roomCount')?.setValue(rooms.length, { emitEvent: false });
+      return;
+    }
     const floorGroup = this.floorGroups.at(floorIndex);
-    floorGroup.get('roomCount')?.setValue(count);
+    floorGroup.get('roomCount')?.setValue(count, { emitEvent: false });
     while (rooms.length < count) {
       rooms.push(
         this.fb.nonNullable.group({
@@ -136,7 +171,52 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
     }
     while (rooms.length > count) rooms.removeAt(rooms.length - 1);
     for (let i = 0; i < rooms.length; i += 1) rooms.at(i).get('roomNumber')?.setValue(i + 1);
-    this.validationError.set(null); // Clear error on user change
+    this.validationError.set(null);
+  }
+
+  onBedsCountChange(floorIndex: number, roomIndex: number, raw: unknown): void {
+    const room = this.roomGroupsAt(floorIndex).at(roomIndex);
+    const currentBeds = Math.max(1, Number(room.get('beds')?.value) || 1);
+    const nextBeds = this.coerceCount(raw, 1, 500);
+    const floorNumber = floorIndex + 1;
+    const roomNumber = roomIndex + 1;
+    if (nextBeds < currentBeds && this.hasAssignedOnOrAboveBed(floorNumber, roomNumber, nextBeds + 1)) {
+      room.get('beds')?.setValue(currentBeds, { emitEvent: false });
+      this.validationError.set(
+        `Cannot reduce beds in room ${this.formatRoomNumber(floorNumber, roomNumber)}: assigned seats exist in removed bed(s).`,
+      );
+      return;
+    }
+    room.get('beds')?.setValue(nextBeds, { emitEvent: false });
+    this.validationError.set(null);
+  }
+
+  incrementFloorCount(): void {
+    this.onFloorCountChange((this.floorGroups.length || 1) + 1);
+  }
+
+  decrementFloorCount(): void {
+    this.onFloorCountChange((this.floorGroups.length || 1) - 1);
+  }
+
+  incrementRoomCount(floorIndex: number): void {
+    this.onRoomCountChange(floorIndex, this.roomGroupsAt(floorIndex).length + 1);
+  }
+
+  decrementRoomCount(floorIndex: number): void {
+    this.onRoomCountChange(floorIndex, this.roomGroupsAt(floorIndex).length - 1);
+  }
+
+  incrementBedsCount(floorIndex: number, roomIndex: number): void {
+    const room = this.roomGroupsAt(floorIndex).at(roomIndex);
+    const current = Math.max(1, Number(room.get('beds')?.value) || 1);
+    this.onBedsCountChange(floorIndex, roomIndex, current + 1);
+  }
+
+  decrementBedsCount(floorIndex: number, roomIndex: number): void {
+    const room = this.roomGroupsAt(floorIndex).at(roomIndex);
+    const current = Math.max(1, Number(room.get('beds')?.value) || 1);
+    this.onBedsCountChange(floorIndex, roomIndex, current - 1);
   }
 
   async saveDraft(stayOpen = true): Promise<void> {
@@ -155,7 +235,7 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
   }
 
   private loadLayoutIntoForm(layout: PgLayout): void {
-    const floorCount = Math.min(8, Math.max(1, layout.floors.length || 1));
+    const floorCount = Math.max(1, layout.floors.length || 1);
     this.setupForm.controls.floorCount.setValue(floorCount);
     this.floorGroups.clear();
     for (let i = 0; i < floorCount; i += 1) {
@@ -217,6 +297,39 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
     return Math.min(max, Math.max(min, Math.round(n)));
   }
 
+  private hasAssignedOnOrAboveFloor(startFloorNumber: number): boolean {
+    for (const m of this.members()) {
+      if (m.status !== 'active') continue;
+      const floor = Number(m.floorNumber);
+      if (!Number.isFinite(floor)) continue;
+      if (floor >= startFloorNumber) return true;
+    }
+    return false;
+  }
+
+  private hasAssignedOnOrAboveRoom(floorNumber: number, startRoomNumber: number): boolean {
+    for (const m of this.members()) {
+      if (m.status !== 'active') continue;
+      const floor = Number(m.floorNumber);
+      const room = Number(m.roomNumber);
+      if (!Number.isFinite(floor) || !Number.isFinite(room)) continue;
+      if (floor === floorNumber && room >= startRoomNumber) return true;
+    }
+    return false;
+  }
+
+  private hasAssignedOnOrAboveBed(floorNumber: number, roomNumber: number, startBedNumber: number): boolean {
+    for (const m of this.members()) {
+      if (m.status !== 'active') continue;
+      const floor = Number(m.floorNumber);
+      const room = Number(m.roomNumber);
+      const bed = Number(m.bedNumber);
+      if (!Number.isFinite(floor) || !Number.isFinite(room) || !Number.isFinite(bed)) continue;
+      if (floor === floorNumber && room === roomNumber && bed >= startBedNumber) return true;
+    }
+    return false;
+  }
+
   private bedKey(floor: unknown, room: unknown, bed: unknown): string {
     const f = Number(floor);
     const r = Number(room);
@@ -228,5 +341,51 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
 
   formatRoomNumber(floorNumber: number, roomNumber: number): string {
     return `${floorNumber}${roomNumber.toString().padStart(2, '0')}`;
+  }
+
+  getOccupiedMember(floor: unknown, room: unknown, bed: unknown): Member | null {
+    const key = this.bedKey(floor, room, bed);
+    if (!key) return null;
+    return this.occupiedMembersByBed().get(key) ?? null;
+  }
+
+  memberDisplayName(member: Member | null): string {
+    if (!member) return 'N/A';
+    const fullName = `${member.firstName ?? ''} ${member.lastName ?? ''}`.trim();
+    return fullName || 'N/A';
+  }
+
+  formatCurrency(value: unknown): string {
+    const amount = Number(value) || 0;
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }
+
+  formatDateTime(value: unknown): string {
+    const date = this.toDate(value);
+    if (!date) return 'N/A';
+    return new Intl.DateTimeFormat('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).format(date);
+  }
+
+  private toDate(value: unknown): Date | null {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value === 'object' && value && 'toDate' in value) {
+      const d = (value as Timestamp).toDate();
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(value as string | number);
+    return Number.isNaN(d.getTime()) ? null : d;
   }
 }

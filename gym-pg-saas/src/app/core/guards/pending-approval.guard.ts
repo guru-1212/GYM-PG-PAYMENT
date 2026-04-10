@@ -15,6 +15,6 @@ export const pendingApprovalGuard: CanActivateFn = async () => {
   if (p.role === 'owner' && p.status === 'pending') return true;
   if (p.role === 'admin' && p.status === 'approved') return router.createUrlTree(['/admin/dashboard']);
   if (p.role === 'owner' && p.status === 'approved') return router.createUrlTree(['/dashboard']);
-  if (p.role === 'owner' && p.status === 'rejected') return router.createUrlTree(['/account-rejected']);
+  if (p.role === 'owner' && (p.status === 'rejected' || p.status === 'inactive')) return router.createUrlTree(['/account-rejected']);
   return router.createUrlTree(['/login']);
 };

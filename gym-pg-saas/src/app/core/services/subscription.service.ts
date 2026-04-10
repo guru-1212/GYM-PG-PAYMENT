@@ -72,6 +72,12 @@ export class SubscriptionService {
     return newEndDate;
   }
 
+  async setPlanEndDate(ownerId: string, planEndDate: Date): Promise<void> {
+    await updateDoc(doc(this.fb.db, 'owners', ownerId), {
+      planEndDate,
+    });
+  }
+
   /**
    * Check if owner subscription is active
    */

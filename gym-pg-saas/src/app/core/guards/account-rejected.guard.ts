@@ -11,7 +11,7 @@ export const accountRejectedGuard: CanActivateFn = async () => {
   if (!fb.auth.currentUser) return router.createUrlTree(['/login']);
   const p = auth.profile() ?? (await auth.refreshProfile());
   if (!p) return router.createUrlTree(['/login']);
-  if (p.role === 'owner' && p.status === 'rejected') return true;
+  if (p.role === 'owner' && (p.status === 'rejected' || p.status === 'inactive')) return true;
   if (p.role === 'admin' && p.status === 'approved') return router.createUrlTree(['/admin/dashboard']);
   if (p.role === 'owner' && p.status === 'approved') return router.createUrlTree(['/dashboard']);
   if (p.role === 'owner' && p.status === 'pending') return router.createUrlTree(['/pending-approval']);

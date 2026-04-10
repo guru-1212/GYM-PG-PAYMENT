@@ -1,8 +1,10 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/services/auth.service';
+import { DataCacheService } from '../../core/services/data-cache.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { ToastService } from '../../core/services/toast.service';
 // import { LanguageSwitcherComponent } from '../../shared/language-switcher.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -17,7 +19,10 @@ import { BrandLogoComponent } from '../../shared/brand-logo.component';
 export class LoginComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
+  private readonly cache = inject(DataCacheService);
+  private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
 
   readonly mode = signal<'signin' | 'signup'>('signin');
@@ -48,6 +53,10 @@ export class LoginComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.notifications.requestPermissionOnce();
+    const requestedMode = (this.route.snapshot.queryParamMap.get('mode') || '').toLowerCase().trim();
+    if (requestedMode === 'signup') this.mode.set('signup');
+    if (requestedMode === 'signin') this.mode.set('signin');
     this.signUpForm.controls.businessType.valueChanges.subscribe((value) => {
       this.businessTypeSignal.set(value);
     });
@@ -91,6 +100,11 @@ export class LoginComponent implements OnInit {
         }
         await this.auth.signOut();
         return;
+      }
+      // Low-cost notification check on login (uses one-time loaded members from existing cache flow).
+      if (p.role === 'owner' && p.status === 'approved' && p.ownerId) {
+        await this.cache.loadMembers(p.ownerId);
+        this.notifications.checkDueMembers(this.cache.members());
       }
       await this.redirectAfterProfile(p);
     } catch (e: unknown) {

@@ -18,6 +18,8 @@ import {
 } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { Owner, OwnerRole, OwnerStatus } from '../models/owner.model';
+// Complaints disabled — restore when feature fixed
+// import { ComplaintService } from './complaint.service';
 import { FirebaseAppService } from './firebase-app.service';
 
 function normalizeRole(v: unknown): OwnerRole | '' {
@@ -32,7 +34,7 @@ function normalizeStatus(v: unknown): OwnerStatus | '' {
   const s = String(v ?? '')
     .toLowerCase()
     .trim();
-  if (s === 'pending' || s === 'approved' || s === 'rejected') return s;
+  if (s === 'pending' || s === 'approved' || s === 'rejected' || s === 'inactive') return s;
   return s as OwnerStatus;
 }
 
@@ -57,6 +59,7 @@ export type ProfileLoadResult = {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly fb = inject(FirebaseAppService);
+  // private readonly complaints = inject(ComplaintService);
 
   readonly user = signal<User | null>(null);
   readonly profile = signal<Owner | null>(null);
@@ -113,6 +116,11 @@ export class AuthService {
             console.log('[Auth] onSnapshot owners/' + u.uid, o ? { role: o.role, status: o.status } : 'no document');
           }
           this.loading.set(false);
+          /* Complaints disabled — restore when feature fixed
+          if (o?.role === 'owner') {
+            void this.complaints.publishPublicComplaintSettings(o.ownerId, Boolean(o.complaintEnabled));
+          }
+          */
         },
         (err) => {
           if (!environment.production) {
@@ -149,6 +157,7 @@ export class AuthService {
         businessType,
         role: 'owner',
         status: 'pending',
+        complaintEnabled: false,
         createdAt: serverTimestamp(),
       });
     } catch (e) {

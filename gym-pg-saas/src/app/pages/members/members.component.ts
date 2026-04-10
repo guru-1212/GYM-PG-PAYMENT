@@ -35,6 +35,32 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
   standalone: true,
   imports: [ReactiveFormsModule, DatePipe, DecimalPipe, JsonPipe, ModalComponent, TranslatePipe],
   templateUrl: './members.component.html',
+  styles: [`
+    .seat-assign-highlight {
+      position: relative;
+      border-color: #facc15 !important;
+      color: #0f172a !important;
+      background: linear-gradient(120deg, #fef08a, #facc15, #fef08a);
+      background-size: 220% 220%;
+      animation: seatAssignCrazyPulse 0.8s ease-in-out infinite, seatAssignCrazyShift 1.4s linear infinite;
+      transform-origin: center;
+      box-shadow:
+        0 0 0 2px rgba(250, 204, 21, 0.9),
+        0 0 14px rgba(250, 204, 21, 0.8),
+        0 0 28px rgba(250, 204, 21, 0.55);
+    }
+
+    @keyframes seatAssignCrazyPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.07); }
+    }
+
+    @keyframes seatAssignCrazyShift {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+
+  `],
 })
 export class MembersComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
@@ -49,7 +75,8 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly members = signal<Member[]>([]);
   readonly search = signal('');
   readonly statusFilter = signal<'all' | 'active' | 'inactive'>('all');
-  readonly payFilter = signal<'all' | 'paid' | 'pending'>('all');
+  readonly listMode = signal<'active' | 'inactive'>('active');
+  readonly payFilter = signal<'all' | 'paid' | 'overdue' | 'dueSoon' | 'partial' | 'pending'>('all');
   readonly sortKey = signal<'due' | 'name'>('due');
   readonly sortDir = signal<'asc' | 'desc'>('asc');
   readonly dueSectionFilter = signal<'all' | 'dueToday' | 'overdue' | 'dueSoon'>('all');
@@ -63,12 +90,17 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly historyModalOpen = signal(false);
   readonly historyMember = signal<Member | null>(null);
   readonly historyPayments = signal<Payment[]>([]);
+  readonly detailsModalOpen = signal(false);
+  readonly detailsMember = signal<Member | null>(null);
+  readonly detailsMessageDraft = signal('');
   readonly bedPickerOpen = signal(false);
   readonly pgLayout = signal<PgLayout | null>(null);
   readonly importModalOpen = signal(false);
   readonly importRows = signal<ImportPreviewRow[]>([]);
   readonly importFileName = signal('');
   readonly importBusy = signal(false);
+  readonly manualSeatEntryTriggered = signal(false);
+  readonly manualSeatError = signal<string | null>(null);
   readonly importDueDateForAll = this.fb.nonNullable.control(false);
   readonly importDueDate = this.fb.nonNullable.control('');
   private historyUnsub: (() => void) | null = null;
@@ -135,6 +167,11 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   readonly displayMembers = computed(() => {
     let list = [...this.members()];
+    if (this.listMode() === 'active') {
+      list = list.filter((m) => m.status === 'active');
+    } else {
+      list = list.filter((m) => m.status === 'inactive');
+    }
     const q = this.search().trim().toLowerCase();
     if (q) {
       list = list.filter((m) => {
@@ -147,16 +184,19 @@ export class MembersComponent implements OnInit, OnDestroy {
     const sf = this.statusFilter();
     if (sf !== 'all') list = list.filter((m) => m.status === sf);
     const pf = this.payFilter();
-    const end = endOfToday();
     if (pf === 'paid') {
-      list = list.filter((m) => {
-        const d = timestampToDate(m.dueDate);
-        return d && d > end;
-      });
+      list = list.filter((m) => this.rowTone(m) === 'green');
+    } else if (pf === 'overdue') {
+      list = list.filter((m) => this.rowTone(m) === 'red');
+    } else if (pf === 'dueSoon') {
+      list = list.filter((m) => this.isDueSoonWithinFiveDays(m));
+    } else if (pf === 'partial') {
+      list = list.filter((m) => this.rowTone(m) === 'blue');
     } else if (pf === 'pending') {
+      // Backward compatibility for old links/query params.
       list = list.filter((m) => {
-        const d = timestampToDate(m.dueDate);
-        return d && d <= end;
+        const tone = this.rowTone(m);
+        return tone === 'red' || tone === 'orange' || tone === 'blue';
       });
     }
 
@@ -315,6 +355,10 @@ export class MembersComponent implements OnInit, OnDestroy {
     joinDate: ['', Validators.required],
     dueDate: ['', [Validators.required, dueDateAfterJoinDate()]],
     amount: [0, [Validators.required, positiveAmount()]],
+    advancePaid: [0, [Validators.min(0)]],
+    isPartialPayment: this.fb.nonNullable.control(false),
+    paidAmount: [0],
+    pendingAmount: [0],
     paymentMethod: this.fb.nonNullable.control<PaymentMethod>('cash', Validators.required),
     status: this.fb.nonNullable.control<'active' | 'inactive'>('active', Validators.required),
     subscriptionType: this.fb.nonNullable.control<'monthly' | 'quarterly' | 'yearly'>(
@@ -366,12 +410,31 @@ export class MembersComponent implements OnInit, OnDestroy {
       }
       pendingAmountControl.updateValueAndValidity();
     }) ?? null;
+
+    // Add-member partial payment controls: validate paid amount only when split payment is enabled.
+    this.memberForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial) => {
+      const paidAmountControl = this.memberForm.get('paidAmount');
+      if (!paidAmountControl) return;
+      if (isPartial) {
+        paidAmountControl.setValidators([Validators.required, positiveAmount()]);
+      } else {
+        paidAmountControl.setValidators([]);
+      }
+      paidAmountControl.updateValueAndValidity();
+    });
   }
 
   async ngOnInit(): Promise<void> {
     this.querySub = this.route.queryParamMap.subscribe((params) => {
       const pay = params.get('pay');
-      if (pay === 'all' || pay === 'paid' || pay === 'pending') {
+      if (
+        pay === 'all' ||
+        pay === 'paid' ||
+        pay === 'overdue' ||
+        pay === 'dueSoon' ||
+        pay === 'partial' ||
+        pay === 'pending'
+      ) {
         this.payFilter.set(pay);
       }
 
@@ -382,6 +445,8 @@ export class MembersComponent implements OnInit, OnDestroy {
         this.dueSectionFilter.set('all');
       }
     });
+    const routePath = this.route.snapshot.routeConfig?.path;
+    this.listMode.set(routePath === 'inactive-members' ? 'inactive' : 'active');
 
     await this.auth.refreshProfile();
     const id = this.auth.profile()?.ownerId;
@@ -397,6 +462,22 @@ export class MembersComponent implements OnInit, OnDestroy {
         this.toast.error('Failed to load members');
       }
     }
+  }
+
+  pageTitle(): string {
+    return this.listMode() === 'inactive' ? 'Inactive Members' : 'Members';
+  }
+
+  pageSubtitle(): string {
+    return this.listMode() === 'inactive'
+      ? 'View all inactive members'
+      : 'Manage your active members';
+  }
+
+  pendingFromForm(): number {
+    const total = Number(this.memberForm.controls.amount.value) || 0;
+    const paid = Number(this.memberForm.controls.paidAmount.value) || 0;
+    return Math.max(0, total - paid);
   }
 
   ngOnDestroy(): void {
@@ -422,6 +503,24 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   clearDueSectionFilter(): void {
     this.dueSectionFilter.set('all');
+  }
+
+  onPayFilterChange(raw: unknown): void {
+    const value = String(raw ?? '');
+    if (
+      value === 'all' ||
+      value === 'paid' ||
+      value === 'overdue' ||
+      value === 'dueSoon' ||
+      value === 'partial' ||
+      value === 'pending'
+    ) {
+      this.payFilter.set(value);
+      // When user changes payment filter manually, clear dashboard deep-link due filter.
+      this.dueSectionFilter.set('all');
+      this.currentPage.set(1);
+      this.pageGroupStart.set(1);
+    }
   }
 
   // Pagination methods
@@ -483,9 +582,15 @@ export class MembersComponent implements OnInit, OnDestroy {
       joinDate: `${y}-${m}-${d}`,
       dueDate: `${fy}-${fm}-${fd}`,
       amount: 0,
+      advancePaid: 0,
+      isPartialPayment: false,
+      paidAmount: 0,
+      pendingAmount: 0,
       status: 'active',
       subscriptionType: 'monthly',
     });
+    this.manualSeatEntryTriggered.set(false);
+    this.manualSeatError.set(null);
     this.modalOpen.set(true);
   }
 
@@ -512,14 +617,22 @@ export class MembersComponent implements OnInit, OnDestroy {
       joinDate: joinStr,
       dueDate: dueStr,
       amount: m.amount,
+      advancePaid: Math.max(0, Number(m.advancePaid) || 0),
+      isPartialPayment: false,
+      paidAmount: 0,
+      pendingAmount: Number(m.pendingAmount) || 0,
       paymentMethod: 'cash', // Default to cash for existing members
       status: m.status,
       subscriptionType: m.subscriptionType || 'monthly',
     });
+    this.manualSeatEntryTriggered.set(false);
+    this.manualSeatError.set(null);
     this.modalOpen.set(true);
   }
 
   closeModal(): void {
+    this.manualSeatEntryTriggered.set(false);
+    this.manualSeatError.set(null);
     this.modalOpen.set(false);
   }
 
@@ -529,13 +642,31 @@ export class MembersComponent implements OnInit, OnDestroy {
       return;
     }
     const v = this.memberForm.getRawValue();
-    if (this.hasSeatLayout() && this.isBedOccupied(v.floorNumber, v.roomNumber, v.bedNumber)) {
-      this.toast.error('Selected bed is already occupied');
-      return;
+    if (this.hasSeatLayout()) {
+      const seatIssue = this.getSeatAvailabilityIssue(v.floorNumber, v.roomNumber, v.bedNumber);
+      if (seatIssue) {
+        this.manualSeatError.set(seatIssue);
+        this.toast.error(seatIssue);
+        return;
+      }
     }
     const join = new Date(v.joinDate + 'T12:00:00');
     const due = new Date(v.dueDate + 'T12:00:00');
     const newAmount = Number(v.amount);
+    const isCreate = !this.editingId();
+    const isPartialOnCreate = isCreate && !!v.isPartialPayment;
+    const paidAmount = isPartialOnCreate ? Number(v.paidAmount) : newAmount;
+    const pendingAmount = isPartialOnCreate ? Math.max(0, newAmount - paidAmount) : 0;
+    if (isPartialOnCreate) {
+      if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
+        this.toast.error('Enter a valid paid amount');
+        return;
+      }
+      if (paidAmount > newAmount) {
+        this.toast.error('Paid amount cannot be greater than total amount');
+        return;
+      }
+    }
     const input = {
       firstName: v.firstName,
       lastName: v.lastName || undefined,
@@ -551,6 +682,9 @@ export class MembersComponent implements OnInit, OnDestroy {
       joinDate: join,
       dueDate: due,
       amount: newAmount,
+      advancePaid: Math.max(0, Number(v.advancePaid) || 0),
+      paidAmount,
+      pendingAmount,
       paymentMethod: v.paymentMethod,
       status: v.status,
       subscriptionType: this.isGym() ? v.subscriptionType : undefined,
@@ -588,8 +722,19 @@ export class MembersComponent implements OnInit, OnDestroy {
         this.toast.success('Member added');
       }
       this.closeModal();
-    } catch {
-      this.toast.error('Could not save member');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      const code =
+        e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+      if (msg.includes('approved by admin')) {
+        this.toast.error(msg);
+      } else if (code === 'permission-denied' || msg.includes('permission-denied') || msg.toLowerCase().includes('insufficient permissions')) {
+        this.toast.error(
+          'Permission denied. Your account must be an approved owner, and Firestore rules must allow members writes and owners/{yourUid}/complaintMemberMobiles for approved owners.',
+        );
+      } else {
+        this.toast.error(msg || 'Could not save member');
+      }
     }
   }
 
@@ -769,8 +914,69 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.historyMember.set(null);
   }
 
+  openDetails(m: Member): void {
+    this.detailsMember.set(m);
+    this.detailsMessageDraft.set(this.suggestedReminderText(m));
+    this.detailsModalOpen.set(true);
+  }
+
+  closeDetails(): void {
+    this.detailsModalOpen.set(false);
+    this.detailsMember.set(null);
+    this.detailsMessageDraft.set('');
+  }
+
+  dialLink(m: Member): string | null {
+    const digits = (m.mobile || '').replace(/\D/g, '');
+    if (!digits) return null;
+    return `tel:${digits}`;
+  }
+
+  canSendWhatsAppReminder(m: Member): boolean {
+    const tone = this.rowTone(m);
+    const digits = (m.mobile || '').replace(/\D/g, '');
+    if (digits.length !== 10) return false;
+    return tone === 'red' || tone === 'orange' || tone === 'blue';
+  }
+
+  suggestedReminderText(m: Member): string {
+    const tone = this.rowTone(m);
+    if (tone === 'blue') {
+      const pending = Number(m.pendingAmount) || 0;
+      return `Hi ${m.firstName}, your pending amount is Rs ${pending.toLocaleString('en-IN')}. Please pay it as soon as possible.`;
+    }
+    if (tone === 'red') {
+      const due = coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
+      const dateText = due ? due.toLocaleDateString('en-IN') : 'the due date';
+      return `Hi ${m.firstName}, your payment is overdue (${this.dueStatusLabel(m)}). It was due on ${dateText}. Please clear it as soon as possible.`;
+    }
+    if (tone === 'orange') {
+      const due = coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
+      const bucket = memberDueBucket(due, true);
+      const whenText =
+        bucket === 'dueToday' ? 'today' : bucket === 'oneDayLeft' ? 'tomorrow' : bucket === 'twoDaysLeft' ? 'in 2 days' : 'soon';
+      const dateText = due ? due.toLocaleDateString('en-IN') : '';
+      return `Hi ${m.firstName}, your payment is due ${whenText}${dateText ? ` (${dateText})` : ''}. Please pay on time.`;
+    }
+    return `Hi ${m.firstName}, just sharing a quick update from your membership account.`;
+  }
+
+  sendWhatsAppFromDetails(m: Member): void {
+    const digits = (m.mobile || '').replace(/\D/g, '');
+    if (digits.length !== 10) {
+      this.toast.error('Valid mobile number is required');
+      return;
+    }
+    const msg = this.detailsMessageDraft().trim() || this.suggestedReminderText(m);
+    const encoded = encodeURIComponent(msg);
+    const url = `https://wa.me/91${digits}?text=${encoded}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
   openBedPicker(): void {
     if (!this.hasSeatLayout()) return;
+    this.manualSeatEntryTriggered.set(false);
+    this.manualSeatError.set(null);
     this.bedPickerOpen.set(true);
   }
 
@@ -798,7 +1004,16 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.memberForm.controls.floorNumber.markAsTouched();
     this.memberForm.controls.roomNumber.markAsTouched();
     this.memberForm.controls.bedNumber.markAsTouched();
+    this.manualSeatEntryTriggered.set(false);
+    this.manualSeatError.set(null);
     this.closeBedPicker();
+  }
+
+  onManualSeatInput(): void {
+    if (!this.hasSeatLayout()) return;
+    this.manualSeatEntryTriggered.set(true);
+    const v = this.memberForm.getRawValue();
+    this.manualSeatError.set(this.getSeatAvailabilityIssue(v.floorNumber, v.roomNumber, v.bedNumber));
   }
 
   /** Blue = partial payment pending, red = overdue, orange = due soon, green = active / further out, neutral = inactive / unknown */
@@ -810,6 +1025,25 @@ export class MembersComponent implements OnInit, OnDestroy {
     if (b === 'overdue') return 'red';
     if (b === 'dueToday' || b === 'oneDayLeft' || b === 'twoDaysLeft') return 'orange';
     return 'green';
+  }
+
+  isPartialPaymentPending(m: Member): boolean {
+    return m.status === 'active' && (Number(m.pendingAmount) || 0) > 0;
+  }
+
+  isDueSoonWithinFiveDays(m: Member): boolean {
+    if (m.status !== 'active') return false;
+    const due = coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
+    if (!due) return false;
+    const today = startOfToday();
+    const daysLeft = calendarDaysBetween(today, startOfDay(due));
+    return daysLeft >= 0 && daysLeft <= 5;
+  }
+
+  partialPaidAmount(m: Member): number {
+    const total = Number(m.amount) || 0;
+    const pending = Number(m.pendingAmount) || 0;
+    return Math.max(0, total - pending);
   }
 
   dueStatusLabel(m: Member): string {
@@ -979,6 +1213,24 @@ export class MembersComponent implements OnInit, OnDestroy {
     if (!Number.isFinite(f) || !Number.isFinite(r) || !Number.isFinite(b)) return '';
     if (f <= 0 || r <= 0 || b <= 0) return '';
     return `${Math.trunc(f)}-${Math.trunc(r)}-${Math.trunc(b)}`;
+  }
+
+  private getSeatAvailabilityIssue(floor: unknown, room: unknown, bed: unknown): string | null {
+    const f = Number(floor);
+    const r = Number(room);
+    const b = Number(bed);
+    if (!Number.isFinite(f) || !Number.isFinite(r) || !Number.isFinite(b)) return null;
+    if (f <= 0 || r <= 0 || b <= 0) return 'Enter valid floor, room, and bed number';
+
+    const floorObj = (this.pgLayout()?.floors || []).find((x) => Number(x.floorNumber) === Math.trunc(f));
+    if (!floorObj) return `Floor ${Math.trunc(f)} is not available in seat map`;
+    const roomObj = floorObj.rooms.find((x) => Number(x.roomNumber) === Math.trunc(r));
+    if (!roomObj) return `Room ${this.formatRoomNumber(Math.trunc(f), Math.trunc(r))} is not available in seat map`;
+    if (Math.trunc(b) > Number(roomObj.beds || 0)) {
+      return `Bed ${Math.trunc(b)} is not available in room ${this.formatRoomNumber(Math.trunc(f), Math.trunc(r))}`;
+    }
+    if (this.isBedOccupied(f, r, b)) return 'Selected bed is already occupied';
+    return null;
   }
 
   // ===== Import Methods =====

@@ -42,6 +42,10 @@ export class AdminService {
     await updateDoc(doc(this.fb.db, 'owners', ownerId), { status: 'rejected' });
   }
 
+  async setOwnerStatus(ownerId: string, status: Owner['status']): Promise<void> {
+    await updateDoc(doc(this.fb.db, 'owners', ownerId), { status });
+  }
+
   stats(owners: Owner[]): { total: number; pending: number; approved: number } {
     const nonAdmin = owners.filter((o) => o.role === 'owner');
     return {

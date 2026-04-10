@@ -10,6 +10,9 @@ import { DataCacheService } from '../../core/services/data-cache.service';
 import { MemberService } from '../../core/services/member.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
+import { NotificationService } from '../../core/services/notification.service';
+// Complaints disabled — restore when feature fixed
+// import { ComplaintService } from '../../core/services/complaint.service';
 import { ToastService } from '../../core/services/toast.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { ModalComponent } from '../../shared/modal.component';
@@ -33,6 +36,18 @@ import {
   standalone: true,
   imports: [DatePipe, DecimalPipe, NgClass, RouterLink, ReactiveFormsModule, ModalComponent,  MonthlyEarningsDetailedComponent, TranslatePipe],
   templateUrl: './owner-dashboard.component.html',
+  styles: [`
+    input[type='number']::-webkit-outer-spin-button,
+    input[type='number']::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    input[type='number'] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+  `],
 })
 export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly auth = inject(AuthService);
@@ -40,6 +55,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   private readonly membersApi = inject(MemberService);
   private readonly paymentsApi = inject(PaymentService);
   private readonly pgLayoutApi = inject(PgLayoutService);
+  private readonly notifications = inject(NotificationService);
+  // private readonly complaintApi = inject(ComplaintService);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
   private readonly i18n = inject(TranslationService);
@@ -48,6 +65,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly payments = signal<Payment[]>([]);
   readonly loading = signal(true);
   readonly setupModalOpen = signal(false);
+  readonly validationError = signal<string | null>(null);
   readonly bedMapModalOpen = signal(false);
   readonly importModalOpen = signal(false);
   readonly importRows = signal<ImportPreviewRow[]>([]);
@@ -61,6 +79,9 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly recentJoinersExpanded = signal(false);
   readonly memberDetailTarget = signal<Member | null>(null);
   readonly showScrollTopButton = signal(false);
+  // readonly complaintToggleBusy = signal(false);
+  readonly nowMs = signal(Date.now());
+  private subscriptionCountdownTimer: ReturnType<typeof setInterval> | null = null;
 
   // Pagination signals
   readonly dueTodayPage = signal(1);
@@ -73,6 +94,20 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     if ((this.pgLayout()?.floors?.length ?? 0) > 0) return true;
     return this.formToLayoutFloors().some((f) => f.rooms.length > 0);
   });
+  /* Complaints disabled — restore when feature fixed
+  readonly complaintEnabled = computed(() => Boolean(this.auth.profile()?.complaintEnabled));
+  readonly complaintUrl = computed(() => {
+    const ownerId = this.auth.profile()?.ownerId || '';
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    if (!ownerId || !origin) return '';
+    return `${origin}/complaint/${ownerId}`;
+  });
+  readonly complaintQrUrl = computed(() => {
+    const link = this.complaintUrl();
+    if (!link) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(link)}`;
+  });
+  */
 
   readonly dueLabel = computed(() => {
     this.i18n.lang();
@@ -87,6 +122,27 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const planEndDate = profile.planEndDate.toDate?.() || new Date(profile.planEndDate as any);
     const daysRemaining = calendarDaysBetween(startOfToday(), planEndDate);
     return Math.max(0, daysRemaining);
+  });
+  readonly subscriptionCountdown = computed(() => {
+    this.nowMs();
+    const profile = this.auth.profile();
+    if (!profile?.planEndDate) return null;
+    const end = profile.planEndDate.toDate?.() || new Date(profile.planEndDate as any);
+    const diffMs = end.getTime() - Date.now();
+    if (diffMs <= 0) {
+      return { expired: true, text: 'Expired', days: 0 };
+    }
+    const totalSeconds = Math.floor(diffMs / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const pad = (v: number) => v.toString().padStart(2, '0');
+    return {
+      expired: false,
+      days,
+      text: `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`,
+    };
   });
 
   readonly totalMembers = computed(() => this.members().filter((m) => m.status === 'active').length);
@@ -281,7 +337,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly importInvalidCount = computed(() => this.importRows().filter((r) => !r.valid).length);
 
   readonly setupForm = this.fb.nonNullable.group({
-    floorCount: [1, [Validators.required, Validators.min(1), Validators.max(8)]],
+    floorCount: [1, [Validators.required, Validators.min(1)]],
     floors: this.fb.array([]),
   });
 
@@ -311,6 +367,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
+    this.notifications.requestPermissionOnce();
+    this.subscriptionCountdownTimer = setInterval(() => this.nowMs.set(Date.now()), 1000);
     this.loading.set(true);
     console.log('🚀 Dashboard init started');
     await this.auth.refreshProfile();
@@ -327,6 +385,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     
     try {
       await this.cache.loadAllData(uid);
+      // Low-cost check using already loaded members (no extra listener/polling here).
+      this.notifications.checkDueMembers(this.members());
       console.log('✅ Dashboard data loaded');
     } catch (error) {
       console.error('❌ Error loading dashboard data:', error);
@@ -335,8 +395,31 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.subscriptionCountdownTimer) {
+      clearInterval(this.subscriptionCountdownTimer);
+      this.subscriptionCountdownTimer = null;
+    }
     // Cache service handles listener cleanup
   }
+
+  /* Complaints disabled — restore when feature fixed
+  async setComplaintEnabled(enabled: boolean): Promise<void> {
+    const ownerId = this.auth.profile()?.ownerId;
+    const profile = this.auth.profile();
+    if (!ownerId || !profile || this.complaintToggleBusy()) return;
+    this.complaintToggleBusy.set(true);
+    this.auth.profile.set({ ...profile, complaintEnabled: enabled });
+    try {
+      await this.complaintApi.setComplaintEnabled(ownerId, enabled);
+      this.toast.success(`Complaints ${enabled ? 'enabled' : 'disabled'}`);
+    } catch {
+      this.auth.profile.set({ ...profile, complaintEnabled: Boolean(profile.complaintEnabled) });
+      this.toast.error('Could not update complaint setting');
+    } finally {
+      this.complaintToggleBusy.set(false);
+    }
+  }
+  */
 
   /**
    * Manual refresh button - forces re-fetch from Firestore
@@ -446,10 +529,12 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     } else {
       this.rebuildFloors(1);
     }
+    this.validationError.set(null);
     this.setupModalOpen.set(true);
   }
 
   closeSetupModal(): void {
+    this.validationError.set(null);
     this.setupModalOpen.set(false);
   }
 
@@ -682,16 +767,30 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   }
 
   onFloorCountChange(raw: unknown): void {
-    const count = this.coerceCount(raw, 1, 8);
-    this.setupForm.controls.floorCount.setValue(count);
+    const current = this.floorGroups.length || 1;
+    const count = this.coerceCount(raw, 1, 500);
+    if (count < current && this.hasAssignedOnOrAboveFloor(count + 1)) {
+      this.setupForm.controls.floorCount.setValue(current, { emitEvent: false });
+      this.validationError.set('Cannot reduce floors: assigned seats exist on removed floor(s).');
+      return;
+    }
+    this.setupForm.controls.floorCount.setValue(count, { emitEvent: false });
     this.rebuildFloors(count);
+    this.validationError.set(null);
   }
 
   onRoomCountChange(floorIndex: number, raw: unknown): void {
     const rooms = this.roomGroupsAt(floorIndex);
-    const count = this.coerceCount(raw, 1, 100);
+    const count = this.coerceCount(raw, 1, 500);
+    const floorNumber = floorIndex + 1;
+    if (count < rooms.length && this.hasAssignedOnOrAboveRoom(floorNumber, count + 1)) {
+      const floorGroup = this.floorGroups.at(floorIndex);
+      floorGroup.get('roomCount')?.setValue(rooms.length, { emitEvent: false });
+      this.validationError.set(`Cannot reduce rooms on floor ${floorNumber}: assigned seats exist in removed room(s).`);
+      return;
+    }
     const floorGroup = this.floorGroups.at(floorIndex);
-    floorGroup.get('roomCount')?.setValue(count);
+    floorGroup.get('roomCount')?.setValue(count, { emitEvent: false });
     while (rooms.length < count) {
       rooms.push(
         this.fb.nonNullable.group({
@@ -704,6 +803,24 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       rooms.removeAt(rooms.length - 1);
     }
     this.renumberRooms(floorIndex);
+    this.validationError.set(null);
+  }
+
+  onBedsCountChange(floorIndex: number, roomIndex: number, raw: unknown): void {
+    const room = this.roomGroupsAt(floorIndex).at(roomIndex);
+    const currentBeds = Math.max(1, Number(room.get('beds')?.value) || 1);
+    const nextBeds = this.coerceCount(raw, 1, 500);
+    const floorNumber = floorIndex + 1;
+    const roomNumber = roomIndex + 1;
+    if (nextBeds < currentBeds && this.hasAssignedOnOrAboveBed(floorNumber, roomNumber, nextBeds + 1)) {
+      room.get('beds')?.setValue(currentBeds, { emitEvent: false });
+      this.validationError.set(
+        `Cannot reduce beds in room ${this.formatRoomNumber(floorNumber, roomNumber)}: assigned seats exist in removed bed(s).`,
+      );
+      return;
+    }
+    room.get('beds')?.setValue(nextBeds, { emitEvent: false });
+    this.validationError.set(null);
   }
 
   async saveDraft(stayOpen = true): Promise<void> {
@@ -722,7 +839,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   }
 
   private loadLayoutIntoForm(layout: PgLayout): void {
-    const floorCount = Math.min(8, Math.max(1, layout.floors.length || 1));
+    const floorCount = Math.max(1, layout.floors.length || 1);
     this.setupForm.controls.floorCount.setValue(floorCount);
     this.floorGroups.clear();
     for (let i = 0; i < floorCount; i += 1) {
@@ -792,6 +909,67 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const n = Number(v);
     if (!Number.isFinite(n)) return min;
     return Math.min(max, Math.max(min, Math.round(n)));
+  }
+
+  incrementFloorCount(): void {
+    this.onFloorCountChange((this.floorGroups.length || 1) + 1);
+  }
+
+  decrementFloorCount(): void {
+    this.onFloorCountChange((this.floorGroups.length || 1) - 1);
+  }
+
+  incrementRoomCount(floorIndex: number): void {
+    this.onRoomCountChange(floorIndex, this.roomGroupsAt(floorIndex).length + 1);
+  }
+
+  decrementRoomCount(floorIndex: number): void {
+    this.onRoomCountChange(floorIndex, this.roomGroupsAt(floorIndex).length - 1);
+  }
+
+  incrementBedsCount(floorIndex: number, roomIndex: number): void {
+    const room = this.roomGroupsAt(floorIndex).at(roomIndex);
+    const current = Math.max(1, Number(room.get('beds')?.value) || 1);
+    this.onBedsCountChange(floorIndex, roomIndex, current + 1);
+  }
+
+  decrementBedsCount(floorIndex: number, roomIndex: number): void {
+    const room = this.roomGroupsAt(floorIndex).at(roomIndex);
+    const current = Math.max(1, Number(room.get('beds')?.value) || 1);
+    this.onBedsCountChange(floorIndex, roomIndex, current - 1);
+  }
+
+  private hasAssignedOnOrAboveFloor(startFloorNumber: number): boolean {
+    for (const m of this.members()) {
+      if (m.status !== 'active') continue;
+      const floor = Number(m.floorNumber);
+      if (!Number.isFinite(floor)) continue;
+      if (floor >= startFloorNumber) return true;
+    }
+    return false;
+  }
+
+  private hasAssignedOnOrAboveRoom(floorNumber: number, startRoomNumber: number): boolean {
+    for (const m of this.members()) {
+      if (m.status !== 'active') continue;
+      const floor = Number(m.floorNumber);
+      const room = Number(m.roomNumber);
+      if (!Number.isFinite(floor) || !Number.isFinite(room)) continue;
+      if (floor === floorNumber && room >= startRoomNumber) return true;
+    }
+    return false;
+  }
+
+  private hasAssignedOnOrAboveBed(floorNumber: number, roomNumber: number, startBedNumber: number): boolean {
+    for (const m of this.members()) {
+      if (m.status !== 'active') continue;
+      const floor = Number(m.floorNumber);
+      const room = Number(m.roomNumber);
+      const bed = Number(m.bedNumber);
+      if (!Number.isFinite(floor) || !Number.isFinite(room) || !Number.isFinite(bed)) continue;
+      if (floor === floorNumber && room === roomNumber && bed >= startBedNumber) return true;
+    }
+    return false;
   }
 
   isBedOccupied(floor: unknown, room: unknown, bed: unknown): boolean {
