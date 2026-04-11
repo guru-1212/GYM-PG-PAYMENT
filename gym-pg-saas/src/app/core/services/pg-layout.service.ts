@@ -3,6 +3,7 @@ import type { DocumentReference } from 'firebase/firestore';
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
@@ -55,6 +56,52 @@ export class PgLayoutService {
       },
       { merge: true },
     );
+  }
+
+  /**
+   * Extends pgLayouts so each (floor, room) exists with at least `minBeds` beds.
+   * Used before bulk member import so the dashboard seat map and Rooms page stay in sync.
+   */
+  async ensureLayoutSeatsForImport(
+    ownerId: string,
+    needs: { floorNumber: number; roomNumber: number; minBeds: number }[],
+  ): Promise<void> {
+    if (!needs.length) return;
+    const ref = doc(this.fb.db, 'pgLayouts', ownerId);
+    const snap = await getDoc(ref);
+    const raw = snap.exists() ? (snap.data() as Record<string, unknown>) : {};
+    const floors: PgFloorLayout[] = this.normalizeFloors(raw['floors']).map((fl) => ({
+      floorNumber: Math.trunc(Number(fl.floorNumber)),
+      rooms: fl.rooms.map((rm) => ({
+        roomNumber: Math.trunc(Number(rm.roomNumber)),
+        beds: Math.max(1, Math.trunc(Number(rm.beds) || 1)),
+      })),
+    }));
+
+    const floorByNum = (f: number) => floors.find((x) => Math.trunc(Number(x.floorNumber)) === f);
+    for (const n of needs) {
+      const f = Math.trunc(Number(n.floorNumber));
+      const r = Math.trunc(Number(n.roomNumber));
+      const minBeds = Math.max(1, Math.trunc(Number(n.minBeds)));
+      if (!Number.isFinite(f) || !Number.isFinite(r) || r < 1) continue;
+      let floorObj = floorByNum(f);
+      if (!floorObj) {
+        floorObj = { floorNumber: f, rooms: [] };
+        floors.push(floorObj);
+      }
+      const rooms = floorObj.rooms;
+      while (rooms.length < r) {
+        const next = rooms.length + 1;
+        rooms.push({ roomNumber: next, beds: 1 });
+      }
+      const roomObj = rooms[r - 1];
+      if (roomObj) {
+        roomObj.roomNumber = r;
+        roomObj.beds = Math.max(Math.max(1, Math.trunc(Number(roomObj.beds) || 1)), minBeds);
+      }
+    }
+    floors.sort((a, b) => Math.trunc(Number(a.floorNumber)) - Math.trunc(Number(b.floorNumber)));
+    await this.saveLayout(ownerId, floors);
   }
 
   private normalizeFloors(raw: unknown): PgFloorLayout[] {

@@ -1,6 +1,6 @@
 /**
- * PG seat map: ground floor is stored as floorNumber 0; rooms show as G1, G2, ...
- * Other floors use F + two-digit room (e.g. 101, 205).
+ * PG seat map: ground floor is stored as floorNumber === 0 with room labels G1, G2, ...
+ * Upper floors use F + two-digit room (e.g. 101, 205).
  */
 export function formatPgRoomLabel(floorNumber: number, roomNumber: number): string {
   const f = Math.trunc(Number(floorNumber));

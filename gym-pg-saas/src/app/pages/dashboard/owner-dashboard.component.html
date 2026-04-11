@@ -713,16 +713,53 @@
   </form>
 </app-modal>
 
-<app-modal [open]="importModalOpen()" title="Import Members (CSV)" (closed)="closeImportModal()">
-  <div class="space-y-4">
+<app-modal
+  [open]="importModalOpen()"
+  title="Import Members (CSV)"
+  [closable]="!importBusy()"
+  (closed)="closeImportModal()"
+>
+  <div class="relative space-y-4">
+    @if (importBusy()) {
+      <div
+        class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 rounded-xl bg-white/92 px-6 py-10 text-center shadow-inner backdrop-blur-sm dark:bg-slate-900/92"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <div class="max-w-md space-y-2">
+          <p class="text-base font-semibold text-slate-900 dark:text-slate-100">Importing members</p>
+          <p class="min-h-[3rem] text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+            {{ importProgressMessage() }}
+          </p>
+        </div>
+        <div class="w-full max-w-md">
+          <div
+            class="relative h-14 w-full overflow-hidden rounded-full border-2 border-indigo-200/80 bg-slate-100 shadow-inner dark:border-indigo-500/40 dark:bg-slate-800"
+          >
+            <div
+              class="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-600 transition-[width] duration-500 ease-out dark:from-indigo-400 dark:via-violet-500 dark:to-indigo-500"
+              [style.width.%]="importProgressPercent()"
+            ></div>
+            <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <span
+                class="text-base font-extrabold tabular-nums tracking-tight text-slate-900 drop-shadow-[0_1px_0_rgba(255,255,255,0.85)] dark:text-white dark:drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+              >
+                {{ importProgressPercent() }}%
+              </span>
+            </div>
+          </div>
+          <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Please wait while we manage your data.</p>
+        </div>
+      </div>
+    }
     <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <p class="text-sm font-semibold text-slate-800">Sample CSV columns</p>
+      <p class="text-sm font-semibold text-slate-800">Sample Excel columns</p>
       @if (isPg()) {
         <p class="mt-1 text-xs text-slate-600">
           <strong>Required:</strong> name, mobile, plan, dueDate, subscriptionType, floor, room, bed
         </p>
         <p class="mt-1 text-xs text-slate-500">
-          For PG: Use actual room numbers (101, 102, 403, 504, etc). Floor column can be left empty if room number includes it.
+          For PG: <strong>subscriptionType</strong> must be <code class="rounded bg-slate-200 px-1">monthly</code> only. Use full room numbers (101, 204) or floor + room index (floor 2 + room 4 → 204). Floor must match the room number. Valid rows will extend the room map automatically before members are saved.
         </p>
       } @else {
         <p class="mt-1 text-xs text-slate-600">
@@ -732,13 +769,25 @@
           For Gym: Leave floor, room, bed empty. Mobile is optional.
         </p>
       }
-      <button
-        type="button"
-        class="mt-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-        (click)="downloadSampleCsv()"
-      >
-        Download Sample CSV
-      </button>
+      <div class="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          [disabled]="importBusy()"
+          (click)="viewSampleExcel()"
+        >
+          View sample
+        </button>
+        <button
+          type="button"
+          class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-100 dark:hover:bg-indigo-900/80"
+          [disabled]="importBusy()"
+          (click)="downloadSampleExcel()"
+        >
+          Download sample Excel
+        </button>
+      </div>
+      <p class="mt-1.5 text-xs text-slate-500">View loads the template into the table below so you can check columns and validation before downloading or uploading your own file.</p>
     </div>
 
     <div>
@@ -776,12 +825,16 @@
         <table class="saas-table min-w-full text-left text-xs">
           <thead class="sticky top-0 bg-slate-50 text-slate-600">
             <tr>
-              <th class="px-2 py-2">Row</th>
+              <th class="px-2 py-2">Sheet row</th>
               <th class="px-2 py-2">Name</th>
               <th class="px-2 py-2">Mobile</th>
               <th class="px-2 py-2">Plan</th>
               <th class="px-2 py-2">Due date</th>
-              <th class="px-2 py-2">Status</th>
+              <th class="px-2 py-2">Sub</th>
+              @if (isPg()) {
+                <th class="px-2 py-2">Assigned seat</th>
+              }
+              <th class="min-w-[10rem] px-2 py-2">Status / issues</th>
             </tr>
           </thead>
           <tbody>
@@ -792,11 +845,19 @@
                 <td class="px-2 py-2">{{ row.mobile || '—' }}</td>
                 <td class="px-2 py-2">₹{{ row.amount | number: '1.0-0' }}</td>
                 <td class="px-2 py-2">{{ row.dueDate }}</td>
-                <td class="px-2 py-2">
+                <td class="px-2 py-2">{{ row.subscriptionType }}</td>
+                @if (isPg()) {
+                  <td class="px-2 py-2 font-medium text-slate-800">{{ importSeatSummary(row) }}</td>
+                }
+                <td class="max-w-xs px-2 py-2 align-top">
                   @if (row.valid) {
                     <span class="font-semibold text-emerald-800">Valid</span>
                   } @else {
-                    <span class="font-semibold text-red-800">{{ row.errors.join(', ') }}</span>
+                    <ul class="list-disc pl-4 text-left text-xs font-medium text-red-900">
+                      @for (err of row.errors; track err) {
+                        <li>{{ err }}</li>
+                      }
+                    </ul>
                   }
                 </td>
               </tr>
@@ -807,7 +868,12 @@
     }
 
     <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-      <button type="button" class="rounded-xl border border-slate-200 px-5 py-2.5 font-semibold" (click)="closeImportModal()">
+      <button
+        type="button"
+        class="rounded-xl border border-slate-200 px-5 py-2.5 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+        [disabled]="importBusy()"
+        (click)="closeImportModal()"
+      >
         Cancel
       </button>
       <button

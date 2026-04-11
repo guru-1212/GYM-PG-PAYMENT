@@ -27,6 +27,9 @@ import {
   timestampToDate,
 } from '../../core/utils/date.utils';
 import { formatPgRoomLabel } from '../../core/utils/pg-layout-display.utils';
+import { memberImportSampleAoA, memberImportSampleCsv } from '../../core/utils/member-import-sample.util';
+import { MEMBER_IMPORT_PROGRESS_MESSAGES } from '../../core/utils/member-import-progress.messages';
+import { parsePgImportSeat, pgSheetSubscriptionError } from '../../core/utils/pg-sheet-import.utils';
 import { applyDigitsOnlyFromInput, optionalDigitsLen, positiveAmount, dueDateAfterJoinDate } from '../../core/utils/validators';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -100,6 +103,10 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly importRows = signal<ImportPreviewRow[]>([]);
   readonly importFileName = signal('');
   readonly importBusy = signal(false);
+  /** 0-100 while `importBusy` (bulk import). */
+  readonly importProgressPercent = signal(0);
+  readonly importProgressMessage = signal('');
+  private importProgressRotator: ReturnType<typeof setInterval> | null = null;
   readonly manualSeatEntryTriggered = signal(false);
   readonly manualSeatError = signal<string | null>(null);
   readonly importDueDateForAll = this.fb.nonNullable.control(false);
@@ -471,6 +478,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.historyUnsub?.();
     this.querySub?.unsubscribe();
     this.payFormSubscription?.unsubscribe();
+    this.clearImportProgressUi();
   }
 
   /**
@@ -909,6 +917,16 @@ export class MembersComponent implements OnInit, OnDestroy {
     return formatPgRoomLabel(f, r) || '—';
   }
 
+  /** Import preview: resolved seat label for PG rows. */
+  importSeatSummary(row: ImportPreviewRow): string {
+    if (!this.isPg()) return '—';
+    if (!row.floorNumber || !row.roomNumber || !row.bedNumber) return 'No seat';
+    const f = Number(row.floorNumber);
+    const r = Number(row.roomNumber);
+    const label = formatPgRoomLabel(f, r);
+    return label ? `${label} · bed ${row.bedNumber}` : `Floor ${row.floorNumber} · room ${row.roomNumber} · bed ${row.bedNumber}`;
+  }
+
   selectBed(floor: number, room: number, bed: number): void {
     if (this.isBedOccupied(floor, room, bed)) return;
     this.memberForm.patchValue({
@@ -1187,6 +1205,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.importFileName.set('');
     this.importDueDateForAll.setValue(false);
     this.importDueDate.setValue('');
+    this.clearImportProgressUi();
     this.importModalOpen.set(true);
   }
 
@@ -1194,30 +1213,23 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.importModalOpen.set(false);
   }
 
-  downloadSampleCsv(): void {
-    let sample: string;
-    if (this.isPg()) {
-      sample = [
-        'name,mobile,plan,dueDate,subscriptionType,floor,room,bed',
-        'Ravi Kumar,9876543210,4000,2026-04-30,monthly,1,1,1',
-        'Priya Singh,9988776655,5000,2026-05-15,quarterly,2,3,2',
-        'Amit Patel,9123456789,3500,2026-06-10,monthly,1,4,3',
-      ].join('\n');
-    } else {
-      sample = [
-        'name,mobile,plan,dueDate,subscriptionType,floor,room,bed',
-        'Ravi Kumar,9876543210,2500,2026-04-30,monthly,,',
-        'Anita Sharma,9988776655,3200,2026-05-15,quarterly,,',
-        'Vikram Singh,9123456789,2000,2026-05-20,monthly,,',
-      ].join('\n');
+  /** Loads the built-in sample into the preview table (same data as the Excel download). */
+  viewSampleExcel(): void {
+    this.importFileName.set('Sample template (in-app preview)');
+    this.parseImportCsv(memberImportSampleCsv(this.isPg()));
+  }
+
+  async downloadSampleExcel(): Promise<void> {
+    const rows = memberImportSampleAoA(this.isPg());
+    try {
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Members');
+      XLSX.writeFile(wb, 'members-import-sample.xlsx');
+    } catch {
+      this.toast.error('Could not create sample Excel. Try again.');
     }
-    const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'members-import-sample.csv';
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   async onImportFileSelected(event: Event): Promise<void> {
@@ -1310,7 +1322,8 @@ export class MembersComponent implements OnInit, OnDestroy {
       const mobile = this.readCol(cols, idx.mobile).replace(/\D/g, '');
       const planText = this.readCol(cols, idx.plan);
       const dueDateText = this.readCol(cols, idx.dueDate);
-      const subText = this.readCol(cols, idx.subscriptionType).toLowerCase();
+      const subRaw = this.readCol(cols, idx.subscriptionType);
+      const subText = subRaw.toLowerCase();
       const floor = this.readCol(cols, idx.floor);
       const room = this.readCol(cols, idx.room);
       const bed = this.readCol(cols, idx.bed);
@@ -1319,25 +1332,44 @@ export class MembersComponent implements OnInit, OnDestroy {
       if (!firstName) errors.push('Name is required');
       const amount = Number(planText);
       if (!Number.isFinite(amount) || amount <= 0) errors.push('Plan should be a positive number');
-      const subscriptionType = (subText || 'monthly') as SubscriptionType;
-      if (!['monthly', 'quarterly', 'yearly'].includes(subscriptionType)) {
-        errors.push('subscriptionType should be monthly/quarterly/yearly');
+      const subErr = pgSheetSubscriptionError(this.isPg(), subRaw);
+      if (subErr) errors.push(subErr);
+      let subscriptionType: SubscriptionType = 'monthly';
+      if (this.isGym()) {
+        const st = (subText || 'monthly').trim();
+        subscriptionType = (st === 'quarterly' || st === 'yearly' ? st : 'monthly') as SubscriptionType;
       }
       const dueDate = this.parseDateInput(dueDateText);
       if (!dueDate) errors.push('dueDate should be YYYY-MM-DD');
       if (mobile && mobile.length !== 10) errors.push('Mobile should be 10 digits');
 
-      const assignedBed = this.resolveBedForImport(floor, room, bed);
-      const identityLoc = this.identityLocationParts(assignedBed.floorNumber, assignedBed.roomNumber, assignedBed.bedNumber);
+      const assignedBed = this.isPg()
+        ? parsePgImportSeat(floor, room, bed)
+        : { floorNumber: '', roomNumber: '', bedNumber: '', errors: [] as string[] };
+      if (this.isPg()) errors.push(...assignedBed.errors);
+
+      const identityLoc = this.identityLocationParts(
+        assignedBed.floorNumber,
+        assignedBed.roomNumber,
+        assignedBed.bedNumber,
+      );
       const key = this.memberIdentityKey(firstName, lastName, mobile, identityLoc.floorNumber, identityLoc.roomNumber, identityLoc.bedNumber);
       if (existingKeys.has(key)) errors.push('Member details already exist');
-      if (fileKeys.has(key)) errors.push('Duplicate row in file');
+      if (fileKeys.has(key)) errors.push('Duplicate row in file (same name/mobile/seat as another row)');
       fileKeys.add(key);
 
-      if (assignedBed.error) errors.push(assignedBed.error);
+      if (this.isPg() && assignedBed.errors.length === 0 && assignedBed.floorNumber) {
+        const f = Number(assignedBed.floorNumber);
+        const r = Number(assignedBed.roomNumber);
+        const b = Number(assignedBed.bedNumber);
+        if (Number.isFinite(f) && Number.isFinite(r) && Number.isFinite(b) && this.isBedOccupied(f, r, b)) {
+          const label = formatPgRoomLabel(f, r) || `${f}-${r}`;
+          errors.push(`Seat ${label} · bed ${b} is already assigned to an active member.`);
+        }
+      }
 
       rows.push({
-        rowNo: i,
+        rowNo: i + 1,
         valid: errors.length === 0,
         errors,
         firstName,
@@ -1369,36 +1401,94 @@ export class MembersComponent implements OnInit, OnDestroy {
       this.toast.error('No valid rows to import');
       return;
     }
+
+    const seatNeeds = this.isPg() && owner.ownerId ? this.collectImportSeatNeeds(validRows) : [];
+    const willSyncLayout = Boolean(this.isPg() && owner.ownerId && seatNeeds.length > 0);
+    const layoutWeight = willSyncLayout ? 14 : 0;
+    const n = validRows.length;
+    const memberWeight = 100 - layoutWeight;
+
     this.importBusy.set(true);
+    this.startImportProgressUi();
+
     let imported = 0;
-    for (const row of validRows) {
-      const due = dueForAll || this.parseDateInput(row.dueDate);
-      if (!due) continue;
-      const join = new Date(due);
-      join.setMonth(join.getMonth() - 1);
-      try {
-        await this.membersApi.addMember({
-          firstName: row.firstName,
-          lastName: row.lastName || undefined,
-          mobile: row.mobile || undefined,
-          floorNumber: row.floorNumber || '',
-          roomNumber: row.roomNumber || '',
-          bedNumber: row.bedNumber || '',
-          joinDate: join,
-          dueDate: due,
-          amount: row.amount,
-          paymentMethod: 'cash',
-          status: 'active',
-          subscriptionType: owner.businessType === 'gym' ? row.subscriptionType : 'monthly',
-        });
-        imported += 1;
-      } catch {
-        // Skip failed row, continue import.
+    try {
+      if (willSyncLayout) {
+        try {
+          await this.pgLayoutApi.ensureLayoutSeatsForImport(owner.ownerId, seatNeeds);
+          this.setImportProgressPercent(layoutWeight);
+        } catch {
+          this.toast.error('Could not update the room map for this import. Try again or set up floors in Rooms first.');
+          return;
+        }
+      } else {
+        this.setImportProgressPercent(4);
       }
+
+      for (let i = 0; i < validRows.length; i += 1) {
+        const row = validRows[i];
+        const due = dueForAll || this.parseDateInput(row.dueDate);
+        if (!due) {
+          this.setImportProgressPercent(layoutWeight + ((i + 1) / n) * memberWeight);
+          continue;
+        }
+        const join = new Date(due);
+        join.setMonth(join.getMonth() - 1);
+        try {
+          await this.membersApi.addMember({
+            firstName: row.firstName,
+            lastName: row.lastName || undefined,
+            mobile: row.mobile || undefined,
+            floorNumber: row.floorNumber || '',
+            roomNumber: row.roomNumber || '',
+            bedNumber: row.bedNumber || '',
+            joinDate: join,
+            dueDate: due,
+            amount: row.amount,
+            paymentMethod: 'cash',
+            status: 'active',
+            subscriptionType: owner.businessType === 'gym' ? row.subscriptionType : 'monthly',
+          });
+          imported += 1;
+        } catch {
+          // Skip failed row, continue import.
+        }
+        this.setImportProgressPercent(layoutWeight + ((i + 1) / n) * memberWeight);
+      }
+
+      this.setImportProgressPercent(100);
+      this.importProgressMessage.set('All set! Putting the finishing touches on your import.');
+      await new Promise<void>((resolve) => setTimeout(resolve, 480));
+      this.toast.success(`Imported ${imported} members. Skipped ${validRows.length - imported}.`);
+      this.importModalOpen.set(false);
+    } finally {
+      this.clearImportProgressUi();
+      this.importBusy.set(false);
     }
-    this.importBusy.set(false);
-    this.toast.success(`Imported ${imported} members. Skipped ${validRows.length - imported}.`);
-    this.closeImportModal();
+  }
+
+  private startImportProgressUi(): void {
+    this.clearImportProgressUi();
+    this.importProgressPercent.set(2);
+    this.importProgressMessage.set(MEMBER_IMPORT_PROGRESS_MESSAGES[0] ?? 'Importing members, please wait.');
+    let idx = 0;
+    this.importProgressRotator = setInterval(() => {
+      idx = (idx + 1) % MEMBER_IMPORT_PROGRESS_MESSAGES.length;
+      this.importProgressMessage.set(MEMBER_IMPORT_PROGRESS_MESSAGES[idx] ?? '');
+    }, 2600);
+  }
+
+  private setImportProgressPercent(p: number): void {
+    this.importProgressPercent.set(Math.min(100, Math.max(0, Math.round(p))));
+  }
+
+  private clearImportProgressUi(): void {
+    if (this.importProgressRotator) {
+      clearInterval(this.importProgressRotator);
+      this.importProgressRotator = null;
+    }
+    this.importProgressPercent.set(0);
+    this.importProgressMessage.set('');
   }
 
   private parseCsvLine(line: string): string[] {
@@ -1436,21 +1526,21 @@ export class MembersComponent implements OnInit, OnDestroy {
     return isNaN(d.getTime()) ? null : d;
   }
 
-  private resolveBedForImport(floorStr: string, roomStr: string, bedStr: string): { floorNumber: string; roomNumber: string; bedNumber: string; error?: string } {
-    const floor = floorStr.trim();
-    const room = roomStr.trim();
-    const bed = bedStr.trim();
-    if (!room && !floor) return { floorNumber: '', roomNumber: '', bedNumber: '' };
-    if (!room) return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Room is required if floor is provided' };
-    if (!floor && room) {
-      const roomNum = String(room);
-      if (roomNum.length === 3) {
-        const extracted = roomNum.substring(0, 1);
-        const remaining = roomNum.substring(1);
-        return { floorNumber: extracted, roomNumber: remaining, bedNumber: bed };
-      }
+  private collectImportSeatNeeds(rows: ImportPreviewRow[]): { floorNumber: number; roomNumber: number; minBeds: number }[] {
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      if (!row.floorNumber || !row.roomNumber || !row.bedNumber) continue;
+      const f = Number(row.floorNumber);
+      const r = Number(row.roomNumber);
+      const b = Number(row.bedNumber);
+      if (!Number.isFinite(f) || !Number.isFinite(r) || !Number.isFinite(b)) continue;
+      const k = `${Math.trunc(f)}-${Math.trunc(r)}`;
+      map.set(k, Math.max(map.get(k) || 0, Math.trunc(b)));
     }
-    return { floorNumber: floor, roomNumber: room, bedNumber: bed };
+    return [...map.entries()].map(([k, minBeds]) => {
+      const [a, b] = k.split('-');
+      return { floorNumber: Number(a), roomNumber: Number(b), minBeds };
+    });
   }
 
   private memberIdentityKey(firstName: string, lastName: string, mobile: string, floor: string, room: string, bed: string): string {

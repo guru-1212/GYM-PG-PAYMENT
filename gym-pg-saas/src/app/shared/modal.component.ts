@@ -21,8 +21,9 @@ import { Component, input, output } from '@angular/core';
             <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ title() }}</h2>
             <button
               type="button"
-              class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-              (click)="closed.emit()"
+              class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800"
+              [disabled]="!closable()"
+              (click)="closable() && closed.emit()"
               aria-label="Close"
             >
               <span class="material-icons-outlined text-xl">close</span>
@@ -39,6 +40,8 @@ import { Component, input, output } from '@angular/core';
 export class ModalComponent {
   readonly open = input(false);
   readonly title = input('');
+  /** When false, the header close control is disabled (e.g. during long-running work). */
+  readonly closable = input(true);
   readonly backdropClose = input(false);
   /** Wider panel for detail views (e.g. member profile). */
   readonly wide = input(false);
