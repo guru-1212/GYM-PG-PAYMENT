@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, isDevMode, signal } from '@angular/core';
 import {
   User,
   createUserWithEmailAndPassword,
@@ -16,7 +16,6 @@ import {
   setDoc,
   Unsubscribe,
 } from 'firebase/firestore';
-import { environment } from '../../../environments/environment';
 import { Owner, OwnerRole, OwnerStatus } from '../models/owner.model';
 // Complaints disabled — restore when feature fixed
 // import { ComplaintService } from './complaint.service';
@@ -102,7 +101,7 @@ export class AuthService {
       this.profileUnsub = null;
       this.profileListenerUid = u.uid;
 
-      if (!environment.production) {
+      if (isDevMode()) {
         console.log('[Auth] Firebase Auth UID:', u.uid, '(attach owners listener)');
       }
 
@@ -112,7 +111,7 @@ export class AuthService {
         (snap) => {
           const o = ownerFromSnapshot(snap);
           this.profile.set(o);
-          if (!environment.production) {
+          if (isDevMode()) {
             console.log('[Auth] onSnapshot owners/' + u.uid, o ? { role: o.role, status: o.status } : 'no document');
           }
           this.loading.set(false);
@@ -123,7 +122,7 @@ export class AuthService {
           */
         },
         (err) => {
-          if (!environment.production) {
+          if (isDevMode()) {
             console.error('[Auth] onSnapshot owners/' + u.uid + ' error', err);
           }
           this.profile.set(null);

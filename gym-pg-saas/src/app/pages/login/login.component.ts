@@ -1,8 +1,8 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, isDevMode, signal } from '@angular/core';
 import { merge } from 'rxjs';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { environment } from '../../../environments/environment';
+import { firebaseConfig } from '../../config/firebase.config';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
 import { NotificationService } from '../../core/services/notification.service';
@@ -99,13 +99,13 @@ export class LoginComponent implements OnInit {
       await this.auth.signIn(this.signInForm.controls.email.value, this.signInForm.controls.password.value);
       const load = await this.auth.loadProfileOnce();
       const p = load.owner;
-      if (!environment.production) {
+      if (isDevMode()) {
         console.log('[Login] profile load:', p ? { role: p.role, status: p.status } : load);
       }
       if (!p) {
         if (load.problem === 'permission-denied') {
           this.toast.error(
-            `Firestore blocked reading your profile. Deploy firestore.rules (Firebase project: ${environment.firebase.projectId}).`,
+            `Firestore blocked reading your profile. Deploy firestore.rules (Firebase project: ${firebaseConfig.projectId}).`,
           );
         } else if (load.problem === 'no-firestore-document' && load.uid) {
           this.toast.error(
@@ -190,7 +190,7 @@ export class LoginComponent implements OnInit {
       }
     }
 
-    if (!environment.production) {
+    if (isDevMode()) {
       console.warn('[Login] redirectAfterProfile: unmatched role/status', { role, status });
     }
     this.toast.error('Profile role or status is invalid. Check Firestore fields role and status.');
