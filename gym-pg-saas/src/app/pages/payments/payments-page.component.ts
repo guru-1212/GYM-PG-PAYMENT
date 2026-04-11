@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
 import { Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { jsPDF } from 'jspdf';
 import { Member } from '../../core/models/member.model';
@@ -13,7 +13,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 @Component({
   selector: 'app-payments-page',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, TranslatePipe],
+  imports: [DatePipe, DecimalPipe, NgClass, TranslatePipe],
   templateUrl: './payments-page.component.html',
 })
 export class PaymentsPageComponent implements OnInit, OnDestroy {

@@ -178,7 +178,24 @@
               <td class="px-4 py-3">{{ p.date.toDate() | date: 'dd/MM/yy' }}</td>
               <td class="px-4 py-3 font-medium text-slate-900">{{ nameForPayment(p) }}</td>
               <td class="px-4 py-3">₹{{ p.amount | number: '1.0-0' }}</td>
-              <td class="px-4 py-3 uppercase text-slate-600">{{ p.method }}</td>
+              <td class="px-4 py-3 uppercase">
+                <span
+                  class="text-slate-600"
+                  [ngClass]="{
+                    'dark:inline-flex dark:rounded-full dark:border dark:border-emerald-700 dark:bg-emerald-950/70 dark:px-2.5 dark:py-1 dark:text-xs dark:font-semibold dark:text-emerald-200':
+                      (p.method || '').toLowerCase() === 'cash',
+                    'dark:inline-flex dark:rounded-full dark:border dark:border-sky-700 dark:bg-sky-950/70 dark:px-2.5 dark:py-1 dark:text-xs dark:font-semibold dark:text-sky-200':
+                      (p.method || '').toLowerCase() === 'upi',
+                    'dark:inline-flex dark:rounded-full dark:border dark:border-violet-700 dark:bg-violet-950/70 dark:px-2.5 dark:py-1 dark:text-xs dark:font-semibold dark:text-violet-200':
+                      (p.method || '').toLowerCase() === 'card',
+                    'dark:inline-flex dark:rounded-full dark:border dark:border-slate-600 dark:bg-slate-800 dark:px-2.5 dark:py-1 dark:text-xs dark:font-semibold dark:text-slate-200':
+                      (p.method || '').toLowerCase() !== 'cash' &&
+                      (p.method || '').toLowerCase() !== 'upi' &&
+                      (p.method || '').toLowerCase() !== 'card',
+                  }"
+                  >{{ p.method }}</span
+                >
+              </td>
             </tr>
           }
         </tbody>

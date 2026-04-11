@@ -15,6 +15,9 @@ export const EN: Record<string, unknown> = {
     signOut: 'Sign out',
     owners: 'Owners',
     admin: 'Admin',
+    theme: 'Appearance',
+    themeLight: 'Light',
+    themeDark: 'Dark',
   },
   a11y: {
     openMenu: 'Open menu',
@@ -22,6 +25,7 @@ export const EN: Record<string, unknown> = {
     navMenu: 'Navigation menu',
     language: 'Language',
     userMenu: 'Account menu',
+    toggleTheme: 'Toggle dark mode',
   },
   auth: {
     email: 'Email',

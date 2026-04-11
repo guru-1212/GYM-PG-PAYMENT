@@ -1,8 +1,8 @@
-<div class="flex min-h-screen bg-transparent">
+<div class="flex min-h-screen bg-transparent dark:bg-slate-950">
   <aside
-    class="hidden w-64 shrink-0 flex-col border-r border-white/60 bg-white/75 backdrop-blur-xl md:sticky md:top-0 md:flex md:h-screen"
+    class="hidden w-64 shrink-0 flex-col border-r border-white/60 bg-white/75 backdrop-blur-xl md:sticky md:top-0 md:flex md:h-screen dark:border-slate-700/70 dark:bg-slate-950/90 dark:backdrop-blur-xl"
   >
-    <div class="border-b border-slate-100/80 px-5 py-6">
+    <div class="border-b border-slate-100/80 px-5 py-6 dark:border-slate-800/80">
       <div class="mb-3 flex items-center justify-between gap-2">
         <app-brand-logo [logoSize]="'32px'" [showText]="true" brandName="OurPGTracker"></app-brand-logo>
         <!-- <button
@@ -36,33 +36,33 @@
     <nav class="flex flex-1 flex-col gap-1 p-3">
       <a
         routerLink="/dashboard"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
         [routerLinkActiveOptions]="{ exact: true }"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
       >
         <span class="material-icons-outlined">dashboard</span>
         {{ 'nav.dashboard' | t }}
       </a>
       <a
         routerLink="/members"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
       >
         <span class="material-icons-outlined">groups</span>
         {{ 'nav.members' | t }}
       </a>
       <a
         routerLink="/inactive-members"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
       >
         <span class="material-icons-outlined">person_off</span>
         Inactive Members
       </a>
       <a
         routerLink="/payments"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
       >
         <span class="material-icons-outlined">payments</span>
         {{ 'nav.payments' | t }}
@@ -70,8 +70,8 @@
       @if (isPgOwner()) {
         <a
           routerLink="/rooms"
-          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
         >
           <span class="material-icons-outlined">hotel</span>
           {{ 'nav.rooms' | t }}
@@ -79,8 +79,8 @@
       }
       <a
         routerLink="/monthly-earnings"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
       >
         <span class="material-icons-outlined">bar_chart</span>
         Monthly Earnings
@@ -88,15 +88,15 @@
       <!-- Complaints disabled — restore when feature fixed
       <a
         routerLink="/complaints"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
       >
         <span class="material-icons-outlined">report_problem</span>
         Complaints
       </a>
       -->
     </nav>
-    <div class="border-t border-slate-100 p-3">
+    <div class="border-t border-slate-100 p-3 dark:border-slate-800">
       <!-- Complaints toggle disabled — restore when feature fixed
       <label class="mb-3 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
         <span class="text-xs font-semibold text-slate-700">Complaints</span>
@@ -109,6 +109,9 @@
         />
       </label>
       -->
+      <div class="mb-3">
+        <app-theme-toggle />
+      </div>
       <button
         type="button"
         class="saas-btn-secondary flex w-full items-center justify-center gap-2 py-3 text-sm"
@@ -122,11 +125,11 @@
 
   <div class="flex min-w-0 flex-1 flex-col">
     <header
-      class="sticky top-0 z-20 flex w-full min-w-0 items-center justify-between gap-3 border-b border-white/60 bg-white/85 px-3 py-2.5 backdrop-blur-xl md:hidden"
+      class="sticky top-0 z-20 flex w-full min-w-0 items-center justify-between gap-3 border-b border-white/60 bg-white/85 px-3 py-2.5 backdrop-blur-xl md:hidden dark:border-slate-700/70 dark:bg-slate-950/90 dark:backdrop-blur-xl"
     >
       <button
         type="button"
-        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
         (click)="openMobileMenu()"
         [attr.aria-label]="'a11y.openMenu' | t"
         [attr.aria-expanded]="mobileMenuOpen()"
@@ -136,7 +139,7 @@
       <div class="flex shrink-0 items-center gap-2">
         <button
           type="button"
-          class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm"
+          class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           (click)="openNotifications()"
           aria-label="Notifications"
         >
@@ -159,14 +162,14 @@
           </button>
           @if (userMenuOpen()) {
             <div
-              class="absolute right-0 top-12 z-50 min-w-[14rem] rounded-xl border border-slate-200/80 bg-white/95 p-2 shadow-xl backdrop-blur-xl"
+              class="absolute right-0 top-12 z-50 min-w-[14rem] rounded-xl border border-slate-200/80 bg-white/95 p-2 shadow-xl backdrop-blur-xl dark:border-slate-600/80 dark:bg-slate-900/95 dark:shadow-black/40"
               role="menu"
             >
-              <p class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">{{ 'auth.email' | t }}</p>
-              <p class="px-3 pb-2 text-sm font-medium text-slate-900 break-all">{{ profile()?.email }}</p>
+              <p class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">{{ 'auth.email' | t }}</p>
+              <p class="px-3 pb-2 text-sm font-medium text-slate-900 break-all dark:text-slate-100">{{ profile()?.email }}</p>
               <button
                 type="button"
-                class="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
+                class="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40"
                 role="menuitem"
                 (click)="signOut()"
               >
@@ -191,15 +194,15 @@
           (click)="closeMobileMenu()"
         ></div>
         <aside
-          class="absolute left-0 top-0 flex h-full w-[min(18rem,88vw)] flex-col border-r border-white/60 bg-white/95 shadow-2xl backdrop-blur-xl"
+          class="absolute left-0 top-0 flex h-full w-[min(18rem,88vw)] flex-col border-r border-white/60 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-950/95 dark:shadow-black/40"
           (click)="$event.stopPropagation()"
         >
-          <div class="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+          <div class="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-slate-800">
             <div class="min-w-0 pr-2">
               <p class="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-xs font-semibold uppercase tracking-wide text-transparent">
                 {{ 'nav.menu' | t }}
               </p>
-              <p class="truncate text-sm font-semibold text-slate-900">{{ profile()?.name }}</p>
+              <p class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{{ profile()?.name }}</p>
               @if (planCountdown(); as c) {
                 <p class="mt-1 text-xs font-semibold" [class.text-red-600]="c.expired" [class.text-emerald-700]="!c.expired">
                   Plan: {{ c.display }}
@@ -208,7 +211,7 @@
             </div>
             <button
               type="button"
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100"
+              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
               (click)="closeMobileMenu()"
               [attr.aria-label]="'a11y.closeMenu' | t"
             >
@@ -218,9 +221,9 @@
           <nav class="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
             <a
               routerLink="/dashboard"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
               [routerLinkActiveOptions]="{ exact: true }"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
               (click)="closeMobileMenu()"
             >
               <span class="material-icons-outlined">dashboard</span>
@@ -228,8 +231,8 @@
             </a>
             <a
               routerLink="/members"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
               (click)="closeMobileMenu()"
             >
               <span class="material-icons-outlined">groups</span>
@@ -237,8 +240,8 @@
             </a>
             <a
               routerLink="/inactive-members"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
               (click)="closeMobileMenu()"
             >
               <span class="material-icons-outlined">person_off</span>
@@ -246,8 +249,8 @@
             </a>
             <a
               routerLink="/payments"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
               (click)="closeMobileMenu()"
             >
               <span class="material-icons-outlined">payments</span>
@@ -256,8 +259,8 @@
             @if (isPgOwner()) {
               <a
                 routerLink="/rooms"
-                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
                 (click)="closeMobileMenu()"
               >
                 <span class="material-icons-outlined">hotel</span>
@@ -266,8 +269,8 @@
             }
             <a
               routerLink="/monthly-earnings"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
               (click)="closeMobileMenu()"
             >
               <span class="material-icons-outlined">bar_chart</span>
@@ -276,8 +279,8 @@
             <!-- Complaints nav disabled — restore when feature fixed
             <a
               routerLink="/complaints"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
               (click)="closeMobileMenu()"
             >
               <span class="material-icons-outlined">report_problem</span>
@@ -285,11 +288,14 @@
             </a>
             -->
           </nav>
+          <div class="border-t border-slate-100 p-3 dark:border-slate-800">
+            <app-theme-toggle />
+          </div>
         </aside>
       </div>
     }
 
-    <main class="flex-1 p-4 md:p-6 lg:p-8">
+    <main class="flex-1 p-4 md:p-6 lg:p-8 dark:bg-slate-950/50">
       <router-outlet />
     </main>
   </div>

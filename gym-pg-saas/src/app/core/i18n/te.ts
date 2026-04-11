@@ -15,6 +15,9 @@ export const TE: Record<string, unknown> = {
     signOut: 'సైన్ అవుట్',
     owners: 'యజమానులు',
     admin: 'అడ్మిన్',
+    theme: 'థీమ్',
+    themeLight: 'లైట్',
+    themeDark: 'డార్క్',
   },
   a11y: {
     openMenu: 'మెనూ తెరవండి',
@@ -22,6 +25,7 @@ export const TE: Record<string, unknown> = {
     navMenu: 'నావిగేషన్ మెనూ',
     language: 'భాష',
     userMenu: 'ఖాతా మెనూ',
+    toggleTheme: 'డార్క్ మోడ్ మార్చండి',
   },
   auth: {
     email: 'ఇమెయిల్',

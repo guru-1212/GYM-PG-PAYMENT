@@ -12,16 +12,16 @@ import { Component, input, output } from '@angular/core';
         (click)="backdropClose() && closed.emit()"
       >
         <div
-          class="max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-white/60 bg-white/90 shadow-xl backdrop-blur-xl"
+          class="max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-white/60 bg-white/90 shadow-xl backdrop-blur-xl dark:border-slate-600/80 dark:bg-slate-900/95 dark:shadow-black/40"
           [class.max-w-lg]="!wide()"
           [class.max-w-2xl]="wide()"
           (click)="$event.stopPropagation()"
         >
-          <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-            <h2 class="text-lg font-semibold text-slate-900">{{ title() }}</h2>
+          <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-700">
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ title() }}</h2>
             <button
               type="button"
-              class="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+              class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
               (click)="closed.emit()"
               aria-label="Close"
             >

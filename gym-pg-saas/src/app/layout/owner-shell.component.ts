@@ -9,11 +9,12 @@ import { TranslationService } from '../core/services/translation.service';
 import { ModalComponent } from '../shared/modal.component';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../shared/brand-logo.component';
+import { ThemeToggleComponent } from '../shared/theme-toggle.component';
 
 @Component({
   selector: 'app-owner-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, BrandLogoComponent, ModalComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, BrandLogoComponent, ModalComponent, ThemeToggleComponent],
   templateUrl: './owner-shell.component.html',
 })
 export class OwnerShellComponent implements OnInit, OnDestroy {

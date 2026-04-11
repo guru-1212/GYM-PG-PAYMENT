@@ -10,27 +10,39 @@ import { ToastService } from '../core/services/toast.service';
       aria-live="polite"
     >
       @for (t of toast.toasts(); track t.id) {
-        <div
-          class="pointer-events-auto rounded-xl border px-4 py-3 text-sm shadow-lg"
-          [class.border-emerald-200]="t.kind === 'success'"
-          [class.bg-emerald-50]="t.kind === 'success'"
-          [class.text-emerald-900]="t.kind === 'success'"
-          [class.border-red-200]="t.kind === 'error'"
-          [class.bg-red-50]="t.kind === 'error'"
-          [class.text-red-900]="t.kind === 'error'"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <span>{{ t.message }}</span>
-            <button
-              type="button"
-              class="text-slate-500 hover:text-slate-800"
-              (click)="toast.dismiss(t.id)"
-              aria-label="Dismiss"
-            >
-              ×
-            </button>
+        @if (t.kind === 'success') {
+          <div
+            class="pointer-events-auto rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-lg dark:border-emerald-800 dark:bg-emerald-950/90 dark:text-emerald-100 dark:shadow-black/30"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <span>{{ t.message }}</span>
+              <button
+                type="button"
+                class="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                (click)="toast.dismiss(t.id)"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
           </div>
-        </div>
+        } @else {
+          <div
+            class="pointer-events-auto rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-lg dark:border-red-800 dark:bg-red-950/90 dark:text-red-100 dark:shadow-black/30"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <span>{{ t.message }}</span>
+              <button
+                type="button"
+                class="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                (click)="toast.dismiss(t.id)"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        }
       }
     </div>
   `,

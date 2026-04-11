@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <script>
+    try {
+      if (localStorage.getItem('paybook.theme') === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    } catch (e) {}
+  </script>
   <title>PayBook — Gym & PG payments</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">

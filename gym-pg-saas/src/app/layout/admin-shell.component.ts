@@ -4,11 +4,12 @@ import { AuthService } from '../core/services/auth.service';
 import { TranslationService } from '../core/services/translation.service';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../shared/brand-logo.component';
+import { ThemeToggleComponent } from '../shared/theme-toggle.component';
 
 @Component({
   selector: 'app-admin-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe,  BrandLogoComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, BrandLogoComponent, ThemeToggleComponent],
   templateUrl: './admin-shell.component.html',
 })
 export class AdminShellComponent {
