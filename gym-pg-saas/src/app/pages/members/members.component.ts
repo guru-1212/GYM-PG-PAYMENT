@@ -26,6 +26,7 @@ import {
   startOfToday,
   timestampToDate,
 } from '../../core/utils/date.utils';
+import { formatPgRoomLabel } from '../../core/utils/pg-layout-display.utils';
 import { optionalDigitsLen, positiveAmount, dueDateAfterJoinDate } from '../../core/utils/validators';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -898,7 +899,14 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   formatRoomNumber(floorNumber: number, roomNumber: number): string {
-    return `${floorNumber}${roomNumber.toString().padStart(2, '0')}`;
+    return formatPgRoomLabel(floorNumber, roomNumber);
+  }
+
+  /** PG list/details: compact room label (e.g. G4, 101) from stored floor/room strings. */
+  memberPgRoomLabel(m: Member): string {
+    const f = Number(m.floorNumber);
+    const r = Number(m.roomNumber);
+    return formatPgRoomLabel(f, r) || '—';
   }
 
   selectBed(floor: number, room: number, bed: number): void {
@@ -949,13 +957,26 @@ export class MembersComponent implements OnInit, OnDestroy {
     return m.status === 'active' && (Number(m.pendingAmount) || 0) > 0;
   }
 
-  isDueSoonWithinFiveDays(m: Member): boolean {
-    if (m.status !== 'active') return false;
+  /** Whole calendar days from today to due date (active members only); null if not applicable. */
+  calendarDaysUntilDue(m: Member): number | null {
+    if (m.status !== 'active') return null;
     const due = coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
-    if (!due) return false;
-    const today = startOfToday();
-    const daysLeft = calendarDaysBetween(today, startOfDay(due));
-    return daysLeft >= 0 && daysLeft <= 5;
+    if (!due) return null;
+    return calendarDaysBetween(startOfToday(), startOfDay(due));
+  }
+
+  isDueSoonWithinFiveDays(m: Member): boolean {
+    const daysLeft = this.calendarDaysUntilDue(m);
+    return daysLeft !== null && daysLeft >= 0 && daysLeft <= 5;
+  }
+
+  /** Status pill copy when due in 0–5 days (same pill styling as former D5). */
+  dueSoonWithinFiveDaysPillLabel(m: Member): string {
+    const d = this.calendarDaysUntilDue(m);
+    if (d === null || d < 0 || d > 5) return '—';
+    if (d === 0) return 'Due today';
+    if (d === 1) return '1 day';
+    return `${d} days`;
   }
 
   partialPaidAmount(m: Member): number {
@@ -1129,7 +1150,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     const r = Number(room);
     const b = Number(bed);
     if (!Number.isFinite(f) || !Number.isFinite(r) || !Number.isFinite(b)) return '';
-    if (f <= 0 || r <= 0 || b <= 0) return '';
+    if (f < 0 || r <= 0 || b <= 0) return '';
     return `${Math.trunc(f)}-${Math.trunc(r)}-${Math.trunc(b)}`;
   }
 
@@ -1138,7 +1159,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     const r = Number(room);
     const b = Number(bed);
     if (!Number.isFinite(f) || !Number.isFinite(r) || !Number.isFinite(b)) return null;
-    if (f <= 0 || r <= 0 || b <= 0) return 'Enter valid floor, room, and bed number';
+    if (f < 0 || r <= 0 || b <= 0) return 'Enter valid floor, room, and bed number';
 
     const floorObj = (this.pgLayout()?.floors || []).find((x) => Number(x.floorNumber) === Math.trunc(f));
     if (!floorObj) return `Floor ${Math.trunc(f)} is not available in seat map`;

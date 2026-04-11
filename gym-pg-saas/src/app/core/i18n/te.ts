@@ -186,6 +186,7 @@ export const TE: Record<string, unknown> = {
     setupPrompt: 'మ్యాప్ చూడటానికి అంతస్తులు, గదులు మరియు మంచాల సంఖ్యను జోడించండి.',
     floor: 'అంతస్తు',
     room: 'గది',
+    groundFloor: 'భూమి అంతస్తు',
   },
   admin: {
     dashboard: 'ఆడ్‌మిన్ డ్యాష్‌బోర్డ్',

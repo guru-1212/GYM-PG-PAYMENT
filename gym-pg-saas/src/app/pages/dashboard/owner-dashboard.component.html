@@ -625,7 +625,13 @@
       @for (floor of floorGroups.controls; track $index; let floorIdx = $index) {
         <div class="rounded-xl border border-slate-200 p-3">
           <div class="mb-2 flex items-center justify-between">
-            <p class="text-sm font-semibold text-slate-900">Floor {{ floorIdx + 1 }}</p>
+            <p class="text-sm font-semibold text-slate-900">
+              @if (+$any(floor.get('floorNumber')?.value) === 0) {
+                {{ 'rooms.groundFloor' | t }}
+              } @else {
+                {{ 'rooms.floor' | t }} {{ floor.get('floorNumber')?.value }}
+              }
+            </p>
             <div class="flex items-center gap-2">
               <label class="text-xs text-slate-600">Rooms</label>
               <button
@@ -654,7 +660,9 @@
           <div class="grid gap-2 sm:grid-cols-2">
             @for (room of roomGroupsAt(floorIdx).controls; track $index; let roomIdx = $index) {
               <div class="rounded-lg bg-slate-50 px-3 py-2" [formGroup]="$any(room)">
-                <p class="text-xs font-semibold text-slate-700">Room {{ formatRoomNumber(floorIdx + 1, roomIdx + 1) }}</p>
+                <p class="text-xs font-semibold text-slate-700">
+                  {{ 'rooms.room' | t }} {{ formatRoomNumber(floorNumberAtFormIndex(floorIdx), roomIdx + 1) }}
+                </p>
                 <label class="mt-1 block text-xs text-slate-500">Beds</label>
                 <div class="mt-1 flex items-center gap-2">
                   <button
@@ -816,7 +824,13 @@
     <div class="space-y-3">
       @for (floor of (pgLayout()?.floors || []); track floor.floorNumber) {
         <section class="rounded-xl border border-slate-200 p-3">
-          <p class="text-sm font-semibold text-slate-900">Floor {{ floor.floorNumber }}</p>
+          <p class="text-sm font-semibold text-slate-900">
+            @if (+floor.floorNumber === 0) {
+              {{ 'rooms.groundFloor' | t }}
+            } @else {
+              {{ 'rooms.floor' | t }} {{ floor.floorNumber }}
+            }
+          </p>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
             @for (room of floor.rooms; track room.roomNumber) {
               <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">

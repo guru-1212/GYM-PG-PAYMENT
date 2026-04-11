@@ -186,6 +186,7 @@ export const EN: Record<string, unknown> = {
     setupPrompt: 'Add floors, rooms, and bed counts to view your map.',
     floor: 'Floor',
     room: 'Room',
+    groundFloor: 'Ground floor',
   },
   admin: {
     dashboard: 'Admin Dashboard',

@@ -30,6 +30,7 @@ import {
   startOfToday,
   timestampToDate,
 } from '../../core/utils/date.utils';
+import { formatPgRoomLabel } from '../../core/utils/pg-layout-display.utils';
 
 @Component({
   selector: 'app-owner-dashboard',
@@ -769,10 +770,14 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   onFloorCountChange(raw: unknown): void {
     const current = this.floorGroups.length || 1;
     const count = this.coerceCount(raw, 1, 500);
-    if (count < current && this.hasAssignedOnOrAboveFloor(count + 1)) {
-      this.setupForm.controls.floorCount.setValue(current, { emitEvent: false });
-      this.validationError.set('Cannot reduce floors: assigned seats exist on removed floor(s).');
-      return;
+    if (count < current) {
+      const floors = this.formToLayoutFloors();
+      const firstRemoved = Number(floors[count]?.floorNumber);
+      if (Number.isFinite(firstRemoved) && this.hasAssignedOnOrAboveFloor(firstRemoved)) {
+        this.setupForm.controls.floorCount.setValue(current, { emitEvent: false });
+        this.validationError.set('Cannot reduce floors: assigned seats exist on removed floor(s).');
+        return;
+      }
     }
     this.setupForm.controls.floorCount.setValue(count, { emitEvent: false });
     this.rebuildFloors(count);
@@ -782,7 +787,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   onRoomCountChange(floorIndex: number, raw: unknown): void {
     const rooms = this.roomGroupsAt(floorIndex);
     const count = this.coerceCount(raw, 1, 500);
-    const floorNumber = floorIndex + 1;
+    const floorNumber = this.floorNumberAtFormIndex(floorIndex);
     if (count < rooms.length && this.hasAssignedOnOrAboveRoom(floorNumber, count + 1)) {
       const floorGroup = this.floorGroups.at(floorIndex);
       floorGroup.get('roomCount')?.setValue(rooms.length, { emitEvent: false });
@@ -810,7 +815,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const room = this.roomGroupsAt(floorIndex).at(roomIndex);
     const currentBeds = Math.max(1, Number(room.get('beds')?.value) || 1);
     const nextBeds = this.coerceCount(raw, 1, 500);
-    const floorNumber = floorIndex + 1;
+    const floorNumber = this.floorNumberAtFormIndex(floorIndex);
     const roomNumber = roomIndex + 1;
     if (nextBeds < currentBeds && this.hasAssignedOnOrAboveBed(floorNumber, roomNumber, nextBeds + 1)) {
       room.get('beds')?.setValue(currentBeds, { emitEvent: false });
@@ -844,6 +849,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     this.floorGroups.clear();
     for (let i = 0; i < floorCount; i += 1) {
       const floor = layout.floors[i] ?? { floorNumber: i + 1, rooms: [{ roomNumber: 1, beds: 1 }] };
+      const stored = Math.trunc(Number(floor.floorNumber));
+      const floorNumber = Number.isFinite(stored) ? stored : i + 1;
       const rooms = this.fb.array(
         (floor.rooms.length ? floor.rooms : [{ roomNumber: 1, beds: 1 }]).map((room, idx) =>
           this.fb.nonNullable.group({
@@ -854,7 +861,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       );
       this.floorGroups.push(
         this.fb.nonNullable.group({
-          floorNumber: i + 1,
+          floorNumber,
           roomCount: rooms.length,
           rooms,
         }),
@@ -862,11 +869,30 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     }
   }
 
+  private defaultFloorNumberForIndex(i: number, current: PgFloorLayout[]): number {
+    if (i < current.length) {
+      const n = Math.trunc(Number(current[i].floorNumber));
+      return Number.isFinite(n) ? n : i;
+    }
+    let maxF = -Infinity;
+    for (const fl of current) {
+      const n = Math.trunc(Number(fl.floorNumber));
+      if (Number.isFinite(n) && n > maxF) maxF = n;
+    }
+    if (!Number.isFinite(maxF)) return i;
+    return maxF + 1 + (i - current.length);
+  }
+
   private rebuildFloors(targetCount: number): void {
     const current = this.formToLayoutFloors();
     this.floorGroups.clear();
     for (let i = 0; i < targetCount; i += 1) {
-      const floor = current[i] ?? { floorNumber: i + 1, rooms: [{ roomNumber: 1, beds: 1 }] };
+      const floor: PgFloorLayout =
+        current[i] ??
+        ({
+          floorNumber: this.defaultFloorNumberForIndex(i, current),
+          rooms: [{ roomNumber: 1, beds: 1 }],
+        } as PgFloorLayout);
       const rooms = this.fb.array(
         (floor.rooms.length ? floor.rooms : [{ roomNumber: 1, beds: 1 }]).map((room, idx) =>
           this.fb.nonNullable.group({
@@ -875,9 +901,10 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
           }),
         ),
       );
+      const fn = Math.trunc(Number(floor.floorNumber));
       this.floorGroups.push(
         this.fb.nonNullable.group({
-          floorNumber: i + 1,
+          floorNumber: Number.isFinite(fn) ? fn : this.defaultFloorNumberForIndex(i, current),
           roomCount: rooms.length,
           rooms,
         }),
@@ -898,11 +925,19 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
         roomNumber: roomIdx + 1,
         beds: Math.max(1, Number(roomCtrl.get('beds')?.value) || 1),
       }));
+      const fromCtrl = Math.trunc(Number(floorCtrl.get('floorNumber')?.value));
+      const floorNumber = Number.isFinite(fromCtrl) ? fromCtrl : floorIdx;
       return {
-        floorNumber: floorIdx + 1,
+        floorNumber,
         rooms,
       };
     });
+  }
+
+  floorNumberAtFormIndex(floorIndex: number): number {
+    const raw = this.floorGroups.at(floorIndex)?.get('floorNumber')?.value;
+    const n = Math.trunc(Number(raw));
+    return Number.isFinite(n) ? n : floorIndex;
   }
 
   private coerceCount(v: unknown, min: number, max: number): number {
@@ -979,7 +1014,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   }
 
   formatRoomNumber(floorNumber: number, roomNumber: number): string {
-    return `${floorNumber}${roomNumber.toString().padStart(2, '0')}`;
+    return formatPgRoomLabel(floorNumber, roomNumber);
   }
 
   private bedKey(floor: unknown, room: unknown, bed: unknown): string {
@@ -987,7 +1022,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const r = Number(room);
     const b = Number(bed);
     if (!Number.isFinite(f) || !Number.isFinite(r) || !Number.isFinite(b)) return '';
-    if (f <= 0 || r <= 0 || b <= 0) return '';
+    if (f < 0 || r <= 0 || b <= 0) return '';
     return `${Math.trunc(f)}-${Math.trunc(r)}-${Math.trunc(b)}`;
   }
 
@@ -1127,7 +1162,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       f = Number(floor);
       r = roomNum;
       
-      if (!Number.isFinite(f) || f <= 0) {
+      if (!Number.isFinite(f) || f < 0) {
         return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Invalid floor value' };
       }
     }
