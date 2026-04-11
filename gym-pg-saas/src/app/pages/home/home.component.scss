@@ -9,6 +9,13 @@
     linear-gradient(180deg, #f8fafc 0%, #eef2ff 45%, #f8fafc 100%);
 }
 
+:host-context(html.dark) .home-bg {
+  background:
+    radial-gradient(780px 380px at 0% 0%, rgba(59, 130, 246, 0.18), transparent 58%),
+    radial-gradient(720px 360px at 100% 0%, rgba(56, 189, 248, 0.12), transparent 58%),
+    linear-gradient(180deg, #020617 0%, #0f172a 42%, #020617 100%);
+}
+
 .hero-glow {
   position: absolute;
   right: -120px;

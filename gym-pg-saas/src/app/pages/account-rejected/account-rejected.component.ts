@@ -27,7 +27,7 @@ import { BrandLogoComponent } from '../../shared/brand-logo.component';
             <p class="font-semibold text-slate-900">Need reactivation?</p>
             <p class="mt-1">
               Contact admin on
-              <span class="font-semibold text-slate-900">+91 7522935014</span>.
+              <span class="font-semibold text-slate-900">+91 6300675014</span>.
             </p>
             <a
               class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
@@ -69,7 +69,7 @@ export class AccountRejectedComponent {
   }
 
   adminWhatsAppUrl(): string {
-    const phone = '917522935014';
+    const phone = '916300675014';
     const name = this.profile()?.name || '';
     const email = this.profile()?.email || this.auth.user()?.email || '';
     const msg = `Hi Admin, my account is inactive and I need reactivation support.\n\nName: ${name}\nEmail: ${email}`;
