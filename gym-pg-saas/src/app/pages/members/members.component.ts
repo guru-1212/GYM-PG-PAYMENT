@@ -27,7 +27,7 @@ import {
   timestampToDate,
 } from '../../core/utils/date.utils';
 import { formatPgRoomLabel } from '../../core/utils/pg-layout-display.utils';
-import { optionalDigitsLen, positiveAmount, dueDateAfterJoinDate } from '../../core/utils/validators';
+import { applyDigitsOnlyFromInput, optionalDigitsLen, positiveAmount, dueDateAfterJoinDate } from '../../core/utils/validators';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
@@ -940,6 +940,14 @@ export class MembersComponent implements OnInit, OnDestroy {
       el.value = digitsOnly;
     }
     this.onManualSeatInput();
+  }
+
+  onMemberMobileInput(event: Event): void {
+    applyDigitsOnlyFromInput(this.memberForm.controls.mobile, event, 10);
+  }
+
+  onAadhaarDigitsInput(event: Event): void {
+    applyDigitsOnlyFromInput(this.memberForm.controls.aadhaarLast4, event, 12);
   }
 
   /** Blue = partial payment pending, red = overdue, orange = due soon, green = active / further out, neutral = inactive / unknown */

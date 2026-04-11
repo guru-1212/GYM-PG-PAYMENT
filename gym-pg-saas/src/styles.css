@@ -166,6 +166,7 @@ html.dark .status-pill-due-soon {
 /*
  * Dark mode readability: templates use many `text-slate-*` / `bg-white*` utilities.
  * Remap neutrals so copy stays legible on dark surfaces (no TS/template churn).
+ * Include every `bg-white/*` opacity used in templates so light glass does not leak in dark mode.
  */
 html.dark .text-slate-900 {
   @apply text-slate-50;
@@ -233,8 +234,13 @@ html.dark .bg-white\/85,
 html.dark .bg-white\/80,
 html.dark .bg-white\/75,
 html.dark .bg-white\/70,
+html.dark .bg-white\/65,
 html.dark .bg-white\/60,
-html.dark .bg-white\/45 {
+html.dark .bg-white\/55,
+html.dark .bg-white\/50,
+html.dark .bg-white\/45,
+html.dark .bg-white\/40,
+html.dark .bg-white\/35 {
   @apply bg-slate-900/95;
 }
 
@@ -301,6 +307,24 @@ html.dark .hover\:bg-slate-100:hover {
 html.dark .hover\:bg-white:hover {
   @apply bg-slate-800;
 }
+
+html.dark .hover\:bg-white\/50:hover {
+  @apply bg-slate-800/85;
+}
+
+html.dark .hover\:bg-white\/80:hover {
+  @apply bg-slate-800/95;
+}
+
+/* Gradient stops that still read as “white glass” in dark mode */
+html.dark .from-white\/70 {
+  --tw-gradient-from: rgb(15 23 42 / 0.9) var(--tw-gradient-from-position);
+}
+
+html.dark .to-indigo-50\/40 {
+  --tw-gradient-to: rgb(49 46 129 / 0.4) var(--tw-gradient-to-position);
+}
+
 html.dark .hover\:bg-indigo-50\/60:hover {
   @apply bg-indigo-950/50;
 }

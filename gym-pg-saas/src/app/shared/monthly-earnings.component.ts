@@ -111,7 +111,7 @@ import { Member } from '../core/models/member.model';
                   [class.text-green-700]="filterMethod() !== 'cash'"
                   class="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-200"
                 >
-                  <span class="material-icons text-lg">local_atm</span>
+                  <span class="material-icons text-lg"></span>
                   Cash
                 </button>
                 <button

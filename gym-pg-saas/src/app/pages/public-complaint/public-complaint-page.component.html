@@ -18,10 +18,12 @@
             formControlName="mobile"
             inputmode="numeric"
             maxlength="10"
+            autocomplete="tel"
             placeholder="10 digit mobile"
+            (input)="onMobileInput($event)"
           />
           @if (form.controls.mobile.touched && form.controls.mobile.invalid) {
-            <p class="mt-1 text-xs text-red-600">Enter valid 10-digit mobile</p>
+            <p class="mt-1 text-xs text-red-600">Enter exactly 10 digits (numbers only, no spaces or symbols)</p>
           }
         </div>
 

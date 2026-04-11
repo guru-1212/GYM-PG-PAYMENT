@@ -1,12 +1,16 @@
 import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
 
-/** Optional field: if anything is entered, value must be exactly `len` digits (after stripping non-digits). */
+/**
+ * Optional field: empty OK; if non-empty, value must be digits only (no spaces/symbols) and exactly `len` digits.
+ */
 export function optionalDigitsLen(len: number): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
     const v = control.value;
     if (v === null || v === undefined || v === '') return null;
-    const digits = String(v).replace(/\D/g, '');
-    return digits.length === len ? null : { digitsLen: { requiredLen: len } };
+    const s = String(v).trim();
+    if (s === '') return null;
+    if (!/^\d+$/.test(s)) return { digitsOnly: true };
+    return s.length === len ? null : { digitsLen: { requiredLen: len } };
   };
 }
 
@@ -40,4 +44,16 @@ export function dueDateAfterJoinDate(): ValidatorFn {
 
     return dueDateObj >= joinDateObj ? null : { dueDateBeforeJoinDate: true };
   };
+}
+
+export function applyDigitsOnlyFromInput(control: AbstractControl, event: Event, maxLen?: number): void {
+  const el = event.target as HTMLInputElement;
+  let digits = el.value.replace(/\D/g, '');
+  if (maxLen !== undefined && digits.length > maxLen) {
+    digits = digits.slice(0, maxLen);
+  }
+  control.setValue(digits, { emitEvent: true });
+  if (el.value !== digits) {
+    el.value = digits;
+  }
 }

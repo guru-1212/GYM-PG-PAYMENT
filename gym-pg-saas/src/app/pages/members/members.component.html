@@ -339,9 +339,16 @@
         formControlName="mobile"
         class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
         inputmode="numeric"
+        maxlength="10"
+        autocomplete="tel"
+        (input)="onMemberMobileInput($event)"
       />
-      @if (memberForm.controls.mobile.touched && memberForm.controls.mobile.hasError('digitsLen')) {
-        <p class="mt-1 text-sm text-red-600">Enter 10 digits or leave blank</p>
+      @if (memberForm.controls.mobile.touched && memberForm.controls.mobile.invalid) {
+        @if (memberForm.controls.mobile.hasError('digitsOnly')) {
+          <p class="mt-1 text-sm text-red-600">Mobile must be numbers only (no spaces or symbols)</p>
+        } @else if (memberForm.controls.mobile.hasError('digitsLen')) {
+          <p class="mt-1 text-sm text-red-600">Enter 10 digits or leave blank</p>
+        }
       }
     </div>
     <div>
@@ -578,9 +585,14 @@
             maxlength="12"
             class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
             inputmode="numeric"
+            (input)="onAadhaarDigitsInput($event)"
           />
-          @if (memberForm.controls.aadhaarLast4.touched && memberForm.controls.aadhaarLast4.hasError('digitsLen')) {
-            <p class="mt-1 text-sm text-red-600">Exactly 4 digits or leave blank</p>
+          @if (memberForm.controls.aadhaarLast4.touched && memberForm.controls.aadhaarLast4.invalid) {
+            @if (memberForm.controls.aadhaarLast4.hasError('digitsOnly')) {
+              <p class="mt-1 text-sm text-red-600">Aadhaar must be numbers only (no spaces or symbols)</p>
+            } @else if (memberForm.controls.aadhaarLast4.hasError('digitsLen')) {
+              <p class="mt-1 text-sm text-red-600">Exactly 12 digits or leave blank</p>
+            }
           }
         </div>
         <div>

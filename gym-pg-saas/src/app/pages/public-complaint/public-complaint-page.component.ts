@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ComplaintService } from '../../core/services/complaint.service';
+import { applyDigitsOnlyFromInput } from '../../core/utils/validators';
 
 @Component({
   selector: 'app-public-complaint-page',
@@ -26,6 +27,10 @@ export class PublicComplaintPageComponent {
     mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
     message: ['', [Validators.required, Validators.minLength(5)]],
   });
+
+  onMobileInput(event: Event): void {
+    applyDigitsOnlyFromInput(this.form.controls.mobile, event, 10);
+  }
 
   constructor() {
     void this.loadOwnerSetting();
