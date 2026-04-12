@@ -9,6 +9,9 @@ export interface Owner {
   name: string;
   businessName?: string;
   email: string;
+  /** E.164 when the account was verified with Firebase Phone Auth at sign-up. */
+  phone?: string;
+  phoneVerified?: boolean;
   businessType: BusinessType;
   role: OwnerRole;
   status: OwnerStatus;

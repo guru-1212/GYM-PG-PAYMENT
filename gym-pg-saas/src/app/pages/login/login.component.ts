@@ -1,8 +1,19 @@
-import { Component, OnInit, computed, inject, isDevMode, signal } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  Injector,
+  OnDestroy,
+  OnInit,
+  computed,
+  inject,
+  runInInjectionContext,
+  signal,
+} from '@angular/core';
 import { merge } from 'rxjs';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { firebaseConfig } from '../../config/firebase.config';
+import { normalizeOwnerPhone } from '../../core/utils/phone-auth.util';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
 import { NotificationService } from '../../core/services/notification.service';
@@ -10,6 +21,7 @@ import { ToastService } from '../../core/services/toast.service';
 // import { LanguageSwitcherComponent } from '../../shared/language-switcher.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../../shared/brand-logo.component';
+import { TranslationService } from '../../core/services/translation.service';
 
 @Component({
   selector: 'app-login',
@@ -17,9 +29,11 @@ import { BrandLogoComponent } from '../../shared/brand-logo.component';
   imports: [ReactiveFormsModule, TranslatePipe, BrandLogoComponent],
   templateUrl: './login.component.html',
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent implements OnInit, OnDestroy {
+  private readonly injector = inject(Injector);
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
+  private readonly i18n = inject(TranslationService);
   private readonly cache = inject(DataCacheService);
   private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
@@ -32,17 +46,32 @@ export class LoginComponent implements OnInit {
   readonly signInError = signal('');
   readonly showSignInPassword = signal(false);
   readonly showSignUpPassword = signal(false);
+  readonly showForgotPassword = signal(false);
+  /** `'details'` → send SMS; `'otp'` → verify code then create account. */
+  readonly signUpPhase = signal<'details' | 'otp'>('details');
+  readonly signUpOtp = signal('');
   /** PG-only sign-up for now; restore `'gym'` when gym onboarding returns. */
   readonly businessTypeSignal = signal<'gym' | 'pg'>('pg');
 
+  /** After `auth/too-many-requests`, block Send until this time (epoch ms). */
+  private readonly signUpSmsBlockedUntilMs = signal(0);
+  /** Bumped every second while blocked so the template countdown updates. */
+  private readonly signUpSmsCooldownPulse = signal(0);
+  private signUpSmsCooldownIntervalId: ReturnType<typeof setInterval> | null = null;
+
   readonly signInForm = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
+    identifier: ['', [Validators.required, signInIdentifierValidator]],
     password: ['', [Validators.required, Validators.minLength(6)]],
+  });
+
+  readonly forgotForm = this.fb.nonNullable.group({
+    identifier: ['', [Validators.required, signInIdentifierValidator]],
   });
 
   readonly signUpForm = this.fb.nonNullable.group({
     name: ['', Validators.required],
     businessName: ['', Validators.required],
+    phone: ['', [Validators.required, ownerSignUpPhoneValidator]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, strongSignupPasswordValidator]],
     businessType: this.fb.nonNullable.control<'gym' | 'pg'>('pg', Validators.required),
@@ -56,17 +85,21 @@ export class LoginComponent implements OnInit {
     return this.businessTypeSignal() === 'pg' ? 'login.enterPgName' : 'login.enterGymName';
   });
 
+  ngOnDestroy(): void {
+    this.clearSignUpSmsCooldownTimer();
+  }
+
   ngOnInit(): void {
     this.notifications.requestPermissionOnce();
     const requestedMode = (this.route.snapshot.queryParamMap.get('mode') || '').toLowerCase().trim();
-    if (requestedMode === 'signup') this.mode.set('signup');
-    if (requestedMode === 'signin') this.mode.set('signin');
+    if (requestedMode === 'signup') this.setMode('signup');
+    else if (requestedMode === 'signin') this.setMode('signin');
     // Re-enable when gym / PG toggle is shown again on sign-up.
     // this.signUpForm.controls.businessType.valueChanges.subscribe((value) => {
     //   this.businessTypeSignal.set(value);
     // });
     merge(
-      this.signInForm.controls.email.valueChanges,
+      this.signInForm.controls.identifier.valueChanges,
       this.signInForm.controls.password.valueChanges,
     ).subscribe(() => this.signInError.set(''));
   }
@@ -74,6 +107,36 @@ export class LoginComponent implements OnInit {
   setMode(m: 'signin' | 'signup'): void {
     this.mode.set(m);
     this.signInError.set('');
+    this.showForgotPassword.set(false);
+    this.auth.disposeOwnerSignUpPhone();
+    if (m === 'signup') {
+      this.signUpPhase.set('details');
+      this.signUpOtp.set('');
+      this.scheduleOwnerSignupRecaptchaMount();
+    } else {
+      this.clearSignUpSmsCooldownTimer();
+      this.signUpSmsBlockedUntilMs.set(0);
+    }
+  }
+
+  /**
+   * Mount reCAPTCHA once the sign-up template exists (same intent as ngOnInit + initRecaptcha, but the
+   * `#recaptcha-container` node is absent until `mode === 'signup'`). Never create the verifier inside `sendOtp`.
+   */
+  private scheduleOwnerSignupRecaptchaMount(): void {
+    runInInjectionContext(this.injector, () => {
+      afterNextRender(() => {
+        if (this.mode() !== 'signup' || this.signUpPhase() !== 'details') return;
+        void this.auth.ensurePhoneAuthRecaptcha(this.auth.phoneAuthRecaptchaContainerId).catch(() => {
+          /* ignore — user can retry on Send */
+        });
+      });
+    });
+  }
+
+  /** E.164 preview for SMS (10-digit India → +91…). */
+  normalizedSignUpPhoneDisplay(): string | null {
+    return normalizeOwnerPhone(this.signUpForm.controls.phone.value);
   }
 
   /** For sign-up template: missing password rules when `strongPassword` error is set. */
@@ -91,12 +154,7 @@ export class LoginComponent implements OnInit {
     this.signInError.set('');
     this.busy.set(true);
     try {
-      console.log(
-        '%c PayBook ',
-        'background:#0369a1;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;',
-        'Sign-in submitted — if you see nothing below, open DevTools → Console and set level to "All" (not only Errors).',
-      );
-      await this.auth.signIn(this.signInForm.controls.email.value, this.signInForm.controls.password.value);
+      await this.auth.signIn(this.signInForm.controls.identifier.value, this.signInForm.controls.password.value);
       const load = await this.auth.loadProfileOnce();
       const p = load.owner;
       if (isDevMode()) {
@@ -132,21 +190,76 @@ export class LoginComponent implements OnInit {
     }
   }
 
-  async onSignUp(): Promise<void> {
+  /** Seconds left before Send SMS is allowed again (0 = not blocked). */
+  signUpSmsCooldownSecondsLeft(): number {
+    this.signUpSmsCooldownPulse();
+    const until = this.signUpSmsBlockedUntilMs();
+    if (!until) return 0;
+    return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  }
+
+  signUpSendSmsDisabledByCooldown(): boolean {
+    return this.signUpSmsCooldownSecondsLeft() > 0;
+  }
+
+  /** Step 1: SMS OTP to the mobile on the form (Firebase Phone Auth + invisible reCAPTCHA). */
+  async onSendSignUpOtp(): Promise<void> {
     if (this.signUpForm.invalid) {
       this.signUpForm.markAllAsTouched();
       return;
     }
+    if (this.signUpSendSmsDisabledByCooldown()) {
+      this.toast.error(
+        this.i18n.t('login.smsCooldownActive', { seconds: this.signUpSmsCooldownSecondsLeft() }),
+      );
+      return;
+    }
     this.busy.set(true);
     try {
-      await this.auth.signUp(
-        this.signUpForm.controls.email.value,
-        this.signUpForm.controls.password.value,
-        this.signUpForm.controls.name.value,
-        this.signUpForm.controls.businessName.value,
-        this.signUpForm.controls.businessType.value,
-      );
+      const phone = normalizeOwnerPhone(this.signUpForm.controls.phone.value);
+      if (!phone) {
+        this.toast.error('Enter a valid mobile number (10 digits or +country code).');
+        return;
+      }
+      await this.auth.ensurePhoneAuthRecaptcha(this.auth.phoneAuthRecaptchaContainerId);
+      await this.auth.sendOtp(phone);
+      this.signUpPhase.set('otp');
+      this.signUpOtp.set('');
+      this.toast.success('Verification code sent to your mobile.');
+    } catch (e: unknown) {
+      this.auth.disposeOwnerSignUpPhone();
+      this.scheduleOwnerSignupRecaptchaMount();
+      const code = e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+      if (code === 'auth/too-many-requests') {
+        this.startSignUpSmsCooldown(120);
+      }
+      if (code === 'auth/invalid-app-credential' || code === 'auth/captcha-check-failed') {
+        this.logInvalidAppCredentialHelp(code);
+      }
+      this.toast.error(this.signUpOtpErrorMessage(e));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /** Step 2: confirm OTP, link password, create Firestore owner profile. */
+  async onVerifySignUpOtp(): Promise<void> {
+    const otp = this.signUpOtp().trim();
+    if (!/^\d{4,8}$/.test(otp)) {
+      this.toast.error('Enter the verification code from the SMS (usually 6 digits).');
+      return;
+    }
+    this.busy.set(true);
+    try {
+      await this.auth.completeOwnerSignUpWithOtp(otp, {
+        contactEmail: this.signUpForm.controls.email.value,
+        password: this.signUpForm.controls.password.value,
+        name: this.signUpForm.controls.name.value,
+        businessName: this.signUpForm.controls.businessName.value,
+        businessType: this.signUpForm.controls.businessType.value,
+      });
       await this.auth.refreshProfile();
+      this.auth.disposeOwnerSignUpPhone();
       this.toast.success('Account created. Waiting for admin approval.');
       await this.router.navigateByUrl('/pending-approval');
     } catch (e: unknown) {
@@ -159,9 +272,38 @@ export class LoginComponent implements OnInit {
         this.toast.error(
           'Password is too weak for Firebase. Use at least 8 characters with uppercase, lowercase, a number, and a symbol.',
         );
+      } else if (code === 'auth/invalid-verification-code' || code === 'auth/code-expired') {
+        this.toast.error('Invalid or expired code. Check the SMS and try again.');
+      } else if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
+        this.toast.error('This mobile or email is already registered. Try signing in instead.');
       } else {
         this.toast.error(this.msg(e, 'Sign up failed'));
       }
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  backToSignUpDetails(): void {
+    this.signUpPhase.set('details');
+    this.signUpOtp.set('');
+    this.auth.disposeOwnerSignUpPhone();
+    this.scheduleOwnerSignupRecaptchaMount();
+  }
+
+  async onForgotPasswordSubmit(): Promise<void> {
+    if (this.forgotForm.invalid) {
+      this.forgotForm.markAllAsTouched();
+      return;
+    }
+    this.busy.set(true);
+    try {
+      await this.auth.sendOwnerPasswordReset(this.forgotForm.controls.identifier.value);
+      this.toast.success('If an account exists, a password reset email was sent. Check your inbox.');
+      this.showForgotPassword.set(false);
+      this.forgotForm.reset();
+    } catch (e: unknown) {
+      this.toast.error(this.forgotPasswordErrorMessage(e));
     } finally {
       this.busy.set(false);
     }
@@ -213,9 +355,11 @@ export class LoginComponent implements OnInit {
       case 'auth/user-not-found':
       case 'auth/invalid-credential':
       case 'auth/invalid-login-credentials':
-        return 'Email or password is incorrect. Please check and try again.';
+        return 'Mobile/email or password is incorrect. Please check and try again.';
       case 'auth/invalid-email':
         return 'Please enter a valid email address.';
+      case 'auth/invalid-phone-number':
+        return 'Please enter a valid mobile number (with country code, e.g. +91…).';
       case 'auth/user-disabled':
         return 'This account has been disabled. Contact support if you need help.';
       case 'auth/too-many-requests':
@@ -226,6 +370,124 @@ export class LoginComponent implements OnInit {
         return this.msg(e, 'Sign in failed. Please try again.');
     }
   }
+
+  private signUpOtpErrorMessage(e: unknown): string {
+    const code =
+      e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+    const serverHint = this.identityToolkitErrorHint(e);
+    switch (code) {
+      case 'auth/captcha-check-failed':
+      case 'auth/invalid-app-credential': {
+        const base = this.i18n.t('login.recaptchaOrApiRejected');
+        return serverHint ? `${base} ${serverHint}` : base;
+      }
+      case 'auth/missing-client-identifier':
+        return 'Phone auth could not verify this app. Check Firebase Console → Authentication → Settings → Authorized domains includes localhost.';
+      case 'auth/too-many-requests':
+        return this.i18n.t('login.smsTooManyRequestsToast', { minutes: 2 });
+      case 'auth/invalid-phone-number':
+      case 'auth/missing-phone-number':
+        return (
+          'Invalid mobile number for SMS. Use +country code or a valid 10-digit India mobile (sent as +91…). ' +
+          serverHint
+        ).trim();
+      case 'auth/quota-exceeded':
+        return 'SMS quota exceeded. Try again later or contact support.';
+      case 'auth/missing-verification':
+        return 'Please send the verification code first.';
+      case 'auth/operation-not-allowed':
+        return 'Phone sign-in is disabled for this Firebase project. Enable Phone in Authentication → Sign-in method.';
+      default: {
+        const base = this.msg(e, 'Could not send verification code.');
+        return serverHint ? `${base} ${serverHint}` : base;
+      }
+    }
+  }
+
+  /** Extra detail from Identity Toolkit REST body when present (helps interpret HTTP 400). */
+  /** Long checklist only in dev console so the toast stays short. */
+  private logInvalidAppCredentialHelp(code: string): void {
+    if (environment.production) return;
+    console.warn(
+      `[Login] ${code} — phone / reCAPTCHA checklist (dev only):\n` +
+        '1) Google Cloud Console → APIs & Services → Credentials → your Browser (Web) API key:\n' +
+        '   • Application restrictions → HTTP referrers → add http://localhost:4200/* and http://127.0.0.1:4200/*\n' +
+        '   • API restrictions → allow “Identity Toolkit API” (or “Don’t restrict key” while debugging)\n' +
+        '2) Firebase Console → Authentication → Settings → Authorized domains → include localhost\n' +
+        '3) If you set Content-Security-Policy (enforced): allow script-src + frame-src for https://www.google.com and https://www.gstatic.com;\n' +
+        '   connect-src must include https://identitytoolkit.googleapis.com\n' +
+        '4) “Content-Security-Policy: Report-Only” / frame-ancestors lines in the console are warnings only, not blocks.\n' +
+        '5) Try Chrome or disable strict privacy / ad-block extensions on localhost if it still fails.',
+    );
+  }
+
+  private identityToolkitErrorHint(e: unknown): string {
+    if (!e || typeof e !== 'object') return '';
+    const customData = (e as { customData?: Record<string, unknown> }).customData;
+    const sr = customData?.['_serverResponse'];
+    if (sr && typeof sr === 'object') {
+      const nested = (sr as { error?: { message?: string; errors?: { message?: string }[] } }).error;
+      if (nested && typeof nested === 'object') {
+        if (typeof nested.message === 'string' && nested.message.trim()) {
+          return `(${nested.message.trim()})`;
+        }
+        const first = nested.errors?.[0]?.message;
+        if (typeof first === 'string' && first.trim()) {
+          return `(${first.trim()})`;
+        }
+      }
+    }
+    return '';
+  }
+
+  private startSignUpSmsCooldown(totalSeconds: number): void {
+    this.clearSignUpSmsCooldownTimer();
+    this.signUpSmsBlockedUntilMs.set(Date.now() + totalSeconds * 1000);
+    this.signUpSmsCooldownPulse.update((n) => n + 1);
+    this.signUpSmsCooldownIntervalId = window.setInterval(() => {
+      if (Date.now() >= this.signUpSmsBlockedUntilMs()) {
+        this.signUpSmsBlockedUntilMs.set(0);
+        this.clearSignUpSmsCooldownTimer();
+      }
+      this.signUpSmsCooldownPulse.update((n) => n + 1);
+    }, 1000);
+  }
+
+  private clearSignUpSmsCooldownTimer(): void {
+    if (this.signUpSmsCooldownIntervalId !== null) {
+      window.clearInterval(this.signUpSmsCooldownIntervalId);
+      this.signUpSmsCooldownIntervalId = null;
+    }
+  }
+
+  private forgotPasswordErrorMessage(e: unknown): string {
+    const code =
+      e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+    switch (code) {
+      case 'auth/invalid-email':
+      case 'auth/invalid-phone-number':
+        return 'Enter a valid email or mobile number.';
+      case 'auth/user-not-found':
+        return 'No account found for this email or mobile.';
+      default:
+        return this.msg(e, 'Could not send reset email.');
+    }
+  }
+}
+
+function signInIdentifierValidator(control: AbstractControl): ValidationErrors | null {
+  const raw = String(control.value ?? '').trim();
+  if (!raw) return { required: true };
+  if (raw.includes('@')) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) ? null : { email: true };
+  }
+  return normalizeOwnerPhone(raw) ? null : { phone: true };
+}
+
+function ownerSignUpPhoneValidator(control: AbstractControl): ValidationErrors | null {
+  const raw = String(control.value ?? '').trim();
+  if (!raw) return { required: true };
+  return normalizeOwnerPhone(raw) ? null : { phone: true };
 }
 
 /** Sign-up only: ≥8 chars, uppercase, lowercase, digit, special symbol. */
