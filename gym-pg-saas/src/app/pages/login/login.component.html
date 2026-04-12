@@ -66,18 +66,28 @@
 
         <div class="mt-6 saas-card border-white/70 bg-white/65 p-6 shadow-[0_18px_35px_rgba(0,0,0,0.08)] backdrop-blur-xl animate-[fadeIn_0.35s_ease]">
       @if (mode() === 'signin') {
+        <div class="space-y-4">
         <form [formGroup]="signInForm" (ngSubmit)="onSignIn()" class="space-y-4">
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="email">{{ 'login.email' | t }}</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="identifier">{{
+              'login.mobileOrEmail' | t
+            }}</label>
             <input
-              id="email"
-              type="email"
-              formControlName="email"
+              id="identifier"
+              type="text"
+              formControlName="identifier"
               class="saas-input w-full"
-              autocomplete="email"
+              [attr.autocomplete]="'username'"
+              [placeholder]="'login.mobileOrEmailPlaceholder' | t"
             />
-            @if (signInForm.controls.email.touched && signInForm.controls.email.invalid) {
-              <p class="mt-1 text-sm text-red-600">{{ 'login.validEmail' | t }}</p>
+            @if (signInForm.controls.identifier.touched && signInForm.controls.identifier.invalid) {
+              @if (signInForm.controls.identifier.hasError('required')) {
+                <p class="mt-1 text-sm text-red-600">{{ 'login.identifierRequired' | t }}</p>
+              } @else if (signInForm.controls.identifier.hasError('email')) {
+                <p class="mt-1 text-sm text-red-600">{{ 'login.validEmail' | t }}</p>
+              } @else if (signInForm.controls.identifier.hasError('phone')) {
+                <p class="mt-1 text-sm text-red-600">{{ 'login.phoneInvalid' | t }}</p>
+              }
             }
           </div>
           <div>
@@ -122,8 +132,40 @@
             {{ 'login.signInBtn' | t }}
           </button>
         </form>
+          <button
+            type="button"
+            class="w-full text-center text-sm font-medium text-indigo-700 underline-offset-2 hover:underline"
+            (click)="showForgotPassword.set(!showForgotPassword())"
+          >
+            {{ 'login.forgotPassword' | t }}
+          </button>
+          @if (showForgotPassword()) {
+            <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+              <p class="mb-3 text-xs text-slate-600">{{ 'login.resetPasswordHint' | t }}</p>
+              <form [formGroup]="forgotForm" (ngSubmit)="onForgotPasswordSubmit()" class="space-y-3">
+                <input
+                  type="text"
+                  formControlName="identifier"
+                  class="saas-input w-full"
+                  [placeholder]="'login.mobileOrEmailPlaceholder' | t"
+                />
+                @if (forgotForm.controls.identifier.touched && forgotForm.controls.identifier.invalid) {
+                  <p class="text-sm text-red-600">{{ 'login.identifierInvalid' | t }}</p>
+                }
+                <button
+                  type="submit"
+                  class="saas-btn-primary flex w-full items-center justify-center gap-2 py-3 text-sm disabled:opacity-60"
+                  [disabled]="busy()"
+                >
+                  {{ 'login.sendResetEmail' | t }}
+                </button>
+              </form>
+            </div>
+          }
+        </div>
       } @else {
-        <form [formGroup]="signUpForm" (ngSubmit)="onSignUp()" class="space-y-4">
+        @if (signUpPhase() === 'details') {
+        <form [formGroup]="signUpForm" (ngSubmit)="onSendSignUpOtp()" class="space-y-4">
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700" for="name">{{ 'login.yourName' | t }}</label>
             <input
@@ -183,7 +225,31 @@
             }
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="semail">{{ 'login.email' | t }}</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="sphone">{{ 'login.mobile' | t }}</label>
+            <input
+              id="sphone"
+              type="tel"
+              formControlName="phone"
+              class="saas-input w-full"
+              autocomplete="tel"
+              [placeholder]="'login.mobileHint' | t"
+            />
+            <p class="mt-1 text-xs text-slate-500">{{ 'login.mobileVerifyHint' | t }}</p>
+            @if (normalizedSignUpPhoneDisplay(); as smsTo) {
+              <p class="mt-1 text-xs font-medium text-emerald-800">
+                {{ 'login.smsWillBeSentTo' | t }} <span class="font-mono">{{ smsTo }}</span>
+              </p>
+            }
+            @if (signUpForm.controls.phone.touched && signUpForm.controls.phone.invalid) {
+              @if (signUpForm.controls.phone.hasError('required')) {
+                <p class="mt-1 text-sm text-red-600">{{ 'login.mobileRequired' | t }}</p>
+              } @else if (signUpForm.controls.phone.hasError('phone')) {
+                <p class="mt-1 text-sm text-red-600">{{ 'login.phoneInvalid' | t }}</p>
+              }
+            }
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="semail">{{ 'login.contactEmail' | t }}</label>
             <input
               id="semail"
               type="email"
@@ -256,16 +322,25 @@
               }
             }
           </div>
-         
+
+          <div class="rounded-xl border border-slate-200 bg-slate-50/90 p-3">
+            <p class="mb-2 text-xs font-medium text-slate-700">{{ 'login.recaptchaHint' | t }}</p>
+            <div id="recaptcha-container" class="flex min-h-[4.5rem] items-center justify-start"></div>
+          </div>
+
           <button
             type="submit"
             class="saas-btn-primary flex w-full items-center justify-center gap-2 py-4 text-base disabled:opacity-60"
-            [disabled]="busy()"
+            [disabled]="busy() || signUpSendSmsDisabledByCooldown()"
           >
             @if (busy()) {
               <span class="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
             }
-            {{ 'login.createAccount' | t }}
+            @if (signUpSendSmsDisabledByCooldown()) {
+              {{ 'login.sendOtpWait' | t: { seconds: signUpSmsCooldownSecondsLeft() } }}
+            } @else {
+              {{ 'login.sendOtp' | t }}
+            }
           </button>
           <p class="text-center text-xs text-slate-500">
             {{ 'login.adminApprove' | t }}
@@ -286,6 +361,44 @@
             {{ 'login.contactWhatsApp' | t }}
           </a>
         </form>
+        } @else {
+          <div class="space-y-4">
+            <p class="text-sm text-slate-600">{{ 'login.enterOtpBlurb' | t }}</p>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700" for="otp">{{ 'login.enterOtp' | t }}</label>
+              <input
+                id="otp"
+                type="text"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                maxlength="8"
+                class="saas-input w-full tracking-widest"
+                [value]="signUpOtp()"
+                (input)="signUpOtp.set($any($event.target).value)"
+              />
+            </div>
+            <button
+              type="button"
+              class="saas-btn-primary flex w-full items-center justify-center gap-2 py-4 text-base disabled:opacity-60"
+              [disabled]="busy()"
+              (click)="onVerifySignUpOtp()"
+            >
+              @if (busy()) {
+                <span class="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+              }
+              {{ 'login.verifyAndCreate' | t }}
+            </button>
+            <button
+              type="button"
+              class="w-full rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              [disabled]="busy()"
+              (click)="backToSignUpDetails()"
+            >
+              {{ 'login.changeNumber' | t }}
+            </button>
+            <p class="text-center text-xs text-slate-500">{{ 'login.adminApprove' | t }}</p>
+          </div>
+        }
       }
         </div>
       </section>
