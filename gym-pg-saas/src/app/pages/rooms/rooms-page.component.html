@@ -54,7 +54,7 @@
                     @for (_ of [].constructor(room.beds); track $index; let bedIdx = $index) {
                       <div class="group/seat relative z-0 overflow-visible hover:z-20">
                         <div
-                          class="seat-block flex h-8 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-200"
+                          class="seat-block flex h-9 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-200"
                           [class.border-red-300]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                           [class.bg-red-100]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                           [class.text-red-800]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
@@ -64,15 +64,15 @@
                           [class.text-emerald-800]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                           [attr.aria-label]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1) ? 'Bed ' + (bedIdx + 1) + ' - Occupied (locked)' : 'Bed ' + (bedIdx + 1)"
                         >
-                          <span class="flex items-center gap-1">
+                          <span class="flex items-center gap-1.5">
                             <span
-                              class="material-icons text-sm drop-shadow-sm"
+                              class="material-icons-outlined text-base leading-none drop-shadow-sm"
                               [class.text-red-700]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                               [class.text-emerald-600]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                             >
-                              bed
+                              single_bed
                             </span>
-                            {{ bedIdx + 1 }}
+                            <span class="text-[11px] font-bold tabular-nums">{{ bedIdx + 1 }}</span>
                           </span>
                         </div>
 

@@ -335,8 +335,8 @@ export class MembersComponent implements OnInit, OnDestroy {
   });
 
   readonly memberForm = this.fb.nonNullable.group({
-    firstName: ['', Validators.required],
-    lastName: [''],
+    firstName: ['', [Validators.required, Validators.pattern(/^[^0-9]*$/)]],
+    lastName: ['', [Validators.pattern(/^[^0-9]*$/)]],
     mobile: ['', optionalDigitsLen(10)],
     email: [''],
     address: [''],
@@ -1026,6 +1026,15 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   onAadhaarDigitsInput(event: Event): void {
     applyDigitsOnlyFromInput(this.memberForm.controls.aadhaarLast4, event, 12);
+  }
+
+  onNameInput(field: 'firstName' | 'lastName', event: Event): void {
+    const el = event.target as HTMLInputElement;
+    const noDigits = el.value.replace(/[0-9]/g, '');
+    this.memberForm.controls[field].setValue(noDigits, { emitEvent: false });
+    if (el.value !== noDigits) {
+      el.value = noDigits;
+    }
   }
 
   /** Blue = partial payment pending, red = overdue, orange = due soon, green = active / further out, neutral = inactive / unknown */

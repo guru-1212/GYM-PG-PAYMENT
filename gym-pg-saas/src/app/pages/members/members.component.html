@@ -334,15 +334,28 @@
       <label class="mb-1 block text-sm font-medium text-slate-700">First name</label>
       <input
         formControlName="firstName"
+        (input)="onNameInput('firstName', $event)"
         class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
       />
       @if (memberForm.controls.firstName.touched && memberForm.controls.firstName.invalid) {
-        <p class="mt-1 text-sm text-red-600">First name is required</p>
+        @if (memberForm.controls.firstName.errors?.['required']) {
+          <p class="mt-1 text-sm text-red-600">First name is required</p>
+        }
+        @if (memberForm.controls.firstName.errors?.['pattern']) {
+          <p class="mt-1 text-sm text-red-600">First name cannot contain numbers</p>
+        }
       }
     </div>
     <div>
       <label class="mb-1 block text-sm font-medium text-slate-700">Last name</label>
-      <input formControlName="lastName" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
+      <input
+        formControlName="lastName"
+        (input)="onNameInput('lastName', $event)"
+        class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+      />
+      @if (memberForm.controls.lastName.touched && memberForm.controls.lastName.errors?.['pattern']) {
+        <p class="mt-1 text-sm text-red-600">Last name cannot contain numbers</p>
+      }
     </div>
     <div>
       <label class="mb-1 block text-sm font-medium text-slate-700">Mobile</label>
@@ -550,14 +563,25 @@
     <div class="grid gap-4 sm:grid-cols-2">
        <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">Join date</label>
-        <input type="date" formControlName="joinDate" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
+        <input
+          type="date"
+          lang="en-GB"
+          formControlName="joinDate"
+          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+        />
         @if (memberForm.controls.joinDate.touched && memberForm.controls.joinDate.invalid) {
           <p class="mt-1 text-sm text-red-600">Join date is required</p>
         }
       </div>
       <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">End date</label>
-        <input type="date" formControlName="dueDate" [min]="memberForm.get('joinDate')?.value" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base" />
+        <input
+          type="date"
+          lang="en-GB"
+          formControlName="dueDate"
+          [min]="memberForm.get('joinDate')?.value"
+          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+        />
         @if (memberForm.controls.dueDate.touched && memberForm.controls.dueDate.invalid) {
           @if (memberForm.controls.dueDate.errors?.['required']) {
             <p class="mt-1 text-sm text-red-600">Due date is required</p>
@@ -746,7 +770,7 @@
                     @for (_ of [].constructor(room.beds); track $index; let bedIdx = $index) {
                       <button
                         type="button"
-                        class="seat-block flex h-8 items-center justify-center rounded-md border text-xs font-semibold"
+                        class="seat-block flex h-9 items-center justify-center rounded-md border text-xs font-semibold"
                         [disabled]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                         [class.border-red-200]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                         [class.bg-red-100]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
@@ -757,15 +781,15 @@
                         [class.text-emerald-800]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                         (click)="selectBed(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                       >
-                        <span class="flex items-center gap-1">
+                        <span class="flex items-center gap-1.5">
                           <span
-                            class="material-icons text-sm drop-shadow-sm"
+                            class="material-icons-outlined text-base leading-none drop-shadow-sm"
                             [class.text-red-700]="isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                             [class.text-emerald-600]="!isBedOccupied(floor.floorNumber, room.roomNumber, bedIdx + 1)"
                           >
-                            bed
+                            single_bed
                           </span>
-                          {{ bedIdx + 1 }}
+                          <span class="text-[11px] font-bold tabular-nums">{{ bedIdx + 1 }}</span>
                         </span>
                       </button>
                     }
