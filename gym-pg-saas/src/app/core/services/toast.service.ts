@@ -13,18 +13,18 @@ export class ToastService {
   private id = 0;
   readonly toasts = signal<ToastMessage[]>([]);
 
-  success(message: string): void {
-    this.push(message, 'success');
+  success(message: string, durationMs?: number): void {
+    this.push(message, 'success', durationMs ?? 4500);
   }
 
-  error(message: string): void {
-    this.push(message, 'error');
+  error(message: string, durationMs?: number): void {
+    this.push(message, 'error', durationMs ?? 4500);
   }
 
-  private push(message: string, kind: ToastKind): void {
+  private push(message: string, kind: ToastKind, durationMs: number): void {
     const id = ++this.id;
     this.toasts.update((list) => [...list, { id, message, kind }]);
-    setTimeout(() => this.dismiss(id), 4500);
+    setTimeout(() => this.dismiss(id), durationMs);
   }
 
   dismiss(id: number): void {

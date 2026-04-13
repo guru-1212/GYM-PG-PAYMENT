@@ -97,6 +97,8 @@ export const EN: Record<string, unknown> = {
     forgotPassword: 'Forgot password?',
     resetPasswordHint: 'Enter the mobile or email you use to sign in. We will email you a reset link.',
     sendResetEmail: 'Send reset email',
+    resetEmailSentToast:
+      'If an account exists for what you entered—and you used the correct email at sign-up (same one you use for password reset)—we have sent a password reset link to that email.\n\nPlease check your inbox and your spam or junk folder; the message often lands in spam.',
   },
   dashboard: {
     title: 'Dashboard',

@@ -311,7 +311,7 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       await this.auth.sendOwnerPasswordReset(this.forgotForm.controls.identifier.value);
-      this.toast.success('If an account exists, a password reset email was sent. Check your inbox.');
+      this.toast.success(this.i18n.t('login.resetEmailSentToast'), 14_000);
       this.showForgotPassword.set(false);
       this.forgotForm.reset();
     } catch (e: unknown) {
