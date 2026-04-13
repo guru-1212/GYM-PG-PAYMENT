@@ -5,7 +5,7 @@ import type { FirebaseOptions } from 'firebase/app';
  * Keep `firebase` in sync with what you want those builds to use.
  */
 export const environment = {
-  production: true,
+  production: false,
   firebase: {
     // apiKey: 'AIzaSyApIcrqq8LCL77oIV8emI4Yr0JSGNn5yg8',
     // authDomain: 'gym-pg-saas.firebaseapp.com',
