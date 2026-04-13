@@ -14,3 +14,4 @@ seat issue and memebr add issue fixed
 admin dashboard , pgt logo changes
 added pwa app popup 
 pwa app 1
+seat map changse
