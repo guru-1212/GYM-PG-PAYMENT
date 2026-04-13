@@ -339,6 +339,15 @@
               <div class="shrink-0 text-right text-xs text-slate-600">
                 <p class="font-medium text-indigo-700 dark:text-indigo-300">{{ memberJoinDate(m) | date: 'mediumDate' }}</p>
                 <p>{{ 'dashboard.joined' | t }}</p>
+                @if (canSendReceipt(m)) {
+                  <button
+                    type="button"
+                    class="mt-2 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700"
+                    (click)="sendReceipt(m); $event.stopPropagation()"
+                  >
+                    Send Receipt
+                  </button>
+                }
               </div>
             </button>
           }
@@ -355,6 +364,7 @@
                 <th class="px-4 py-3">{{ 'dashboard.joinDate' | t }}</th>
                 <th class="px-4 py-3">{{ isGym() ? ('dashboard.plan' | t) : ('dashboard.amountCol' | t) }}</th>
                 <th class="px-4 py-3">{{ 'dashboard.status' | t }}</th>
+                <th class="px-4 py-3 text-center">Send Receipt</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
@@ -386,6 +396,20 @@
                       "
                       >{{ m.status }}</span
                     >
+                  </td>
+                  <td class="px-4 py-3 text-center" (click)="$event.stopPropagation()">
+                    @if (canSendReceipt(m)) {
+                      <button
+                        type="button"
+                        title="Send Receipt"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                        (click)="sendReceipt(m)"
+                      >
+                        <span class="material-icons-outlined text-base">receipt</span>
+                      </button>
+                    } @else {
+                      <span class="text-xs text-slate-400">—</span>
+                    }
                   </td>
                 </tr>
               }
@@ -681,6 +705,7 @@
                   <p class="text-xs font-semibold text-slate-700">
                     {{ 'rooms.room' | t }} {{ formatRoomNumber(floorNumberAtFormIndex(floorIdx), roomIdx + 1) }}
                   </p>
+                  <p class="mt-0.5 text-xs text-slate-500">{{ sharingLabel(room.get('beds')?.value) }}</p>
                   <label class="mt-1 block text-xs text-slate-500">Beds</label>
                   <div class="mt-1 flex items-center gap-2">
                     <button
@@ -705,6 +730,14 @@
                       +
                     </button>
                   </div>
+                  <label class="mt-2 block text-xs text-slate-500">Rent (optional)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                    formControlName="rent"
+                    placeholder="Price not mentioned"
+                  />
                 </div>
               }
             </div>
@@ -925,6 +958,7 @@
               @for (room of floor.rooms; track room.roomNumber) {
                 <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">Room {{ formatRoomNumber(floor.floorNumber, room.roomNumber) }}</p>
+                  <p class="mt-1 text-xs text-slate-600">{{ sharingLabel(room.beds) }} · {{ roomRentText(room.rent) }}</p>
                   <div class="mt-2 grid grid-cols-3 gap-2">
                     @for (_ of [].constructor(room.beds); track $index; let bedIdx = $index) {
                       <div

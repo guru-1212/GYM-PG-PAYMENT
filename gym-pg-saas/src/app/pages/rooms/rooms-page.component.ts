@@ -7,7 +7,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { MemberService } from '../../core/services/member.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { ToastService } from '../../core/services/toast.service';
-import { formatPgRoomLabel } from '../../core/utils/pg-layout-display.utils';
+import { formatPgRoomLabel, sharingLabelForBeds } from '../../core/utils/pg-layout-display.utils';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
@@ -213,6 +213,7 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
         this.fb.nonNullable.group({
           roomNumber: rooms.length + 1,
           beds: [1, [Validators.required, Validators.min(1)]],
+          rent: [null as number | null, [Validators.min(1)]],
         }),
       );
     }
@@ -294,6 +295,7 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
           this.fb.nonNullable.group({
             roomNumber: idx + 1,
             beds: [Math.max(1, Number(room.beds) || 1), [Validators.required, Validators.min(1)]],
+            rent: [Number(room.rent) > 0 ? Math.round(Number(room.rent)) : null, [Validators.min(1)]],
           }),
         ),
       );
@@ -336,6 +338,7 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
           this.fb.nonNullable.group({
             roomNumber: idx + 1,
             beds: [Math.max(1, Number(room.beds) || 1), [Validators.required, Validators.min(1)]],
+            rent: [Number(room.rent) > 0 ? Math.round(Number(room.rent)) : null, [Validators.min(1)]],
           }),
         ),
       );
@@ -355,6 +358,7 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
       const rooms = (floorCtrl.get('rooms') as FormArray).controls.map((roomCtrl, roomIdx) => ({
         roomNumber: roomIdx + 1,
         beds: Math.max(1, Number(roomCtrl.get('beds')?.value) || 1),
+        rent: Number(roomCtrl.get('rent')?.value) > 0 ? Math.round(Number(roomCtrl.get('rent')?.value)) : undefined,
       }));
       const fromCtrl = Math.trunc(Number(floorCtrl.get('floorNumber')?.value));
       const floorNumber = Number.isFinite(fromCtrl) ? fromCtrl : floorIdx;
@@ -418,6 +422,16 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
 
   formatRoomNumber(floorNumber: number, roomNumber: number): string {
     return formatPgRoomLabel(floorNumber, roomNumber);
+  }
+
+  sharingLabel(beds: unknown): string {
+    return sharingLabelForBeds(beds);
+  }
+
+  roomRentText(rent: unknown): string {
+    const n = Number(rent);
+    if (!Number.isFinite(n) || n <= 0) return 'Price not mentioned';
+    return this.formatCurrency(n);
   }
 
   getOccupiedMember(floor: unknown, room: unknown, bed: unknown): Member | null {

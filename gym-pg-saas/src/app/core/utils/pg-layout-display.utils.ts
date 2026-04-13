@@ -9,3 +9,11 @@ export function formatPgRoomLabel(floorNumber: number, roomNumber: number): stri
   if (f === 0) return `G${r}`;
   return `${f}${r.toString().padStart(2, '0')}`;
 }
+
+export function sharingLabelForBeds(beds: unknown): string {
+  const n = Math.max(1, Math.trunc(Number(beds) || 1));
+  if (n === 1) return 'Single sharing';
+  if (n === 2) return 'Double sharing';
+  if (n === 3) return 'Triple sharing';
+  return `${n} sharing`;
+}

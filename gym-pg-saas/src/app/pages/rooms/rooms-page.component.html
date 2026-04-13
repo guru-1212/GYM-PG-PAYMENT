@@ -49,6 +49,7 @@
               @for (room of floor.rooms; track room.roomNumber) {
                 <div class="overflow-visible rounded-lg border border-slate-200 bg-slate-50/80 p-3">
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">{{ 'rooms.room' | t }} {{ formatRoomNumber(floor.floorNumber, room.roomNumber) }}</p>
+                  <p class="mt-1 text-xs text-slate-600">{{ sharingLabel(room.beds) }} · {{ roomRentText(room.rent) }}</p>
                   <div class="mt-2 grid grid-cols-3 gap-2 overflow-visible">
                     @for (_ of [].constructor(room.beds); track $index; let bedIdx = $index) {
                       <div class="group/seat relative z-0 overflow-visible hover:z-20">
@@ -229,6 +230,7 @@
                   <p class="text-xs font-semibold text-slate-700">
                     {{ 'rooms.room' | t }} {{ formatRoomNumber(floorNumberAtFormIndex(floorIdx), roomIdx + 1) }}
                   </p>
+                  <p class="mt-0.5 text-xs text-slate-500">{{ sharingLabel(room.get('beds')?.value) }}</p>
                   <label class="mt-1 block text-xs text-slate-500">Beds</label>
                   <div class="mt-1 flex items-center gap-2">
                     <button
@@ -253,6 +255,14 @@
                       +
                     </button>
                   </div>
+                  <label class="mt-2 block text-xs text-slate-500">Rent (optional)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    class="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                    formControlName="rent"
+                    placeholder="Price not mentioned"
+                  />
                 </div>
               }
             </div>

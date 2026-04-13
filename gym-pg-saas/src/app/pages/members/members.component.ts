@@ -26,7 +26,7 @@ import {
   startOfToday,
   timestampToDate,
 } from '../../core/utils/date.utils';
-import { formatPgRoomLabel } from '../../core/utils/pg-layout-display.utils';
+import { formatPgRoomLabel, sharingLabelForBeds } from '../../core/utils/pg-layout-display.utils';
 import { memberImportSampleAoA, memberImportSampleCsv } from '../../core/utils/member-import-sample.util';
 import { MEMBER_IMPORT_PROGRESS_MESSAGES } from '../../core/utils/member-import-progress.messages';
 import { parsePgImportSeat, pgSheetSubscriptionError } from '../../core/utils/pg-sheet-import.utils';
@@ -940,6 +940,16 @@ export class MembersComponent implements OnInit, OnDestroy {
     return formatPgRoomLabel(floorNumber, roomNumber);
   }
 
+  sharingLabel(beds: unknown): string {
+    return sharingLabelForBeds(beds);
+  }
+
+  roomRentText(rent: unknown): string {
+    const n = Number(rent);
+    if (!Number.isFinite(n) || n <= 0) return 'Price not mentioned';
+    return `₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)}`;
+  }
+
   /** PG list/details: compact room label (e.g. G4, 101) from stored floor/room strings. */
   memberPgRoomLabel(m: Member): string {
     const f = Number(m.floorNumber);
@@ -964,6 +974,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       roomNumber: String(room),
       bedNumber: String(bed),
     });
+    this.applyRoomRentToMemberAmount(floor, room);
     this.memberForm.controls.floorNumber.markAsTouched();
     this.memberForm.controls.roomNumber.markAsTouched();
     this.memberForm.controls.bedNumber.markAsTouched();
@@ -976,6 +987,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     if (!this.hasSeatLayout()) return;
     this.manualSeatEntryTriggered.set(true);
     const v = this.memberForm.getRawValue();
+    this.applyRoomRentToMemberAmount(v.floorNumber, v.roomNumber);
     this.manualSeatError.set(this.getSeatAvailabilityIssue(v.floorNumber, v.roomNumber, v.bedNumber));
   }
 
@@ -988,6 +1000,24 @@ export class MembersComponent implements OnInit, OnDestroy {
       el.value = digitsOnly;
     }
     this.onManualSeatInput();
+  }
+
+  private applyRoomRentToMemberAmount(floor: unknown, room: unknown): void {
+    const roomRent = this.getRoomRent(floor, room);
+    if (roomRent <= 0) return;
+    this.memberForm.controls.amount.setValue(roomRent);
+    this.memberForm.controls.amount.markAsTouched();
+  }
+
+  private getRoomRent(floor: unknown, room: unknown): number {
+    const floorNo = Math.trunc(Number(floor));
+    const roomNo = Math.trunc(Number(room));
+    if (!Number.isFinite(floorNo) || !Number.isFinite(roomNo) || roomNo <= 0) return 0;
+    const floorLayout = this.pgLayout()?.floors?.find((f) => Math.trunc(Number(f.floorNumber)) === floorNo);
+    if (!floorLayout) return 0;
+    const roomLayout = floorLayout.rooms?.find((r) => Math.trunc(Number(r.roomNumber)) === roomNo);
+    const rent = Number(roomLayout?.rent);
+    return Number.isFinite(rent) && rent > 0 ? Math.round(rent) : 0;
   }
 
   onMemberMobileInput(event: Event): void {
