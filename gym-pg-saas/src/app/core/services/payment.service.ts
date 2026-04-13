@@ -160,6 +160,7 @@ export class PaymentService {
     currentDueDate: Date;
     subscriptionType?: SubscriptionType | null;
     isPartialPayment?: boolean;
+    moveDueOnPartial?: boolean;
     pendingAmount?: number;
     /** Member's balance before this payment (from `member.pendingAmount`). */
     priorPendingAmount?: number;
@@ -170,6 +171,7 @@ export class PaymentService {
     const nextDue = nextDueAfterPaid(params.currentDueDate, params.subscriptionType);
     const pendingFromForm = Math.max(0, Number(params.pendingAmount) || 0);
     const isPartialPayment = !!params.isPartialPayment;
+    const moveDueOnPartial = !!params.moveDueOnPartial;
     const paid = Math.max(0, Number(params.amount) || 0);
     const priorPending = Math.max(0, Number(params.priorPendingAmount) || 0);
     const planAmount = Math.max(0, Number(params.memberPlanAmount) || 0);
@@ -187,6 +189,7 @@ export class PaymentService {
 
     if (isPartialPayment) {
       await this.members.updateBillingState(params.memberId, {
+        dueDate: moveDueOnPartial ? nextDue : undefined,
         subscriptionType: params.subscriptionType ?? undefined,
         pendingAmount: pendingFromForm,
       });

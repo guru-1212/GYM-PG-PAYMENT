@@ -802,16 +802,13 @@
         }
       </p>
       <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700">Amount (₹)</label>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Total rent amount (₹)</label>
         <input
           type="number"
-          formControlName="amount"
-          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-          min="1"
+          [value]="payTarget()?.amount || 0"
+          class="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-base text-slate-700"
+          readonly
         />
-        @if (payForm.controls.amount.touched && payForm.controls.amount.invalid) {
-          <p class="mt-1 text-sm text-red-600">Amount is required and must be positive</p>
-        }
       </div>
       <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">Method</label>
@@ -843,14 +840,32 @@
       </label>
       @if (payForm.controls.isPartialPayment.value) {
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Pending amount to be paid (₹)</label>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Current paying amount (₹)</label>
           <input
             type="number"
-            formControlName="pendingAmount"
+            formControlName="currentPayingAmount"
             class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
             min="1"
+            [max]="payTarget()?.amount || 0"
           />
+          @if (payForm.controls.currentPayingAmount.touched && payForm.controls.currentPayingAmount.invalid) {
+            <p class="mt-1 text-sm text-red-600">Enter a valid current paying amount</p>
+          }
         </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Pending amount (₹)</label>
+          <input
+            type="number"
+            [value]="pendingFromPayForm()"
+            readonly
+            class="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-base text-slate-700"
+          />
+          <p class="mt-1 text-xs text-slate-500">Pending is auto calculated from total rent - current paying.</p>
+        </div>
+        <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+          <input type="checkbox" formControlName="moveDueToNextCycle" class="h-4 w-4" />
+          <span class="text-sm font-medium text-indigo-800">Move due date to next cycle even with pending</span>
+        </label>
       }
       <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" class="rounded-xl border border-slate-200 px-5 py-3 font-semibold" (click)="closePay()">

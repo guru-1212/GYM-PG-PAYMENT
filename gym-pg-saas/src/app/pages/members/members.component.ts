@@ -363,9 +363,11 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   readonly payForm = this.fb.nonNullable.group({
     amount: [0, [Validators.required, positiveAmount()]],
+    currentPayingAmount: [0, [Validators.min(0)]],
     method: this.fb.nonNullable.control<PaymentMethod>('cash', Validators.required),
     subscriptionType: this.fb.nonNullable.control<SubscriptionType>('monthly', Validators.required),
     isPartialPayment: this.fb.nonNullable.control(false),
+    moveDueToNextCycle: this.fb.nonNullable.control(false),
     pendingAmount: [0], // No validators initially - will be added conditionally
   });
 
@@ -393,17 +395,21 @@ export class MembersComponent implements OnInit, OnDestroy {
     // Set up conditional validation for pendingAmount based on isPartialPayment
     this.payFormSubscription = this.payForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial) => {
       const pendingAmountControl = this.payForm.get('pendingAmount');
-      if (!pendingAmountControl) return;
+      const currentPayingControl = this.payForm.get('currentPayingAmount');
+      if (!pendingAmountControl || !currentPayingControl) return;
 
       if (isPartial) {
-        // When partial payment is enabled, make it required and positive
-        pendingAmountControl.setValidators([Validators.required, positiveAmount()]);
+        currentPayingControl.setValidators([Validators.required, Validators.min(1)]);
       } else {
-        // When partial payment is disabled, remove validators
-        pendingAmountControl.setValidators([]);
+        currentPayingControl.setValidators([Validators.min(0)]);
       }
+      this.syncPayFormPending();
+      pendingAmountControl.setValidators([]);
       pendingAmountControl.updateValueAndValidity();
+      currentPayingControl.updateValueAndValidity();
     }) ?? null;
+
+    this.payForm.get('currentPayingAmount')?.valueChanges.subscribe(() => this.syncPayFormPending());
 
     // Add-member partial payment controls: validate paid amount only when split payment is enabled.
     this.memberForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial) => {
@@ -752,15 +758,17 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.payTarget.set(m);
     const pending = Math.max(0, Number(m.pendingAmount) || 0);
     const plan = Math.max(0, Number(m.amount) || 0);
-    /** Default amount to outstanding balance when they owe a split; avoids accidental full renewal. */
-    const defaultAmount = pending > 0 ? pending : plan;
+    const defaultAmount = plan;
     this.payForm.reset({
       amount: defaultAmount,
+      currentPayingAmount: defaultAmount,
       method: 'cash',
       subscriptionType: m.subscriptionType ?? 'monthly',
       isPartialPayment: false,
-      pendingAmount: pending,
+      moveDueToNextCycle: false,
+      pendingAmount: Math.max(0, plan - defaultAmount),
     });
+    this.syncPayFormPending();
     this.payModalOpen.set(true);
   }
 
@@ -787,8 +795,8 @@ export class MembersComponent implements OnInit, OnDestroy {
 
     const v = this.payForm.getRawValue();
     if (v.isPartialPayment) {
-      if (!Number.isFinite(Number(v.pendingAmount)) || Number(v.pendingAmount) <= 0) {
-        this.toast.error('Enter pending amount for partial payment');
+      if (!Number.isFinite(Number(v.currentPayingAmount)) || Number(v.currentPayingAmount) <= 0) {
+        this.toast.error('Enter current paying amount for partial payment');
         return;
       }
     }
@@ -796,16 +804,22 @@ export class MembersComponent implements OnInit, OnDestroy {
     const priorPending = Math.max(0, Number(m.pendingAmount) || 0);
     const planAmount = Math.max(0, Number(m.amount) || 0);
 
+    const totalRentAmount = Math.max(0, Number(m.amount) || 0);
+    const currentPayingAmount = Math.max(0, Number(v.currentPayingAmount) || 0);
+    const computedPending = Math.max(0, totalRentAmount - currentPayingAmount);
+    const paymentAmount = v.isPartialPayment ? currentPayingAmount : totalRentAmount;
+
     try {
       await this.paymentsApi.markPaid({
         memberId: m.memberId,
         ownerId: owner.ownerId,
-        amount: Number(v.amount),
+        amount: paymentAmount,
         method: v.method,
         currentDueDate: due,
         subscriptionType: this.isGym() ? v.subscriptionType : undefined,
         isPartialPayment: v.isPartialPayment,
-        pendingAmount: v.isPartialPayment ? Number(v.pendingAmount) : 0,
+        moveDueOnPartial: v.isPartialPayment ? v.moveDueToNextCycle : false,
+        pendingAmount: v.isPartialPayment ? computedPending : 0,
         priorPendingAmount: priorPending,
         memberPlanAmount: planAmount,
       });
@@ -816,6 +830,17 @@ export class MembersComponent implements OnInit, OnDestroy {
       console.error('Record payment failed:', error);
       this.toast.error('Could not record payment');
     }
+  }
+
+  pendingFromPayForm(): number {
+    const total = Math.max(0, Number(this.payTarget()?.amount) || 0);
+    const paying = Math.max(0, Number(this.payForm.controls.currentPayingAmount.value) || 0);
+    return Math.max(0, total - paying);
+  }
+
+  private syncPayFormPending(): void {
+    const nextPending = this.pendingFromPayForm();
+    this.payForm.controls.pendingAmount.setValue(nextPending, { emitEvent: false });
   }
 
   openHistory(m: Member): void {
