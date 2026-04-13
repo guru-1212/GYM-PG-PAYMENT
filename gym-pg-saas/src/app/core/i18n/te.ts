@@ -81,6 +81,8 @@ export const TE: Record<string, unknown> = {
     mobileRequired: 'మొబైల్ నంబర్ అవసరం',
     phoneInvalid: 'చెల్లుబాటు అయ్యే మొబైల్ నంబర్ నమోదు చేయండి',
     contactEmail: 'సంప్రదింపు ఇమెయిల్',
+    signUpEmailResetHint:
+      'మీరు నిజంగా ఉపయోగించే సరైన ఇమెయిల్ (ఉదా. Gmail) నమోదు చేయండి. పాస్‌వర్డ్ రీసెట్ లింక్ ఈ ఇమెయిల్‌కు మాత్రమే పంపబడుతుంది.',
     sendOtp: 'ధృవీకరణ కోడ్ పంపండి',
     sendOtpWait: 'మళ్లీ పంపడానికి {seconds}సె వేచి ఉండండి',
     smsCooldownActive: 'మరో కోడ్ పంపడానికి {seconds}సె వేచి ఉండండి (Firebase రేట్ పరిమితి).',

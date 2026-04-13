@@ -72,7 +72,7 @@ export class LoginComponent implements OnInit, OnDestroy {
     name: ['', Validators.required],
     businessName: ['', Validators.required],
     phone: ['', [Validators.required, ownerSignUpPhoneValidator]],
-    email: ['', [Validators.required, Validators.email]],
+    email: ['', ownerSignUpEmailValidator],
     password: ['', [Validators.required, strongSignupPasswordValidator]],
     businessType: this.fb.nonNullable.control<'gym' | 'pg'>('pg', Validators.required),
   });
@@ -249,10 +249,22 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.toast.error('Enter the verification code from the SMS (usually 6 digits).');
       return;
     }
+    const emailTrimmed = this.signUpForm.controls.email.value.trim();
+    const phoneE164 = normalizeOwnerPhone(this.signUpForm.controls.phone.value);
+    if (!phoneE164) {
+      this.toast.error(this.i18n.t('login.mobileRequired'));
+      this.signUpForm.controls.phone.markAsTouched();
+      return;
+    }
+    if (!emailTrimmed || this.signUpForm.controls.email.invalid) {
+      this.toast.error(this.i18n.t('login.emailRequired'));
+      this.signUpForm.controls.email.markAsTouched();
+      return;
+    }
     this.busy.set(true);
     try {
       await this.auth.completeOwnerSignUpWithOtp(otp, {
-        contactEmail: this.signUpForm.controls.email.value,
+        contactEmail: emailTrimmed,
         password: this.signUpForm.controls.password.value,
         name: this.signUpForm.controls.name.value,
         businessName: this.signUpForm.controls.businessName.value,
@@ -488,6 +500,13 @@ function ownerSignUpPhoneValidator(control: AbstractControl): ValidationErrors |
   const raw = String(control.value ?? '').trim();
   if (!raw) return { required: true };
   return normalizeOwnerPhone(raw) ? null : { phone: true };
+}
+
+/** Mandatory, trim-aware email (same shape as sign-in identifier email check). */
+function ownerSignUpEmailValidator(control: AbstractControl): ValidationErrors | null {
+  const raw = String(control.value ?? '').trim();
+  if (!raw) return { required: true };
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) ? null : { email: true };
 }
 
 /** Sign-up only: ≥8 chars, uppercase, lowercase, digit, special symbol. */

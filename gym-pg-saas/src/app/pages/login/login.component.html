@@ -225,13 +225,16 @@
             }
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="sphone">{{ 'login.mobile' | t }}</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="sphone">
+              {{ 'login.mobile' | t }}<span class="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <input
               id="sphone"
               type="tel"
               formControlName="phone"
               class="saas-input w-full"
               autocomplete="tel"
+              required
               [placeholder]="'login.mobileHint' | t"
             />
             <p class="mt-1 text-xs text-slate-500">{{ 'login.mobileVerifyHint' | t }}</p>
@@ -249,14 +252,18 @@
             }
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="semail">{{ 'login.contactEmail' | t }}</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="semail">
+              {{ 'login.contactEmail' | t }}<span class="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <input
               id="semail"
               type="email"
               formControlName="email"
               class="saas-input w-full"
               autocomplete="email"
+              required
             />
+            <p class="mt-1 text-xs text-slate-500">{{ 'login.signUpEmailResetHint' | t }}</p>
             @if (signUpForm.controls.email.touched && signUpForm.controls.email.invalid) {
               @if (signUpForm.controls.email.hasError('required')) {
                 <p class="mt-1 text-sm font-medium text-red-600">{{ 'login.emailRequired' | t }}</p>

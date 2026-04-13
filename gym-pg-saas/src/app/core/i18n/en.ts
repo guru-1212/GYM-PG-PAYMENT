@@ -81,6 +81,8 @@ export const EN: Record<string, unknown> = {
     mobileRequired: 'Mobile number is required',
     phoneInvalid: 'Enter a valid mobile number',
     contactEmail: 'Contact email',
+    signUpEmailResetHint:
+      'Please enter a correct email you can access (for example a Gmail address). Password reset links are sent only to this email.',
     sendOtp: 'Send verification code',
     sendOtpWait: 'Wait {seconds}s to send again',
     smsCooldownActive: 'Please wait {seconds}s before sending another code (Firebase rate limit).',
