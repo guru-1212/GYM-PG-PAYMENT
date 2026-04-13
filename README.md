@@ -9,3 +9,4 @@ pr7
 ts1
 ts2
 checking db
+user take varification that enters mail is correct 
