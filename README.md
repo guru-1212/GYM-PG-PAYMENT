@@ -10,3 +10,4 @@ ts1
 ts2
 checking db
 user take varification that enters mail is correct 
+seat issue and memebr add issue fixed
