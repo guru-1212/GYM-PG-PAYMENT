@@ -446,11 +446,9 @@ export class MembersComponent implements OnInit, OnDestroy {
     const id = this.auth.profile()?.ownerId;
     if (id) {
       this.currentOwnerId = id;
-      console.log('📥 Members page loading data from cache...');
       try {
         await this.cache.loadMembers(id);
         await this.cache.loadLayout(id);
-        console.log('✅ Members page data loaded');
       } catch (error) {
         console.error('❌ Error loading members data:', error);
         this.toast.error('Failed to load members');
@@ -486,7 +484,6 @@ export class MembersComponent implements OnInit, OnDestroy {
    */
   async refreshMembers(): Promise<void> {
     if (!this.currentOwnerId) return;
-    console.log('🔄 Refreshing members...');
     try {
       await this.cache.refresh(this.currentOwnerId);
       this.toast.success('Members refreshed');
@@ -713,9 +710,6 @@ export class MembersComponent implements OnInit, OnDestroy {
               if (latestPayment) {
                 await this.paymentsApi.updatePaymentAmount(latestPayment.paymentId, newAmount);
                 this.toast.success('Payment updated successfully');
-                console.log(`✅ Payment updated: ${latestPayment.paymentId} amount changed from ₹${latestPayment.amount} to ₹${newAmount}`);
-              } else {
-                console.log('ℹ️ No payment records found for this member');
               }
             } catch (error) {
               console.error('❌ Error updating payment:', error);

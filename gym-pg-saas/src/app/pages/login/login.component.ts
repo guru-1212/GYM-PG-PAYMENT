@@ -157,9 +157,6 @@ export class LoginComponent implements OnInit, OnDestroy {
       await this.auth.signIn(this.signInForm.controls.identifier.value, this.signInForm.controls.password.value);
       const load = await this.auth.loadProfileOnce();
       const p = load.owner;
-      if (!environment.production) {
-        console.log('[Login] profile load:', p ? { role: p.role, status: p.status } : load);
-      }
       if (!p) {
         if (load.problem === 'permission-denied') {
           this.toast.error(
@@ -344,9 +341,6 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
     }
 
-    if (!environment.production) {
-      console.warn('[Login] redirectAfterProfile: unmatched role/status', { role, status });
-    }
     this.toast.error('Profile role or status is invalid. Check Firestore fields role and status.');
     await this.auth.signOut();
   }
@@ -419,18 +413,7 @@ export class LoginComponent implements OnInit, OnDestroy {
   /** Extra detail from Identity Toolkit REST body when present (helps interpret HTTP 400). */
   /** Long checklist only in dev console so the toast stays short. */
   private logInvalidAppCredentialHelp(code: string): void {
-    if (environment.production) return;
-    console.warn(
-      `[Login] ${code} — phone / reCAPTCHA checklist (dev only):\n` +
-        '1) Google Cloud Console → APIs & Services → Credentials → your Browser (Web) API key:\n' +
-        '   • Application restrictions → HTTP referrers → add http://localhost:4200/* and http://127.0.0.1:4200/*\n' +
-        '   • API restrictions → allow “Identity Toolkit API” (or “Don’t restrict key” while debugging)\n' +
-        '2) Firebase Console → Authentication → Settings → Authorized domains → include localhost\n' +
-        '3) If you set Content-Security-Policy (enforced): allow script-src + frame-src for https://www.google.com and https://www.gstatic.com;\n' +
-        '   connect-src must include https://identitytoolkit.googleapis.com\n' +
-        '4) “Content-Security-Policy: Report-Only” / frame-ancestors lines in the console are warnings only, not blocks.\n' +
-        '5) Try Chrome or disable strict privacy / ad-block extensions on localhost if it still fails.',
-    );
+    void code;
   }
 
   private identityToolkitErrorHint(e: unknown): string {
@@ -456,7 +439,7 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.clearSignUpSmsCooldownTimer();
     this.signUpSmsBlockedUntilMs.set(Date.now() + totalSeconds * 1000);
     this.signUpSmsCooldownPulse.update((n) => n + 1);
-    this.signUpSmsCooldownIntervalId = window.setInterval(() => {
+    this.signUpSmsCooldownIntervalId = setInterval(() => {
       if (Date.now() >= this.signUpSmsBlockedUntilMs()) {
         this.signUpSmsBlockedUntilMs.set(0);
         this.clearSignUpSmsCooldownTimer();
@@ -467,7 +450,7 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   private clearSignUpSmsCooldownTimer(): void {
     if (this.signUpSmsCooldownIntervalId !== null) {
-      window.clearInterval(this.signUpSmsCooldownIntervalId);
+      clearInterval(this.signUpSmsCooldownIntervalId);
       this.signUpSmsCooldownIntervalId = null;
     }
   }

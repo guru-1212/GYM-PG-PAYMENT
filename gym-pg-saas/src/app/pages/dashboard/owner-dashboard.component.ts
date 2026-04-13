@@ -171,21 +171,6 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const loggedInOwnerId = this.auth.profile()?.ownerId;
     const payments = this.payments();
 
-    // Debug log
-    console.log('🔍 Monthly Earnings Calculation:', {
-      timestamp: now.toISOString(),
-      currentMonth,
-      currentYear,
-      loggedInOwnerId,
-      paymentsCount: payments.length,
-      payments: payments.map((p) => ({
-        paymentId: p.paymentId,
-        amount: p.amount,
-        ownerId: p.ownerId,
-        date: this.convertTimestampToDate(p.date),
-      })),
-    });
-
     const monthlySum = payments.reduce((sum, payment) => {
       // 1. Match ownerId with logged-in user
       if (payment.ownerId !== loggedInOwnerId) {
@@ -195,10 +180,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       // 2. Convert Firestore Timestamp to JS Date using toDate()
       const paymentDate = this.convertTimestampToDate(payment.date);
 
-      if (!paymentDate) {
-        console.warn('⚠️ Could not parse payment date:', payment);
-        return sum;
-      }
+      if (!paymentDate) return sum;
 
       // 3. Filter by current month AND year
       const paymentMonth = paymentDate.getMonth();
@@ -208,17 +190,9 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
         return sum;
       }
 
-      // 4. Add to sum
       const amount = Number(payment.amount) || 0;
-      console.log('✅ Payment included:', {
-        amount,
-        date: paymentDate.toISOString(),
-        runningTotal: sum + amount,
-      });
       return sum + amount;
     }, 0);
-
-    console.log('💰 Monthly Earnings Total:', monthlySum);
     return monthlySum;
   });
 
@@ -377,10 +351,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     this.notifications.requestPermissionOnce();
     this.subscriptionCountdownTimer = setInterval(() => this.nowMs.set(Date.now()), 1000);
     this.loading.set(true);
-    console.log('🚀 Dashboard init started');
     await this.auth.refreshProfile();
     const uid = this.auth.profile()?.ownerId;
-    console.log('👤 Logged-in user ID:', uid);
     if (!uid) {
       this.loading.set(false);
       console.error('❌ No owner ID found');
@@ -388,13 +360,11 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     }
     
     this.currentOwnerId = uid;
-    console.log('📡 Loading data from cache...');
     
     try {
       await this.cache.loadAllData(uid);
       // Low-cost check using already loaded members (no extra listener/polling here).
       this.notifications.checkDueMembers(this.members());
-      console.log('✅ Dashboard data loaded');
     } catch (error) {
       console.error('❌ Error loading dashboard data:', error);
       this.toast.error('Failed to load data');
@@ -435,7 +405,6 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   async refreshData(): Promise<void> {
     if (!this.currentOwnerId) return;
     this.loading.set(true);
-    console.log('🔄 Refreshing data...');
     try {
       await this.cache.refresh(this.currentOwnerId);
       this.toast.success('Data refreshed');

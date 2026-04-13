@@ -22,7 +22,6 @@ import {
   setDoc,
   Unsubscribe,
 } from 'firebase/firestore';
-import { environment } from '../../../environments/environment';
 import { Owner, OwnerRole, OwnerStatus } from '../models/owner.model';
 // Complaints disabled — restore when feature fixed
 // import { ComplaintService } from './complaint.service';
@@ -135,19 +134,12 @@ export class AuthService {
       this.profileUnsub = null;
       this.profileListenerUid = u.uid;
 
-      if (!environment.production) {
-        console.log('[Auth] Firebase Auth UID:', u.uid, '(attach owners listener)');
-      }
-
       const ref = doc(this.fb.db, 'owners', u.uid);
       this.profileUnsub = onSnapshot(
         ref,
         (snap) => {
           const o = ownerFromSnapshot(snap);
           this.profile.set(o);
-          if (!environment.production) {
-            console.log('[Auth] onSnapshot owners/' + u.uid, o ? { role: o.role, status: o.status } : 'no document');
-          }
           this.loading.set(false);
           /* Complaints disabled — restore when feature fixed
           if (o?.role === 'owner') {
@@ -155,10 +147,7 @@ export class AuthService {
           }
           */
         },
-        (err) => {
-          if (!environment.production) {
-            console.warn('[Auth] onSnapshot owners/' + u.uid + ' error', err);
-          }
+        () => {
           this.profile.set(null);
           this.loading.set(false);
         },
@@ -284,9 +273,6 @@ export class AuthService {
       );
       this.ownerSignUpPhoneE164 = phoneE164;
     } catch (e) {
-      if (!environment.production) {
-        console.error('[AuthService] sendOwnerSignUpOtp', { phoneE164, error: e });
-      }
       throw e;
     }
     // Widget must be released before the OTP step (or a retry); otherwise Firebase/grecaptcha errors with
@@ -400,41 +386,15 @@ export class AuthService {
     await this.fb.auth.authStateReady();
     const u = this.fb.auth.currentUser;
     if (!u) {
-      if (!environment.production) {
-        console.log(
-          '%c PayBook Auth ',
-          'background:#b45309;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;',
-          'No Firebase user after authStateReady — cannot load owners/{uid}.',
-        );
-      }
       this.profile.set(null);
       return { owner: null, uid: null, problem: 'no-signed-in-user' };
     }
 
     const uid = u.uid;
-    if (!environment.production) {
-      console.log(
-        '%c PayBook Auth ',
-        'background:#047857;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;',
-        'Signed-in UID (use this as Firestore document ID under collection "owners"):',
-        uid,
-      );
-    }
 
     try {
       const snap = await getDoc(doc(this.fb.db, 'owners', uid));
       if (!snap.exists()) {
-        if (!environment.production) {
-          console.log(
-            '%c PayBook Auth ',
-            'background:#b45309;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;',
-            'NO profile document found.',
-            '\n1. Open Firebase Console → Firestore → collection "owners"',
-            '\n2. Add document → Document ID = paste exactly:',
-            '\n   ' + uid,
-            '\n3. Fields: role, status, name, email, businessType, ownerId, createdAt',
-          );
-        }
         this.profile.set(null);
         return { owner: null, uid, problem: 'no-firestore-document' };
       }
@@ -442,22 +402,11 @@ export class AuthService {
       const o = ownerFromSnapshot(snap);
       if (o) {
         this.profile.set(o);
-        if (!environment.production) {
-          console.log(
-            '%c PayBook Auth ',
-            'background:#047857;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;',
-            'Profile loaded OK.',
-            { role: o.role, status: o.status },
-          );
-        }
       }
       return { owner: o, uid };
     } catch (e: unknown) {
       const code =
         e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
-      if (!environment.production) {
-        console.warn('getDoc(owners/' + uid + ') failed:', e);
-      }
       this.profile.set(null);
       const problem = code === 'permission-denied' ? 'permission-denied' : 'fetch-failed';
       return { owner: null, uid, problem };

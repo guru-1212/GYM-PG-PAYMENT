@@ -61,7 +61,6 @@ export class PaymentService {
   }
 
   watchPaymentsForOwner(ownerId: string, callback: (payments: Payment[]) => void): Unsubscribe {
-    console.log('📡 Setting up payments listener for ownerId:', ownerId);
     // OPTIMIZATION: Limit to 500 most recent payments per owner for cost reduction
     const q = query(
       collection(this.fb.db, 'payments'),
@@ -76,11 +75,6 @@ export class PaymentService {
         snap.forEach((d) => {
           const data = d.data() as Payment;
           list.push({ ...data, paymentId: d.id });
-        });
-        console.log(`✅ Payments snapshot received: ${list.length} payments for ownerId: ${ownerId}`);
-        list.forEach((p, i) => {
-          const pDate = p.date instanceof Object && 'toDate' in p.date ? p.date.toDate() : p.date;
-          console.log(`  [${i}] Amount: ${p.amount}, Date: ${pDate}, OwnerId: ${p.ownerId}`);
         });
         callback(list);
       },

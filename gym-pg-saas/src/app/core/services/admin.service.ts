@@ -25,6 +25,24 @@ export class AdminService {
     });
   }
 
+  watchOwnerMemberCounts(callback: (counts: Record<string, number>) => void): Unsubscribe {
+    return onSnapshot(
+      collection(this.fb.db, 'members'),
+      (snap) => {
+        const counts: Record<string, number> = {};
+        snap.forEach((d) => {
+          const ownerId = String((d.data() as { ownerId?: string }).ownerId || '').trim();
+          if (!ownerId) return;
+          counts[ownerId] = (counts[ownerId] || 0) + 1;
+        });
+        callback(counts);
+      },
+      () => {
+        callback({});
+      },
+    );
+  }
+
   allOwners$(): Observable<Owner[]> {
     return new Observable((sub) => {
       const unsub = this.watchAllOwners((owners) => {

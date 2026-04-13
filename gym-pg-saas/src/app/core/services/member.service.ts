@@ -149,7 +149,6 @@ export class MemberService {
 
     // If an amount is provided (payment made during member creation), create payment record
     if (paidAmount > 0) {
-      console.log('💰 Creating payment record for new member:', paidAmount);
       await addDoc(collection(this.fb.db, 'payments'), {
         memberId: memberRef.id,
         ownerId: owner.ownerId,
@@ -160,14 +159,12 @@ export class MemberService {
         pendingAmount,
         createdAt: serverTimestamp(),
       });
-      console.log('✅ Payment record created for member:', memberRef.id);
     }
 
     /* Complaints disabled — restore when feature fixed
     try {
       await this.upsertComplaintLookup(owner.ownerId, input.mobile || '');
     } catch (e) {
-      console.warn('[MemberService] Member saved but complaint mobile index failed (public complaint form may miss this number):', e);
     }
     */
   }
@@ -217,7 +214,6 @@ export class MemberService {
         }
         await this.upsertComplaintLookup(oid, nextMobile);
       } catch (e) {
-        console.warn('[MemberService] Member updated but complaint mobile index failed:', e);
       }
     }
     */
@@ -256,7 +252,6 @@ export class MemberService {
       try {
         await this.removeComplaintLookup(owner.ownerId, prevMobile);
       } catch (e) {
-        console.warn('[MemberService] Member removed but complaint lookup cleanup failed:', e);
       }
     }
     */

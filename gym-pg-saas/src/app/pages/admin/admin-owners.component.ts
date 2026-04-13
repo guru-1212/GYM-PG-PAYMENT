@@ -34,6 +34,7 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
   readonly chatMessages = signal<OwnerAdminChatMessage[]>([]);
   readonly chatText = signal('');
   readonly unreadByOwner = signal<Record<string, number>>({});
+  readonly memberCountsByOwner = signal<Record<string, number>>({});
   readonly dayAdjustByOwner = signal<Record<string, number>>({});
   readonly calendarDateByOwner = signal<Record<string, string>>({});
   /** Owners list filters (admin). */
@@ -43,16 +44,19 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
   readonly filterBusinessType = signal<'all' | BusinessType>('all');
   private unsub: (() => void) | null = null;
   private unsubUnread: (() => void) | null = null;
+  private unsubMemberCounts: (() => void) | null = null;
   private unsubThread: (() => void) | null = null;
 
   ngOnInit(): void {
     this.unsub = this.admin.watchAllOwners((list) => this.owners.set(list));
     this.unsubUnread = this.chat.watchAdminUnreadCounts((counts) => this.unreadByOwner.set(counts));
+    this.unsubMemberCounts = this.admin.watchOwnerMemberCounts((counts) => this.memberCountsByOwner.set(counts));
   }
 
   ngOnDestroy(): void {
     this.unsub?.();
     this.unsubUnread?.();
+    this.unsubMemberCounts?.();
     this.unsubThread?.();
   }
 
@@ -66,7 +70,8 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
         const name = (o.name || '').toLowerCase();
         const email = (o.email || '').toLowerCase();
         const bn = (o.businessName || '').toLowerCase();
-        return name.includes(q) || email.includes(q) || bn.includes(q);
+        const phone = (o.phone || '').toLowerCase();
+        return name.includes(q) || email.includes(q) || bn.includes(q) || phone.includes(q);
       });
     }
     const st = this.filterStatus();
@@ -171,6 +176,10 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
 
   unreadForOwner(ownerId: string): number {
     return this.unreadByOwner()[ownerId] || 0;
+  }
+
+  memberCount(ownerId: string): number {
+    return this.memberCountsByOwner()[ownerId] || 0;
   }
 
   formatChatTime(msg: OwnerAdminChatMessage): string {
