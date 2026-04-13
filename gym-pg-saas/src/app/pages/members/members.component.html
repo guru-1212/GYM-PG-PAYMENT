@@ -83,6 +83,7 @@
               <th class="px-4 py-3">{{ dueLabel() }}</th>
               <th class="px-4 py-3">Time left</th>
               <th class="px-4 py-3">Status</th>
+              <th class="px-4 py-3 text-center">Active</th>
               <th class="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
@@ -152,6 +153,16 @@
                       Paid ₹{{ partialPaidAmount(m) | number: '1.0-0' }}
                     </div>
                   }
+                </td>
+                <td class="px-4 py-3.5 text-center" (click)="$event.stopPropagation()">
+                  <label class="inline-flex cursor-pointer items-center">
+                    <input
+                      type="checkbox"
+                      class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      [checked]="m.status === 'active'"
+                      (change)="toggleMemberStatus(m, $any($event.target).checked)"
+                    />
+                  </label>
                 </td>
                 <td class="px-4 py-3.5" (click)="$event.stopPropagation()">
                   <div class="flex items-center justify-end gap-2">
@@ -558,14 +569,6 @@
       </div>
       
     </div>
-    <div>
-      <label class="mb-1 block text-sm font-medium text-slate-700">Member status</label>
-      <select formControlName="status" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base">
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
-      </select>
-    </div>
-
     <details class="rounded-xl border border-slate-200 bg-slate-50" [open]="moreOpen()" (toggle)="moreOpen.set($any($event.target).open)">
       <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">More details</summary>
       <div class="space-y-4 border-t border-slate-200 bg-white px-4 py-4">

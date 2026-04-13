@@ -198,7 +198,7 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
 
   onRoomCountChange(floorIndex: number, raw: unknown): void {
     const rooms = this.roomGroupsAt(floorIndex);
-    const count = this.coerceCount(raw, 1, 500);
+    const count = this.coerceCount(raw, 0, 500);
     const floorNumber = this.floorNumberAtFormIndex(floorIndex);
     if (count < rooms.length && this.hasAssignedOnOrAboveRoom(floorNumber, count + 1)) {
       this.validationError.set(`Cannot reduce rooms on floor ${floorNumber}: assigned seats exist in removed room(s).`);
@@ -286,11 +286,11 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
     this.setupForm.controls.floorCount.setValue(floorCount);
     this.floorGroups.clear();
     for (let i = 0; i < floorCount; i += 1) {
-      const floor = layout.floors[i] ?? { floorNumber: i + 1, rooms: [{ roomNumber: 1, beds: 1 }] };
+      const floor = layout.floors[i] ?? { floorNumber: i + 1, rooms: [] };
       const stored = Math.trunc(Number(floor.floorNumber));
       const floorNumber = Number.isFinite(stored) ? stored : i + 1;
       const rooms = this.fb.array(
-        (floor.rooms.length ? floor.rooms : [{ roomNumber: 1, beds: 1 }]).map((room, idx) =>
+        (floor.rooms ?? []).map((room, idx) =>
           this.fb.nonNullable.group({
             roomNumber: idx + 1,
             beds: [Math.max(1, Number(room.beds) || 1), [Validators.required, Validators.min(1)]],
@@ -329,10 +329,10 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
         current[i] ??
         ({
           floorNumber: this.defaultFloorNumberForIndex(i, current),
-          rooms: [{ roomNumber: 1, beds: 1 }],
+          rooms: [],
         } as PgFloorLayout);
       const rooms = this.fb.array(
-        (floor.rooms.length ? floor.rooms : [{ roomNumber: 1, beds: 1 }]).map((room, idx) =>
+        (floor.rooms ?? []).map((room, idx) =>
           this.fb.nonNullable.group({
             roomNumber: idx + 1,
             beds: [Math.max(1, Number(room.beds) || 1), [Validators.required, Validators.min(1)]],

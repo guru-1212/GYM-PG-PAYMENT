@@ -239,6 +239,12 @@ export class MemberService {
     await updateDoc(doc(this.fb.db, 'members', memberId), updatePayload);
   }
 
+  async updateMemberStatus(memberId: string, status: Member['status']): Promise<void> {
+    const payload: { status: Member['status']; advanceStatus?: 'held' | 'returned' } = { status };
+    if (status === 'inactive') payload.advanceStatus = 'returned';
+    await updateDoc(doc(this.fb.db, 'members', memberId), payload);
+  }
+
   async deleteMember(memberId: string): Promise<void> {
     const ref = doc(this.fb.db, 'members', memberId);
     await deleteDoc(ref);

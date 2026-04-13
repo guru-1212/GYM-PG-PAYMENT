@@ -631,6 +631,17 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.modalOpen.set(false);
   }
 
+  async toggleMemberStatus(m: Member, enabled: boolean): Promise<void> {
+    const nextStatus: Member['status'] = enabled ? 'active' : 'inactive';
+    if (m.status === nextStatus) return;
+    try {
+      await this.membersApi.updateMemberStatus(m.memberId, nextStatus);
+      this.toast.success(`Member marked as ${nextStatus}`);
+    } catch {
+      this.toast.error('Could not update member status');
+    }
+  }
+
   async saveMember(): Promise<void> {
     if (this.memberForm.invalid) {
       this.memberForm.markAllAsTouched();
@@ -1193,6 +1204,25 @@ export class MembersComponent implements OnInit, OnDestroy {
     if (!roomObj) return `Room ${this.formatRoomNumber(Math.trunc(f), Math.trunc(r))} is not available in seat map`;
     if (Math.trunc(b) > Number(roomObj.beds || 0)) {
       return `Bed ${Math.trunc(b)} is not available in room ${this.formatRoomNumber(Math.trunc(f), Math.trunc(r))}`;
+    }
+    const editingId = this.editingId();
+    if (editingId) {
+      const editingMember = this.members().find((m) => m.memberId === editingId);
+      if (editingMember) {
+        const ef = Number(editingMember.floorNumber);
+        const er = Number(editingMember.roomNumber);
+        const eb = Number(editingMember.bedNumber);
+        if (
+          Number.isFinite(ef) &&
+          Number.isFinite(er) &&
+          Number.isFinite(eb) &&
+          Math.trunc(ef) === Math.trunc(f) &&
+          Math.trunc(er) === Math.trunc(r) &&
+          Math.trunc(eb) === Math.trunc(b)
+        ) {
+          return null;
+        }
+      }
     }
     if (this.isBedOccupied(f, r, b)) return 'Selected bed is already occupied';
     return null;
