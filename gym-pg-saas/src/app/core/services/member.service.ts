@@ -42,6 +42,8 @@ export interface MemberInput {
   /** Internal advance lifecycle marker. */
   advanceStatus?: 'held' | 'returned';
   paymentMethod: PaymentMethod;
+  /** Edit flow: optionally add a payment record while updating member details. */
+  recordPaymentOnUpdate?: boolean;
   status: Member['status'];
   /** Optional explicit due date (used by bulk import). */
   dueDate?: Date;
@@ -180,6 +182,8 @@ export class MemberService {
     const sub: SubscriptionType =
       owner?.businessType === 'gym' ? input.subscriptionType || 'monthly' : 'monthly';
     const due = input.dueDate || firstDueFromJoin(join, sub);
+    const pendingAmount = Math.max(0, Number(input.pendingAmount) || 0);
+    const paidAmount = Math.max(0, Number(input.paidAmount) || 0);
     const payload: Record<string, any> = {
       firstName: input.firstName.trim(),
       lastName: input.lastName?.trim() || '',
@@ -197,13 +201,26 @@ export class MemberService {
       dueDate: dateToTimestamp(due),
       status: input.status,
       subscriptionType: sub,
-      pendingAmount: 0,
+      pendingAmount,
       advancePaid: Math.max(0, Number(input.advancePaid) || 0),
     };
     if (input.status === 'inactive') {
       payload['advanceStatus'] = 'returned';
     }
     await updateDoc(ref, payload);
+
+    if (input.recordPaymentOnUpdate && paidAmount > 0 && owner?.ownerId) {
+      await addDoc(collection(this.fb.db, 'payments'), {
+        memberId,
+        ownerId: owner.ownerId,
+        amount: paidAmount,
+        date: dateToTimestamp(new Date()),
+        method: input.paymentMethod,
+        isPartialPayment: pendingAmount > 0,
+        pendingAmount,
+        createdAt: serverTimestamp(),
+      });
+    }
     /* Complaints disabled — restore when feature fixed
     const oid = owner?.ownerId;
     if (oid) {

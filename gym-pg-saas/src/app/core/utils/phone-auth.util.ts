@@ -36,3 +36,14 @@ export function ownerAuthEmailFromPhone(phoneE164: string): string {
   const host = environment.firebase.authDomain || 'gym-pg-saas.firebaseapp.com';
   return `${d}@${host}`;
 }
+
+/** Firestore collection: normalized contact email → synthetic Auth email for password sign-in (phone-first owners). */
+export const OWNER_LOGIN_ALIASES_COLLECTION = 'ownerLoginAliases' as const;
+
+/** Digits-only E.164 → real Auth email for password sign-in (email/password sign-ups). */
+export const OWNER_PHONE_LOGIN_ALIASES_COLLECTION = 'ownerPhoneLoginAliases' as const;
+
+/** Lowercase trimmed email for `ownerLoginAliases` document id and lookups. */
+export function normalizeOwnerLoginEmailKey(email: string): string {
+  return String(email ?? '').trim().toLowerCase();
+}
