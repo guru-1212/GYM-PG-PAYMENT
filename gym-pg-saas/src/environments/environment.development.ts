@@ -24,7 +24,7 @@ const firebaseTest: FirebaseOptions = {
  * true  => use production Firebase
  * false => use test Firebase
  */
-export const useProdFirebase = false;
+export const useProdFirebase = true;
 export const selectedFirebase: FirebaseOptions = useProdFirebase ? firebaseProd : firebaseTest;
 
 export const environment = {
