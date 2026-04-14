@@ -1,88 +1,172 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule, NgForm } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../../shared/brand-logo.component';
+import { ThemeToggleComponent } from '../../shared/theme-toggle.component';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, RouterModule, TranslatePipe, BrandLogoComponent],
+  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, BrandLogoComponent, ThemeToggleComponent],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
 })
 export class HomeComponent {
-  features = [
+  readonly ownerMobileNumber = '6300675014';
+  readonly whatsappNumber = `91${this.ownerMobileNumber}`;
+  mobileMenuOpen = false;
+
+  readonly quickBenefits = [
+    { icon: 'fa-indian-rupee-sign', title: 'Track Payments & Dues Easily' },
+    { icon: 'fa-bed', title: 'Manage Rooms & Beds' },
+    { icon: 'fa-users', title: 'Handle All Members in One Place' },
+    { icon: 'fa-chart-line', title: 'Monitor Earnings & Growth' },
+  ];
+
+  readonly groupedFeatures = [
     {
-      icon: '👥',
+      id: 'payments',
+      icon: 'fa-wallet',
+      title: 'Payments & Dues Management',
+      summary: 'Never miss a payment — track every rupee with full clarity.',
+      points: [
+        'Track pending, overdue, and due-soon payments',
+        'Support for partial payments',
+        'Payment history per member',
+        'Multiple payment methods (cash / UPI / card)',
+        'Export payment reports',
+      ],
+    },
+    {
+      id: 'rooms',
+      icon: 'fa-building',
+      title: 'Room & Bed Management',
+      summary: 'Know exactly which beds are filled and available at any time.',
+      points: [
+        'Create floors, rooms, and beds',
+        'Visual bed occupancy (occupied vs vacant)',
+        'Assign beds to members easily',
+        'Prevent double booking',
+        'Track available beds instantly',
+      ],
+    },
+    {
+      id: 'members',
+      icon: 'fa-id-card',
       title: 'Member Management',
-      description: 'Track members, subscriptions, and payment history seamlessly',
+      summary: 'Manage all your tenants with complete records in one place.',
+      points: [
+        'Add, edit, delete members',
+        'View active/inactive members',
+        'Member profile with full payment history',
+        'Search, filter, and sort members',
+        'Quick contact actions (call / WhatsApp)',
+      ],
     },
     {
-      icon: '💰',
-      title: 'Payment Tracking',
-      description: 'Monitor payments, generate invoices, and manage dues',
+      id: 'insights',
+      icon: 'fa-chart-pie',
+      title: 'Dashboard & Insights',
+      summary: 'Get complete visibility of your PG performance instantly.',
+      points: [
+        'Real-time dashboard (members, dues, earnings)',
+        'Monthly earnings tracking',
+        'Due today / overdue insights',
+        'Reports and export options',
+      ],
     },
     {
-      icon: '🏠',
-      title: 'Room Management',
-      description: 'Manage PG rooms, floors, and bed availability',
+      id: 'import',
+      icon: 'fa-file-import',
+      title: 'Bulk Import & Setup',
+      summary: 'Add all your tenants in minutes — no manual work.',
+      points: [
+        'Upload members via Excel/CSV',
+        'Auto validation and error handling',
+        'Seat assignment validation',
+      ],
     },
     {
-      icon: '📊',
-      title: 'Analytics & Reports',
-      description: 'Comprehensive insights into your business performance',
+      id: 'reminders',
+      icon: 'fa-bell',
+      title: 'Smart Reminders & Actions',
+      summary: 'Reduce late payments with instant reminders.',
+      points: [
+        'Send payment reminders instantly',
+        'WhatsApp / call integration',
+        'Quick actions for daily tasks',
+      ],
     },
     {
-      icon: '🔐',
-      title: 'Admin Dashboard',
-      description: 'Manage multiple gyms/PGs from a centralized admin panel',
-    },
-    {
-      icon: '📱',
-      title: 'Responsive Design',
-      description: 'Access your business from any device, anytime',
+      id: 'security',
+      icon: 'fa-shield-halved',
+      title: 'Secure Access & Control',
+      summary: 'Your data is safe and accessible only to you.',
+      points: [
+        'Secure login (email/mobile)',
+        'Account status handling',
+        'Protected owner access',
+      ],
     },
   ];
 
-  plans = [
-    {
-      name: 'Startup',
-      description: 'Perfect for small gyms',
-      price: '499',
-      featured: false,
-      features: [
-        'Up to 100 members',
-        'Payment tracking',
-        'Basic reports',
-        'Email support',
-      ],
-    },
-    {
-      name: 'Professional',
-      description: 'For growing businesses',
-      price: '999',
-      featured: true,
-      features: [
-        'Up to 500 members',
-        'Advanced analytics',
-        'Room management',
-        'Priority support',
-        'Custom branding',
-      ],
-    },
-    {
-      name: 'Enterprise',
-      description: 'For large operations',
-      price: '2499',
-      featured: false,
-      features: [
-        'Unlimited members',
-        'Multi-location',
-        'API access',
-        '24/7 support',
-        'Custom integration',
-      ],
-    },
-  ];
+  demoForm = {
+    name: '',
+    address: '',
+    businessType: 'pg',
+    email: '',
+    mobile: '',
+  };
+
+  private readonly emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+  private readonly mobileRegex = /^\d{10}$/;
+
+  private cleanValue(value: string): string {
+    return value.trim();
+  }
+
+  private normalizedMobile(value: string): string {
+    return value.replace(/\D/g, '');
+  }
+
+  isDemoFormValid(): boolean {
+    const name = this.cleanValue(this.demoForm.name);
+    const address = this.cleanValue(this.demoForm.address);
+    const email = this.cleanValue(this.demoForm.email);
+    const mobile = this.normalizedMobile(this.demoForm.mobile);
+    return !!name && !!address && this.emailRegex.test(email) && this.mobileRegex.test(mobile);
+  }
+
+  scrollTo(sectionId: string): void {
+    this.mobileMenuOpen = false;
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  openWhatsAppGeneral(): void {
+    const text = encodeURIComponent('Hi, I want to use this application. Please share more details.');
+    window.open(`https://wa.me/${this.whatsappNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
+  }
+
+  sendDemoRequest(form?: NgForm): void {
+    if (!this.isDemoFormValid()) {
+      form?.control.markAllAsTouched();
+      return;
+    }
+
+    const normalizedMobile = this.normalizedMobile(this.demoForm.mobile);
+    const details = [
+      'Hi, I need one demo.',
+      '',
+      `Name: ${this.cleanValue(this.demoForm.name)}`,
+      `Address: ${this.cleanValue(this.demoForm.address)}`,
+      `Business Type: ${this.demoForm.businessType}`,
+      `Email: ${this.cleanValue(this.demoForm.email)}`,
+      `Mobile: ${normalizedMobile}`,
+    ].join('\n');
+
+    const text = encodeURIComponent(details);
+    window.open(`https://wa.me/${this.whatsappNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
+  }
 }
