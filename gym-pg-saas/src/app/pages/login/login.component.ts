@@ -318,6 +318,13 @@ export class LoginComponent implements OnInit, OnDestroy {
   private forgotPasswordErrorMessage(e: unknown): string {
     const code =
       e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+    // Temporary debug for reset-link troubleshooting.
+    if (code) {
+      console.info('[AuthDebug][PasswordReset][error]', {
+        code,
+        message: this.msg(e, ''),
+      });
+    }
     switch (code) {
       case 'auth/invalid-email':
       case 'auth/invalid-phone-number':

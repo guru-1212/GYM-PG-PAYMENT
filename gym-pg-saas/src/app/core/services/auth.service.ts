@@ -222,6 +222,17 @@ export class AuthService {
       }
       email = resolved;
     }
+    // Temporary debug: compare these values with the reset-link URL query (`apiKey`) and host.
+    // Remove after diagnosing "expired / already used" behavior.
+    const opts = this.fb.app.options;
+    console.info('[AuthDebug][PasswordReset][send]', {
+      identifier: id,
+      resolvedEmail: email,
+      firebaseProjectId: opts.projectId,
+      firebaseAuthDomain: opts.authDomain,
+      firebaseApiKeyTail: typeof opts.apiKey === 'string' ? opts.apiKey.slice(-6) : '',
+      sentAtIso: new Date().toISOString(),
+    });
     await sendPasswordResetEmail(this.fb.auth, email);
   }
 

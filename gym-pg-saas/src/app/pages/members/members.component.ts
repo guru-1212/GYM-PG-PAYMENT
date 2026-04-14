@@ -375,7 +375,6 @@ export class MembersComponent implements OnInit, OnDestroy {
   private querySub: Subscription | null = null;
   private currentOwnerId: string | null = null;
   private payFormSubscription: Subscription | null = null;
-  private oldAmount: number = 0;
 
   constructor() {
     // Sync cache signals to component signals
@@ -593,7 +592,6 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   openEdit(m: Member): void {
-    this.oldAmount = m.amount;
     this.editingId.set(m.memberId);
     this.moreOpen.set(!!(m.gender || m.aadhaarLast4 || m.notes));
     const jd = timestampToDate(m.joinDate);
@@ -616,8 +614,8 @@ export class MembersComponent implements OnInit, OnDestroy {
       dueDate: dueStr,
       amount: m.amount,
       advancePaid: Math.max(0, Number(m.advancePaid) || 0),
-      isPartialPayment: false,
-      paidAmount: 0,
+      isPartialPayment: (Number(m.pendingAmount) || 0) > 0,
+      paidAmount: Math.max(0, Number(m.amount) - Math.max(0, Number(m.pendingAmount) || 0)),
       pendingAmount: Number(m.pendingAmount) || 0,
       paymentMethod: 'cash', // Default to cash for existing members
       status: m.status,
@@ -663,16 +661,16 @@ export class MembersComponent implements OnInit, OnDestroy {
     const due = new Date(v.dueDate + 'T12:00:00');
     const newAmount = Number(v.amount);
     const isCreate = !this.editingId();
-    const isPartialOnCreate = isCreate && !!v.isPartialPayment;
-    const paidAmount = isPartialOnCreate ? Number(v.paidAmount) : newAmount;
-    const pendingAmount = isPartialOnCreate ? Math.max(0, newAmount - paidAmount) : 0;
-    if (isPartialOnCreate) {
+    const isPartial = !!v.isPartialPayment;
+    const paidAmount = isPartial ? Number(v.paidAmount) : (isCreate ? newAmount : 0);
+    const pendingAmount = isPartial ? Math.max(0, newAmount - paidAmount) : 0;
+    if (isPartial) {
       if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
-        this.toast.error('Enter a valid paid amount');
+        this.toast.error('Enter a valid current paying amount');
         return;
       }
       if (paidAmount > newAmount) {
-        this.toast.error('Paid amount cannot be greater than total amount');
+        this.toast.error('Current paying amount cannot be greater than total amount');
         return;
       }
     }
@@ -695,6 +693,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       paidAmount,
       pendingAmount,
       paymentMethod: v.paymentMethod,
+      recordPaymentOnUpdate: !isCreate && isPartial,
       status: v.status,
       subscriptionType: this.isGym() ? v.subscriptionType : undefined,
     };
@@ -703,26 +702,6 @@ export class MembersComponent implements OnInit, OnDestroy {
       if (id) {
         await this.membersApi.updateMember(id, input);
         this.toast.success('Member updated');
-        
-        // Check if amount changed and update latest payment if confirmed
-        if (this.oldAmount !== newAmount) {
-          const amountChanged = confirm(
-            `Amount changed from ₹${this.oldAmount} to ₹${newAmount}. Do you want to update the latest payment also?`
-          );
-          
-          if (amountChanged) {
-            try {
-              const latestPayment = await this.paymentsApi.getLatestPaymentForMember(id);
-              if (latestPayment) {
-                await this.paymentsApi.updatePaymentAmount(latestPayment.paymentId, newAmount);
-                this.toast.success('Payment updated successfully');
-              }
-            } catch (error) {
-              console.error('❌ Error updating payment:', error);
-              this.toast.error('Could not update payment');
-            }
-          }
-        }
       } else {
         await this.membersApi.addMember(input);
         this.toast.success('Member added');
