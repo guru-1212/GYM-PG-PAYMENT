@@ -1,12 +1,9 @@
 import {
-  afterNextRender,
   Component,
-  Injector,
   OnDestroy,
   OnInit,
   computed,
   inject,
-  runInInjectionContext,
   signal,
 } from '@angular/core';
 import { merge } from 'rxjs';
@@ -35,7 +32,6 @@ type BeforeInstallPromptEvent = Event & {
   templateUrl: './login.component.html',
 })
 export class LoginComponent implements OnInit, OnDestroy {
-  private readonly injector = inject(Injector);
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly i18n = inject(TranslationService);
@@ -52,17 +48,9 @@ export class LoginComponent implements OnInit, OnDestroy {
   readonly showSignInPassword = signal(false);
   readonly showSignUpPassword = signal(false);
   readonly showForgotPassword = signal(false);
-  /** `'details'` → send SMS; `'otp'` → verify code then create account. */
-  readonly signUpPhase = signal<'details' | 'otp'>('details');
-  readonly signUpOtp = signal('');
   /** PG-only sign-up for now; restore `'gym'` when gym onboarding returns. */
   readonly businessTypeSignal = signal<'gym' | 'pg'>('pg');
 
-  /** After `auth/too-many-requests`, block Send until this time (epoch ms). */
-  private readonly signUpSmsBlockedUntilMs = signal(0);
-  /** Bumped every second while blocked so the template countdown updates. */
-  private readonly signUpSmsCooldownPulse = signal(0);
-  private signUpSmsCooldownIntervalId: ReturnType<typeof setInterval> | null = null;
   readonly showInstallHintPopup = signal(false);
   private installHintTimerId: ReturnType<typeof setTimeout> | null = null;
   private deferredInstallPrompt: BeforeInstallPromptEvent | null = null;
@@ -97,7 +85,6 @@ export class LoginComponent implements OnInit, OnDestroy {
   });
 
   ngOnDestroy(): void {
-    this.clearSignUpSmsCooldownTimer();
     this.clearInstallHintTimer();
     this.detachInstallPromptListeners();
   }
@@ -148,34 +135,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.signInError.set('');
     this.showForgotPassword.set(false);
     this.auth.disposeOwnerSignUpPhone();
-    if (m === 'signup') {
-      this.signUpPhase.set('details');
-      this.signUpOtp.set('');
-      this.scheduleOwnerSignupRecaptchaMount();
-    } else {
-      this.clearSignUpSmsCooldownTimer();
-      this.signUpSmsBlockedUntilMs.set(0);
-    }
-  }
-
-  /**
-   * Mount reCAPTCHA once the sign-up template exists (same intent as ngOnInit + initRecaptcha, but the
-   * `#recaptcha-container` node is absent until `mode === 'signup'`). Never create the verifier inside `sendOtp`.
-   */
-  private scheduleOwnerSignupRecaptchaMount(): void {
-    runInInjectionContext(this.injector, () => {
-      afterNextRender(() => {
-        if (this.mode() !== 'signup' || this.signUpPhase() !== 'details') return;
-        void this.auth.ensurePhoneAuthRecaptcha(this.auth.phoneAuthRecaptchaContainerId).catch(() => {
-          /* ignore — user can retry on Send */
-        });
-      });
-    });
-  }
-
-  /** E.164 preview for SMS (10-digit India → +91…). */
-  normalizedSignUpPhoneDisplay(): string | null {
-    return normalizeOwnerPhone(this.signUpForm.controls.phone.value);
   }
 
   /** For sign-up template: missing password rules when `strongPassword` error is set. */
@@ -213,7 +172,6 @@ export class LoginComponent implements OnInit, OnDestroy {
         await this.auth.signOut();
         return;
       }
-      // Low-cost notification check on login (uses one-time loaded members from existing cache flow).
       if (p.role === 'owner' && p.status === 'approved' && p.ownerId) {
         await this.cache.loadMembers(p.ownerId);
         this.notifications.checkDueMembers(this.cache.members());
@@ -226,63 +184,10 @@ export class LoginComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Seconds left before Send SMS is allowed again (0 = not blocked). */
-  signUpSmsCooldownSecondsLeft(): number {
-    this.signUpSmsCooldownPulse();
-    const until = this.signUpSmsBlockedUntilMs();
-    if (!until) return 0;
-    return Math.max(0, Math.ceil((until - Date.now()) / 1000));
-  }
-
-  signUpSendSmsDisabledByCooldown(): boolean {
-    return this.signUpSmsCooldownSecondsLeft() > 0;
-  }
-
-  /** Step 1: SMS OTP to the mobile on the form (Firebase Phone Auth + invisible reCAPTCHA). */
-  async onSendSignUpOtp(): Promise<void> {
+  /** Sign up with email + password (no OTP / reCAPTCHA). Phone and email are mandatory on the form. */
+  async onSignUpSubmit(): Promise<void> {
     if (this.signUpForm.invalid) {
       this.signUpForm.markAllAsTouched();
-      return;
-    }
-    if (this.signUpSendSmsDisabledByCooldown()) {
-      this.toast.error(
-        this.i18n.t('login.smsCooldownActive', { seconds: this.signUpSmsCooldownSecondsLeft() }),
-      );
-      return;
-    }
-    this.busy.set(true);
-    try {
-      const phone = normalizeOwnerPhone(this.signUpForm.controls.phone.value);
-      if (!phone) {
-        this.toast.error('Enter a valid mobile number (10 digits or +country code).');
-        return;
-      }
-      await this.auth.ensurePhoneAuthRecaptcha(this.auth.phoneAuthRecaptchaContainerId);
-      await this.auth.sendOtp(phone);
-      this.signUpPhase.set('otp');
-      this.signUpOtp.set('');
-      this.toast.success('Verification code sent to your mobile.');
-    } catch (e: unknown) {
-      this.auth.disposeOwnerSignUpPhone();
-      this.scheduleOwnerSignupRecaptchaMount();
-      const code = e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
-      if (code === 'auth/too-many-requests') {
-        this.startSignUpSmsCooldown(120);
-      }
-      if (code === 'auth/invalid-app-credential' || code === 'auth/captcha-check-failed') {
-        this.logInvalidAppCredentialHelp(code);
-      }
-      this.toast.error(this.signUpOtpErrorMessage(e));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  /** Step 2: confirm OTP, link password, create Firestore owner profile. */
-  async onVerifySignUpOtp(): Promise<void> {
-    const otp = this.signUpOtp().trim();
-    if (!/^\d{4,8}$/.test(otp)) {
-      this.toast.error('Enter the verification code from the SMS (usually 6 digits).');
       return;
     }
     const emailTrimmed = this.signUpForm.controls.email.value.trim();
@@ -299,12 +204,13 @@ export class LoginComponent implements OnInit, OnDestroy {
     }
     this.busy.set(true);
     try {
-      await this.auth.completeOwnerSignUpWithOtp(otp, {
+      await this.auth.completeOwnerSignUpWithEmailPassword({
         contactEmail: emailTrimmed,
         password: this.signUpForm.controls.password.value,
         name: this.signUpForm.controls.name.value,
         businessName: this.signUpForm.controls.businessName.value,
         businessType: this.signUpForm.controls.businessType.value,
+        phoneE164,
       });
       await this.auth.refreshProfile();
       this.auth.disposeOwnerSignUpPhone();
@@ -320,8 +226,6 @@ export class LoginComponent implements OnInit, OnDestroy {
         this.toast.error(
           'Password is too weak for Firebase. Use at least 8 characters with uppercase, lowercase, a number, and a symbol.',
         );
-      } else if (code === 'auth/invalid-verification-code' || code === 'auth/code-expired') {
-        this.toast.error('Invalid or expired code. Check the SMS and try again.');
       } else if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
         this.toast.error('This mobile or email is already registered. Try signing in instead.');
       } else {
@@ -330,13 +234,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     } finally {
       this.busy.set(false);
     }
-  }
-
-  backToSignUpDetails(): void {
-    this.signUpPhase.set('details');
-    this.signUpOtp.set('');
-    this.auth.disposeOwnerSignUpPhone();
-    this.scheduleOwnerSignupRecaptchaMount();
   }
 
   async onForgotPasswordSubmit(): Promise<void> {
@@ -403,8 +300,10 @@ export class LoginComponent implements OnInit, OnDestroy {
         return 'Mobile/email or password is incorrect. Please check and try again.';
       case 'auth/invalid-email':
         return 'Please enter a valid email address.';
-      case 'auth/invalid-phone-number':
+           case 'auth/invalid-phone-number':
         return 'Please enter a valid mobile number (with country code, e.g. +91…).';
+      case 'auth/phone-not-registered':
+        return 'This mobile number is not registered. Sign up first or sign in with your email.';
       case 'auth/user-disabled':
         return 'This account has been disabled. Contact support if you need help.';
       case 'auth/too-many-requests':
@@ -413,84 +312,6 @@ export class LoginComponent implements OnInit, OnDestroy {
         return 'Network error. Check your connection and try again.';
       default:
         return this.msg(e, 'Sign in failed. Please try again.');
-    }
-  }
-
-  private signUpOtpErrorMessage(e: unknown): string {
-    const code =
-      e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
-    const serverHint = this.identityToolkitErrorHint(e);
-    switch (code) {
-      case 'auth/captcha-check-failed':
-      case 'auth/invalid-app-credential': {
-        const base = this.i18n.t('login.recaptchaOrApiRejected');
-        return serverHint ? `${base} ${serverHint}` : base;
-      }
-      case 'auth/missing-client-identifier':
-        return 'Phone auth could not verify this app. Check Firebase Console → Authentication → Settings → Authorized domains includes localhost.';
-      case 'auth/too-many-requests':
-        return this.i18n.t('login.smsTooManyRequestsToast', { minutes: 2 });
-      case 'auth/invalid-phone-number':
-      case 'auth/missing-phone-number':
-        return (
-          'Invalid mobile number for SMS. Use +country code or a valid 10-digit India mobile (sent as +91…). ' +
-          serverHint
-        ).trim();
-      case 'auth/quota-exceeded':
-        return 'SMS quota exceeded. Try again later or contact support.';
-      case 'auth/missing-verification':
-        return 'Please send the verification code first.';
-      case 'auth/operation-not-allowed':
-        return 'Phone sign-in is disabled for this Firebase project. Enable Phone in Authentication → Sign-in method.';
-      default: {
-        const base = this.msg(e, 'Could not send verification code.');
-        return serverHint ? `${base} ${serverHint}` : base;
-      }
-    }
-  }
-
-  /** Extra detail from Identity Toolkit REST body when present (helps interpret HTTP 400). */
-  /** Long checklist only in dev console so the toast stays short. */
-  private logInvalidAppCredentialHelp(code: string): void {
-    void code;
-  }
-
-  private identityToolkitErrorHint(e: unknown): string {
-    if (!e || typeof e !== 'object') return '';
-    const customData = (e as { customData?: Record<string, unknown> }).customData;
-    const sr = customData?.['_serverResponse'];
-    if (sr && typeof sr === 'object') {
-      const nested = (sr as { error?: { message?: string; errors?: { message?: string }[] } }).error;
-      if (nested && typeof nested === 'object') {
-        if (typeof nested.message === 'string' && nested.message.trim()) {
-          return `(${nested.message.trim()})`;
-        }
-        const first = nested.errors?.[0]?.message;
-        if (typeof first === 'string' && first.trim()) {
-          return `(${first.trim()})`;
-        }
-      }
-    }
-    return '';
-  }
-
-  private startSignUpSmsCooldown(totalSeconds: number): void {
-    this.clearSignUpSmsCooldownTimer();
-    this.signUpSmsBlockedUntilMs.set(Date.now() + totalSeconds * 1000);
-    this.signUpSmsCooldownPulse.update((n) => n + 1);
-    this.signUpSmsCooldownIntervalId = setInterval(() => {
-      if (Date.now() >= this.signUpSmsBlockedUntilMs()) {
-        this.signUpSmsBlockedUntilMs.set(0);
-        this.clearSignUpSmsCooldownTimer();
-      }
-      this.signUpSmsCooldownPulse.update((n) => n + 1);
-    }, 1000);
-  }
-
-  private clearSignUpSmsCooldownTimer(): void {
-    if (this.signUpSmsCooldownIntervalId !== null) {
-      clearInterval(this.signUpSmsCooldownIntervalId);
-      this.signUpSmsCooldownIntervalId = null;
     }
   }
 
@@ -503,6 +324,8 @@ export class LoginComponent implements OnInit, OnDestroy {
         return 'Enter a valid email or mobile number.';
       case 'auth/user-not-found':
         return 'No account found for this email or mobile.';
+      case 'auth/phone-not-registered':
+        return 'This mobile number is not registered.';
       default:
         return this.msg(e, 'Could not send reset email.');
     }

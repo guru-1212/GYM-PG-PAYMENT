@@ -9,7 +9,7 @@ export interface Owner {
   name: string;
   businessName?: string;
   email: string;
-  /** E.164 when the account was verified with Firebase Phone Auth at sign-up. */
+  /** Mobile stored as digits only (e.g. 919876543210) for profile + alias key consistency. */
   phone?: string;
   phoneVerified?: boolean;
   businessType: BusinessType;

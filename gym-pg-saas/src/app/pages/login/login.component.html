@@ -164,8 +164,7 @@
           }
         </div>
       } @else {
-        @if (signUpPhase() === 'details') {
-        <form [formGroup]="signUpForm" (ngSubmit)="onSendSignUpOtp()" class="space-y-4">
+        <form [formGroup]="signUpForm" (ngSubmit)="onSignUpSubmit()" class="space-y-4">
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700" for="name">{{ 'login.yourName' | t }}</label>
             <input
@@ -237,12 +236,7 @@
               required
               [placeholder]="'login.mobileHint' | t"
             />
-            <p class="mt-1 text-xs text-slate-500">{{ 'login.mobileVerifyHint' | t }}</p>
-            @if (normalizedSignUpPhoneDisplay(); as smsTo) {
-              <p class="mt-1 text-xs font-medium text-emerald-800">
-                {{ 'login.smsWillBeSentTo' | t }} <span class="font-mono">{{ smsTo }}</span>
-              </p>
-            }
+            <p class="mt-1 text-xs text-slate-500">Required for your profile and contact. We do not send an SMS code during sign-up.</p>
             @if (signUpForm.controls.phone.touched && signUpForm.controls.phone.invalid) {
               @if (signUpForm.controls.phone.hasError('required')) {
                 <p class="mt-1 text-sm text-red-600">{{ 'login.mobileRequired' | t }}</p>
@@ -330,24 +324,22 @@
             }
           </div>
 
+          <!-- Phone OTP sign-up removed: reCAPTCHA + SMS verification disabled.
           <div class="rounded-xl border border-slate-200 bg-slate-50/90 p-3">
             <p class="mb-2 text-xs font-medium text-slate-700">{{ 'login.recaptchaHint' | t }}</p>
             <div id="recaptcha-container" class="flex min-h-[4.5rem] items-center justify-start"></div>
           </div>
+          -->
 
           <button
             type="submit"
             class="saas-btn-primary flex w-full items-center justify-center gap-2 py-4 text-base disabled:opacity-60"
-            [disabled]="busy() || signUpSendSmsDisabledByCooldown()"
+            [disabled]="busy()"
           >
             @if (busy()) {
               <span class="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
             }
-            @if (signUpSendSmsDisabledByCooldown()) {
-              {{ 'login.sendOtpWait' | t: { seconds: signUpSmsCooldownSecondsLeft() } }}
-            } @else {
-              {{ 'login.sendOtp' | t }}
-            }
+            {{ 'login.createAccount' | t }}
           </button>
           <p class="text-center text-xs text-slate-500">
             {{ 'login.adminApprove' | t }}
@@ -368,44 +360,10 @@
             {{ 'login.contactWhatsApp' | t }}
           </a>
         </form>
-        } @else {
-          <div class="space-y-4">
-            <p class="text-sm text-slate-600">{{ 'login.enterOtpBlurb' | t }}</p>
-            <div>
-              <label class="mb-1 block text-sm font-medium text-slate-700" for="otp">{{ 'login.enterOtp' | t }}</label>
-              <input
-                id="otp"
-                type="text"
-                inputmode="numeric"
-                autocomplete="one-time-code"
-                maxlength="8"
-                class="saas-input w-full tracking-widest"
-                [value]="signUpOtp()"
-                (input)="signUpOtp.set($any($event.target).value)"
-              />
-            </div>
-            <button
-              type="button"
-              class="saas-btn-primary flex w-full items-center justify-center gap-2 py-4 text-base disabled:opacity-60"
-              [disabled]="busy()"
-              (click)="onVerifySignUpOtp()"
-            >
-              @if (busy()) {
-                <span class="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-              }
-              {{ 'login.verifyAndCreate' | t }}
-            </button>
-            <button
-              type="button"
-              class="w-full rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-              [disabled]="busy()"
-              (click)="backToSignUpDetails()"
-            >
-              {{ 'login.changeNumber' | t }}
-            </button>
-            <p class="text-center text-xs text-slate-500">{{ 'login.adminApprove' | t }}</p>
-          </div>
-        }
+
+        <!-- OTP step removed — account is created on submit; user goes straight to pending approval.
+        @else { ... verify OTP UI ... }
+        -->
       }
         </div>
       </section>

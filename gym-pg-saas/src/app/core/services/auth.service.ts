@@ -1,16 +1,11 @@
-import { DOCUMENT } from '@angular/common';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import type { ConfirmationResult } from 'firebase/auth';
 import {
   User,
-  EmailAuthProvider,
-  RecaptchaVerifier,
+  createUserWithEmailAndPassword,
   deleteUser,
-  linkWithCredential,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
-  signInWithPhoneNumber,
   signOut,
 } from 'firebase/auth';
 import {
@@ -19,14 +14,18 @@ import {
   getDoc,
   onSnapshot,
   serverTimestamp,
-  setDoc,
   Unsubscribe,
+  writeBatch,
 } from 'firebase/firestore';
 import { Owner, OwnerRole, OwnerStatus } from '../models/owner.model';
-// Complaints disabled — restore when feature fixed
-// import { ComplaintService } from './complaint.service';
 import { FirebaseAppService } from './firebase-app.service';
-import { normalizeOwnerPhone, ownerAuthEmailFromPhone } from '../utils/phone-auth.util';
+import {
+  digitsOnly,
+  normalizeOwnerLoginEmailKey,
+  normalizeOwnerPhone,
+  OWNER_LOGIN_ALIASES_COLLECTION,
+  OWNER_PHONE_LOGIN_ALIASES_COLLECTION,
+} from '../utils/phone-auth.util';
 
 function normalizeRole(v: unknown): OwnerRole | '' {
   const s = String(v ?? '')
@@ -55,6 +54,12 @@ function ownerFromSnapshot(snap: DocumentSnapshot): Owner | null {
   };
 }
 
+/** Auth email stored on alias docs: field name must match Firestore rules (`email` on phone aliases). */
+function readAliasAuthEmail(data: Record<string, unknown>): string | null {
+  const v = data['email'] ?? data['authLoginEmail'];
+  return typeof v === 'string' && v.includes('@') ? v.trim().toLowerCase() : null;
+}
+
 /** Result of reading `owners/{uid}` (used for login toasts / console — not an HTTP error when doc is missing). */
 export type ProfileLoadResult = {
   owner: Owner | null;
@@ -65,8 +70,6 @@ export type ProfileLoadResult = {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly fb = inject(FirebaseAppService);
-  private readonly doc = inject(DOCUMENT);
-  // private readonly complaints = inject(ComplaintService);
 
   readonly user = signal<User | null>(null);
   readonly profile = signal<Owner | null>(null);
@@ -84,33 +87,7 @@ export class AuthService {
   });
 
   private profileUnsub: Unsubscribe | null = null;
-  /** Avoid unsub/resub on repeated onAuthStateChanged for the same UID (Firefox: NS_BINDING_ABORTED on Write/Listen channel). */
   private profileListenerUid: string | null = null;
-
-  /**
-   * --- Owner phone OTP (reCAPTCHA) contract (modular Firebase v9+) ---
-   * 1. Never `new RecaptchaVerifier` inside `sendOwnerSignUpOtp` / `sendOtp` — only in `initOwnerSignUpRecaptcha`.
-   * 2. Call `ensurePhoneAuthRecaptcha` (or `initRecaptcha`) while `#recaptcha-container` exists, **before** `signInWithPhoneNumber`.
-   * 3. `await render()` runs in init so the widget is mounted before SMS.
-   * 4. `ensurePhoneAuthRecaptcha` no-ops if the same verifier is already active (one instance per “details” phase).
-   * 5. After a successful SMS send, `releaseOwnerSignUpRecaptchaWidget` tears the widget down; the next attempt
-   *    runs `dispose` + init again (new verifier) — do not reuse a cleared verifier.
-   * 6. Constructor order is `new RecaptchaVerifier(auth, containerId, options)` — NOT the compat `(id, opts, auth)` order.
-   * 7. Phone must be E.164 (`normalizeOwnerPhone`) before `sendOtp`; do not raw-concat `+91` in the service.
-   * 8. We use **size: 'normal'** (visible v2). Invisible often triggers `invalid-app-credential` on localhost; re-test if you change it.
-   */
-  private ownerSignUpRecaptcha: RecaptchaVerifier | null = null;
-  private ownerSignUpConfirmation: ConfirmationResult | null = null;
-  private ownerSignUpPhoneE164: string | null = null;
-  /** Host element id for Firebase Phone Auth + reCAPTCHA v2; must match an empty div in the sign-up template. */
-  private ownerSignUpRecaptchaContainerId: string | null = null;
-
-  /**
-   * Default reCAPTCHA mount point (Firebase docs use `recaptcha-container`).
-   * We use **size: 'normal'** (visible v2), not invisible: invisible/clipped hosts often cause
-   * `invalid-app-credential` on localhost / Firefox; do not switch without re-testing.
-   */
-  readonly phoneAuthRecaptchaContainerId = 'recaptcha-container' as const;
 
   constructor() {
     onAuthStateChanged(this.fb.auth, (u) => {
@@ -141,11 +118,6 @@ export class AuthService {
           const o = ownerFromSnapshot(snap);
           this.profile.set(o);
           this.loading.set(false);
-          /* Complaints disabled — restore when feature fixed
-          if (o?.role === 'owner') {
-            void this.complaints.publishPublicComplaintSettings(o.ownerId, Boolean(o.complaintEnabled));
-          }
-          */
         },
         () => {
           this.profile.set(null);
@@ -156,13 +128,21 @@ export class AuthService {
   }
 
   /**
-   * Sign in with email (legacy owners) or mobile number (phone-first owners use a deterministic Auth email).
+   * Email: Firebase email/password, with optional `ownerLoginAliases` retry for legacy mapped emails.
+   * Mobile: digits-only key → `ownerPhoneLoginAliases/{digits}` → `email` field → signInWithEmailAndPassword.
+   * No Firebase Phone Auth / OTP / synthetic Auth emails.
    */
   async signIn(identifier: string, password: string): Promise<void> {
     const id = identifier.trim();
-    let loginEmail: string;
     if (id.includes('@')) {
-      loginEmail = id;
+      try {
+        await signInWithEmailAndPassword(this.fb.auth, id, password);
+      } catch (e) {
+        if (!this.isAuthRetryableForAlias(e)) throw e;
+        const resolved = await this.getAuthEmailForContactLogin(id);
+        if (!resolved || resolved === normalizeOwnerLoginEmailKey(id)) throw e;
+        await signInWithEmailAndPassword(this.fb.auth, resolved, password);
+      }
     } else {
       const n = normalizeOwnerPhone(id);
       if (!n) {
@@ -170,20 +150,63 @@ export class AuthService {
         (err as { code?: string }).code = 'auth/invalid-phone-number';
         throw err;
       }
-      loginEmail = ownerAuthEmailFromPhone(n);
+      const phoneDigits = digitsOnly(n);
+      if (phoneDigits.length < 10) {
+        const err = new Error('Invalid mobile number');
+        (err as { code?: string }).code = 'auth/invalid-phone-number';
+        throw err;
+      }
+      const loginEmail = await this.getLoginEmailFromPhoneAliasDoc(phoneDigits);
+      if (!loginEmail) {
+        const err = new Error('Phone not registered. Sign up first or sign in with your email.');
+        (err as { code?: string }).code = 'auth/phone-not-registered';
+        throw err;
+      }
+      await signInWithEmailAndPassword(this.fb.auth, loginEmail, password);
     }
-    await signInWithEmailAndPassword(this.fb.auth, loginEmail, password);
     await this.fb.auth.authStateReady();
   }
 
-  /**
-   * Password reset: accepts account email or the same mobile number used for sign-in.
-   */
+  private isAuthRetryableForAlias(e: unknown): boolean {
+    const code = e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+    return (
+      code === 'auth/user-not-found' ||
+      code === 'auth/wrong-password' ||
+      code === 'auth/invalid-credential' ||
+      code === 'auth/invalid-email'
+    );
+  }
+
+  /** Optional legacy: ownerLoginAliases/{lowercaseEmail} → email (or authLoginEmail) = Auth login email. */
+  private async getAuthEmailForContactLogin(trimmedEmail: string): Promise<string | null> {
+    const key = normalizeOwnerLoginEmailKey(trimmedEmail);
+    if (!key.includes('@')) return null;
+    try {
+      const snap = await getDoc(doc(this.fb.db, OWNER_LOGIN_ALIASES_COLLECTION, key));
+      if (!snap.exists()) return null;
+      return readAliasAuthEmail(snap.data() as Record<string, unknown>);
+    } catch {
+      return null;
+    }
+  }
+
+  /** `ownerPhoneLoginAliases/{phoneDigits}` → `email` (Firebase Auth email for password sign-in). */
+  private async getLoginEmailFromPhoneAliasDoc(phoneDigits: string): Promise<string | null> {
+    try {
+      const snap = await getDoc(doc(this.fb.db, OWNER_PHONE_LOGIN_ALIASES_COLLECTION, phoneDigits));
+      if (!snap.exists()) return null;
+      return readAliasAuthEmail(snap.data() as Record<string, unknown>);
+    } catch {
+      return null;
+    }
+  }
+
   async sendOwnerPasswordReset(identifier: string): Promise<void> {
     const id = identifier.trim();
     let email: string;
     if (id.includes('@')) {
-      email = id;
+      // Use the exact email entered for reset; avoids stale alias mapping issues.
+      email = normalizeOwnerLoginEmailKey(id);
     } else {
       const n = normalizeOwnerPhone(id);
       if (!n) {
@@ -191,169 +214,70 @@ export class AuthService {
         (err as { code?: string }).code = 'auth/invalid-phone-number';
         throw err;
       }
-      email = ownerAuthEmailFromPhone(n);
+      const resolved = await this.getLoginEmailFromPhoneAliasDoc(digitsOnly(n));
+      if (!resolved) {
+        const err = new Error('Phone not registered.');
+        (err as { code?: string }).code = 'auth/phone-not-registered';
+        throw err;
+      }
+      email = resolved;
     }
     await sendPasswordResetEmail(this.fb.auth, email);
   }
 
-  /** Tear down reCAPTCHA between attempts / when leaving sign-up. */
-  disposeOwnerSignUpPhone(): void {
-    try {
-      this.ownerSignUpRecaptcha?.clear();
-    } catch {
-      /* ignore */
-    }
-    this.ownerSignUpRecaptcha = null;
-    this.ownerSignUpConfirmation = null;
-    this.ownerSignUpPhoneE164 = null;
-    if (this.ownerSignUpRecaptchaContainerId) {
-      this.clearOwnerSignUpRecaptchaDom(this.ownerSignUpRecaptchaContainerId);
-      this.ownerSignUpRecaptchaContainerId = null;
-    }
-  }
-
-  /** True while a RecaptchaVerifier exists (not yet cleared after a successful send). */
-  hasOwnerSignUpRecaptchaVerifier(): boolean {
-    return this.ownerSignUpRecaptcha !== null;
-  }
+  /** Legacy no-op (older UI called this around phone OTP). */
+  disposeOwnerSignUpPhone(): void {}
 
   /**
-   * Ensure a single `RecaptchaVerifier` for `containerId` (no-op if already active).
-   * Prefer this over forcing `initOwnerSignUpRecaptcha` on every action.
+   * Sign-up: createUserWithEmailAndPassword, then owners + ownerPhoneLoginAliases in one batch.
+   * Phone alias doc uses field `email` to match your security rules.
    */
-  async ensurePhoneAuthRecaptcha(
-    containerId: string = this.phoneAuthRecaptchaContainerId,
-  ): Promise<void> {
-    if (this.ownerSignUpRecaptcha && this.ownerSignUpRecaptchaContainerId === containerId) {
-      return;
-    }
-    await this.initOwnerSignUpRecaptcha(containerId);
-  }
-
-  /** @see {@link ensurePhoneAuthRecaptcha} — alias for readability (Firebase Phone OTP flow). */
-  initRecaptcha(containerId: string = this.phoneAuthRecaptchaContainerId): Promise<void> {
-    return this.ensurePhoneAuthRecaptcha(containerId);
-  }
-
-  /**
-   * Create a visible reCAPTCHA widget and wait until it is mounted (iframe loading).
-   * Call only when `#containerId` is in the DOM. A short delay after teardown avoids flaky tokens.
-   */
-  async initOwnerSignUpRecaptcha(containerId: string): Promise<void> {
-    this.disposeOwnerSignUpPhone();
-    await new Promise<void>((resolve) => window.setTimeout(() => resolve(), 80));
-    this.ownerSignUpRecaptchaContainerId = containerId;
-    this.clearOwnerSignUpRecaptchaDom(containerId);
-    // Visible v2: hidden hosts often yield INVALID_APP_CREDENTIAL / 400 on web (esp. Firefox).
-    this.ownerSignUpRecaptcha = new RecaptchaVerifier(this.fb.auth, containerId, {
-      size: 'normal',
-      callback: () => {
-        /* solved — signInWithPhoneNumber drives the flow */
-      },
-      'expired-callback': () => {
-        /* user can tap Send OTP again */
-      },
-    });
-    await this.ownerSignUpRecaptcha.render();
-  }
-
-  async sendOwnerSignUpOtp(phoneE164: string): Promise<void> {
-    if (!this.ownerSignUpRecaptcha) {
-      const err = new Error('reCAPTCHA not ready');
-      (err as { code?: string }).code = 'auth/captcha-check-failed';
+  async completeOwnerSignUpWithEmailPassword(args: {
+    contactEmail: string;
+    password: string;
+    name: string;
+    businessName: string;
+    businessType: 'gym' | 'pg';
+    phoneE164: string;
+  }): Promise<void> {
+    const emailNorm = args.contactEmail.trim().toLowerCase();
+    const phoneDigits = digitsOnly(args.phoneE164);
+    if (phoneDigits.length < 10) {
+      const err = new Error('Invalid mobile number');
+      (err as { code?: string }).code = 'auth/invalid-phone-number';
       throw err;
     }
-    try {
-      // Invariant: never construct RecaptchaVerifier here — only `signInWithPhoneNumber` + existing verifier.
-      // verify() reuses the same render promise from init + render() above.
-      this.ownerSignUpConfirmation = await signInWithPhoneNumber(
-        this.fb.auth,
-        phoneE164,
-        this.ownerSignUpRecaptcha,
-      );
-      this.ownerSignUpPhoneE164 = phoneE164;
-    } catch (e) {
-      throw e;
-    }
-    // Widget must be released before the OTP step (or a retry); otherwise Firebase/grecaptcha errors with
-    // "reCAPTCHA has already been rendered in this element" on the next send.
-    this.releaseOwnerSignUpRecaptchaWidget();
-  }
 
-  /** @see {@link sendOwnerSignUpOtp} — `phoneE164` must already be normalized (e.g. +91…). */
-  sendOtp(phoneE164: string): Promise<void> {
-    return this.sendOwnerSignUpOtp(phoneE164);
-  }
-
-  /** Clear verifier + container DOM; keep phone confirmation flow state. */
-  private releaseOwnerSignUpRecaptchaWidget(): void {
-    try {
-      this.ownerSignUpRecaptcha?.clear();
-    } catch {
-      /* ignore */
-    }
-    this.ownerSignUpRecaptcha = null;
-    if (this.ownerSignUpRecaptchaContainerId) {
-      this.clearOwnerSignUpRecaptchaDom(this.ownerSignUpRecaptchaContainerId);
-      this.ownerSignUpRecaptchaContainerId = null;
-    }
-  }
-
-  private clearOwnerSignUpRecaptchaDom(containerId: string): void {
-    const el = this.doc.getElementById(containerId);
-    if (el) {
-      el.replaceChildren();
-    }
-  }
-
-  /**
-   * Verify SMS OTP (`confirmationResult.confirm`), link email/password, create `owners/{uid}`.
-   * This is the “Verify OTP” step for owner phone sign-up (modular Firebase Auth v9+).
-   */
-  async completeOwnerSignUpWithOtp(
-    otp: string,
-    args: {
-      contactEmail: string;
-      password: string;
-      name: string;
-      businessName: string;
-      businessType: 'gym' | 'pg';
-    },
-  ): Promise<void> {
-    if (!this.ownerSignUpConfirmation || !this.ownerSignUpPhoneE164) {
-      const err = new Error('Send OTP first');
-      (err as { code?: string }).code = 'auth/missing-verification';
+    const phoneAliasSnap = await getDoc(doc(this.fb.db, OWNER_PHONE_LOGIN_ALIASES_COLLECTION, phoneDigits));
+    if (phoneAliasSnap.exists()) {
+      const err = new Error('Phone already registered');
+      (err as { code?: string }).code = 'auth/credential-already-in-use';
       throw err;
     }
-    const phoneE164 = this.ownerSignUpPhoneE164;
-    const loginEmail = ownerAuthEmailFromPhone(phoneE164);
-    const cred = await this.ownerSignUpConfirmation.confirm(otp.trim());
-    this.ownerSignUpConfirmation = null;
-    try {
-      await linkWithCredential(cred.user, EmailAuthProvider.credential(loginEmail, args.password));
-    } catch (e) {
-      try {
-        await deleteUser(cred.user);
-      } catch {
-        /* ignore */
-      }
-      throw e;
-    }
+
+    const cred = await createUserWithEmailAndPassword(this.fb.auth, emailNorm, args.password);
     const uid = cred.user.uid;
     try {
-      await setDoc(doc(this.fb.db, 'owners', uid), {
+      const batch = writeBatch(this.fb.db);
+      const ownerRef = doc(this.fb.db, 'owners', uid);
+      // Core fields + app routing (role/status/business*) — phone stored digits-only per product spec.
+      batch.set(ownerRef, {
         ownerId: uid,
         name: args.name.trim(),
+        email: emailNorm,
+        phone: phoneDigits,
         businessName: args.businessName.trim(),
-        email: args.contactEmail.trim().toLowerCase(),
-        phone: phoneE164,
-        phoneVerified: true,
         businessType: args.businessType,
         role: 'owner',
         status: 'pending',
         complaintEnabled: false,
+        phoneVerified: false,
         createdAt: serverTimestamp(),
       });
+      batch.set(doc(this.fb.db, OWNER_PHONE_LOGIN_ALIASES_COLLECTION, phoneDigits), {
+        email: emailNorm,
+      });
+      await batch.commit();
     } catch (e) {
       try {
         await deleteUser(cred.user);
@@ -362,26 +286,17 @@ export class AuthService {
       }
       throw e;
     }
-    this.ownerSignUpPhoneE164 = null;
   }
 
   async signOut(): Promise<void> {
     await signOut(this.fb.auth);
   }
 
-  /**
-   * One-shot read of `owners/{uid}`. Prefer this return value right after sign-in —
-   * the `profile` signal may not match until the microtask queue runs if you only read `profile()`.
-   */
   async refreshProfile(): Promise<Owner | null> {
     const r = await this.loadProfileOnce();
     return r.owner;
   }
 
-  /**
-   * Same as refreshProfile but explains *why* `owner` is null.
-   * Firestore often returns HTTP 200 with an empty document — that is "no profile", not a failed request.
-   */
   async loadProfileOnce(): Promise<ProfileLoadResult> {
     await this.fb.auth.authStateReady();
     const u = this.fb.auth.currentUser;

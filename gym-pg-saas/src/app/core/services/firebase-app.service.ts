@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { initializeApp, type FirebaseApp } from 'firebase/app';
+import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
@@ -11,7 +11,8 @@ export class FirebaseAppService {
   readonly db: Firestore;
 
   constructor() {
-    this.app = initializeApp(environment.firebase);
+    // Reuse the default app if already initialized (HMR/tests/multiple bootstraps).
+    this.app = getApps().length ? getApp() : initializeApp(environment.firebase);
     this.auth = getAuth(this.app);
     this.db = getFirestore(this.app);
   }
