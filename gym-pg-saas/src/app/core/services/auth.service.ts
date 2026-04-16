@@ -348,7 +348,7 @@ export class AuthService {
         phoneVerified: false,
         createdAt: serverTimestamp(),
       });
-      batch.set(doc(this.fb.db, OWNER_PHONE_LOGIN_ALIASES_COLLECTION, phoneDigits), {
+      batch.set(doc(this.fb.db, OWNER_PHONE_LOGIN_ALIASES_COLLECTION), {
         email: emailNorm,
       });
       await batch.commit();
@@ -426,11 +426,4 @@ function normalizeOwnerPhone(id: string): string | null {
   if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
   if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
   return d.length === 10 ? d : null;
-}
-
-function readAliasAuthEmail(data: Record<string, unknown>): string | null {
-  const raw = data['authLoginEmail'] ?? data['email'] ?? data['contactEmail'];
-  if (typeof raw !== 'string') return null;
-  const email = normalizeOwnerLoginEmailKey(raw);
-  return email.includes('@') ? email : null;
 }
