@@ -5,15 +5,16 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
+  deleteUser,
+  sendPasswordResetEmail as fbSendPasswordResetEmail,
 } from 'firebase/auth';
-// @ts-expect-error Firebase v12 exports these for client auth
-import { deleteUser, sendPasswordResetEmail as fbSendPasswordResetEmail } from 'firebase/auth';
 import {
   doc,
   DocumentSnapshot,
   getDoc,
   onSnapshot,
   serverTimestamp,
+  setDoc,
   writeBatch,
 } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
@@ -21,6 +22,9 @@ import { Owner, OwnerRole, OwnerStatus } from '../models/owner.model';
 // Complaints disabled — restore when feature fixed
 // import { ComplaintService } from './complaint.service';
 import { FirebaseAppService } from './firebase-app.service';
+
+const OWNER_LOGIN_ALIASES_COLLECTION = 'ownerLoginAliases';
+const OWNER_PHONE_LOGIN_ALIASES_COLLECTION = 'ownerPhoneLoginAliases';
 
 function normalizeRole(v: unknown): OwnerRole | '' {
   const s = String(v ?? '')
@@ -281,19 +285,89 @@ export class AuthService {
     const cred = await createUserWithEmailAndPassword(this.fb.auth, emailNorm, args.password);
     const uid = cred.user.uid;
     try {
+      const batch = writeBatch(this.fb.db);
+
+      batch.set(doc(this.fb.db, 'owners', uid), {
+        ownerId: uid,
+        name: args.name.trim(),
+        businessName: args.businessName.trim(),
+        email: emailNorm,
+        businessType: args.businessType,
+        role: 'owner',
+        status: 'pending',
+        complaintEnabled: false,
+        createdAt: serverTimestamp(),
+      });
+
+      batch.set(
+        doc(this.fb.db, OWNER_PHONE_LOGIN_ALIASES_COLLECTION, phoneDigits),
+        {
+          ownerId: uid,
+          email: emailNorm,
+          authLoginEmail: emailNorm,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      batch.set(
+        doc(this.fb.db, OWNER_LOGIN_ALIASES_COLLECTION, emailNorm),
+        {
+          ownerId: uid,
+          email: emailNorm,
+          authLoginEmail: emailNorm,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      await batch.commit();
+    } catch (e) {
+      // Avoid orphaned Auth users when Firestore create is denied (rules) or fails
+      try {
+        await deleteUser(cred.user);
+      } catch {
+        /* ignore */
+      }
+      throw e;
+    }
+  }
+
+  /** Legacy signup entry point used by current login page. */
+  async signUp(
+    email: string,
+    password: string,
+    name: string,
+    businessName: string,
+    businessType: 'gym' | 'pg',
+  ): Promise<void> {
+    const emailNorm = normalizeOwnerLoginEmailKey(email);
+    const cred = await createUserWithEmailAndPassword(this.fb.auth, emailNorm, password);
+    const uid = cred.user.uid;
+    try {
       await setDoc(doc(this.fb.db, 'owners', uid), {
         ownerId: uid,
         name: name.trim(),
         businessName: businessName.trim(),
-        email: email.trim().toLowerCase(),
+        email: emailNorm,
         businessType,
         role: 'owner',
         status: 'pending',
         complaintEnabled: false,
         createdAt: serverTimestamp(),
       });
+
+      await setDoc(
+        doc(this.fb.db, OWNER_LOGIN_ALIASES_COLLECTION, emailNorm),
+        {
+          ownerId: uid,
+          email: emailNorm,
+          authLoginEmail: emailNorm,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
     } catch (e) {
-      // Avoid orphaned Auth users when Firestore create is denied (rules) or fails
       try {
         await deleteUser(cred.user);
       } catch {
@@ -391,4 +465,28 @@ export class AuthService {
       return { owner: null, uid, problem };
     }
   }
+}
+
+function normalizeOwnerLoginEmailKey(id: string): string {
+  return String(id ?? '')
+    .trim()
+    .toLowerCase();
+}
+
+function digitsOnly(v: unknown): string {
+  return String(v ?? '').replace(/\D/g, '');
+}
+
+function normalizeOwnerPhone(id: string): string | null {
+  let d = digitsOnly(id);
+  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+  return d.length === 10 ? d : null;
+}
+
+function readAliasAuthEmail(data: Record<string, unknown>): string | null {
+  const raw = data['authLoginEmail'] ?? data['email'] ?? data['contactEmail'];
+  if (typeof raw !== 'string') return null;
+  const email = normalizeOwnerLoginEmailKey(raw);
+  return email.includes('@') ? email : null;
 }

@@ -1,6 +1,7 @@
 export interface PgRoomLayout {
   roomNumber: number;
   beds: number;
+  rent?: number;
 }
 
 export interface PgFloorLayout {

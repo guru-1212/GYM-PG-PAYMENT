@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,

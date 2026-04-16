@@ -8,7 +8,6 @@ import {
   updateDoc,
   where,
   writeBatch,
-  // @ts-expect-error addDoc not exported from Firebase v12 client SDK
   addDoc,
 } from 'firebase/firestore';
 import { FirebaseAppService } from './firebase-app.service';

@@ -1,7 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import {
   Timestamp,
-  // @ts-expect-error addDoc not exported from Firebase v12 client SDK
   addDoc,
   collection,
   doc,
@@ -221,4 +220,5 @@ export class ComplaintService {
     throw new Error(`[ComplaintService:${stage}] ${code} - ${message}`);
   }
 }
+
 

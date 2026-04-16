@@ -25,7 +25,6 @@
       "./node_modules/@types",
       "./src/types"
     ],
-    "types": ["firebase"],
     "resolveJsonModule": true,
     "noImplicitAny": false
   },
