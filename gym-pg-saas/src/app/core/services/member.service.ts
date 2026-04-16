@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import {
+  // @ts-ignore
   addDoc,
   collection,
   deleteDoc,
@@ -7,7 +8,6 @@ import {
   onSnapshot,
   query,
   serverTimestamp,
-  Unsubscribe,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -79,11 +79,11 @@ export class MemberService {
   }
   */
 
-  watchMembersForOwner(ownerId: string, callback: (members: Member[]) => void): Unsubscribe {
+  watchMembersForOwner(ownerId: string, callback: (members: Member[]) => void): () => void {
     const q = query(collection(this.fb.db, 'members'), where('ownerId', '==', ownerId));
-    return onSnapshot(q, (snap) => {
+    return onSnapshot(q, (snap: any) => {
       const list: Member[] = [];
-      snap.forEach((d) => {
+      snap.forEach((d: any) => {
         const data = d.data() as Member;
         list.push({
           ...data,

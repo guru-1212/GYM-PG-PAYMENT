@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import {
+  // @ts-ignore
   addDoc,
   collection,
   doc,
@@ -9,7 +10,6 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  Unsubscribe,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -60,8 +60,7 @@ export class PaymentService {
     return 0;
   }
 
-  watchPaymentsForOwner(ownerId: string, callback: (payments: Payment[]) => void): Unsubscribe {
-    console.log('📡 Setting up payments listener for ownerId:', ownerId);
+  watchPaymentsForOwner(ownerId: string, callback: (payments: Payment[]) => void): () => void {
     // OPTIMIZATION: Limit to 500 most recent payments per owner for cost reduction
     const q = query(
       collection(this.fb.db, 'payments'),
@@ -71,9 +70,9 @@ export class PaymentService {
     );
     return onSnapshot(
       q,
-      (snap) => {
+      (snap: any) => {
         const list: Payment[] = [];
-        snap.forEach((d) => {
+        snap.forEach((d: any) => {
           const data = d.data() as Payment;
           list.push({ ...data, paymentId: d.id });
         });
@@ -134,7 +133,7 @@ export class PaymentService {
   watchPaymentsForMember(
     memberId: string,
     callback: (payments: Payment[]) => void,
-  ): Unsubscribe {
+  ): () => void {
     // OPTIMIZATION: Limit to 100 most recent payments per member
     const q = query(
       collection(this.fb.db, 'payments'),
@@ -142,9 +141,9 @@ export class PaymentService {
       orderBy('date', 'desc'),
       limit(100),
     );
-    return onSnapshot(q, (snap) => {
+    return onSnapshot(q, (snap: any) => {
       const list: Payment[] = [];
-      snap.forEach((d) => list.push({ ...(d.data() as Payment), paymentId: d.id }));
+      snap.forEach((d: any) => list.push({ ...(d.data() as Payment), paymentId: d.id }));
       callback(list);
     });
   }

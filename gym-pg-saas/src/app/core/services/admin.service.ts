@@ -5,7 +5,6 @@ import {
   onSnapshot,
   orderBy,
   query,
-  Unsubscribe,
   updateDoc,
 } from 'firebase/firestore';
 import { Observable } from 'rxjs';
@@ -16,13 +15,31 @@ import { FirebaseAppService } from './firebase-app.service';
 export class AdminService {
   private readonly fb = inject(FirebaseAppService);
 
-  watchAllOwners(callback: (owners: Owner[]) => void): Unsubscribe {
+  watchAllOwners(callback: (owners: Owner[]) => void): () => void {
     const q = query(collection(this.fb.db, 'owners'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snap) => {
+    return onSnapshot(q, (snap: any) => {
       const list: Owner[] = [];
-      snap.forEach((d) => list.push({ ...(d.data() as Owner), ownerId: d.id }));
+      snap.forEach((d: any) => list.push({ ...(d.data() as Owner), ownerId: d.id }));
       callback(list);
     });
+  }
+
+  watchOwnerMemberCounts(callback: (counts: Record<string, number>) => void): () => void {
+    return onSnapshot(
+      collection(this.fb.db, 'members'),
+      (snap: any) => {
+        const counts: Record<string, number> = {};
+        snap.forEach((d: any) => {
+          const ownerId = String((d.data() as { ownerId?: string }).ownerId || '').trim();
+          if (!ownerId) return;
+          counts[ownerId] = (counts[ownerId] || 0) + 1;
+        });
+        callback(counts);
+      },
+      () => {
+        callback({});
+      },
+    );
   }
 
   allOwners$(): Observable<Owner[]> {

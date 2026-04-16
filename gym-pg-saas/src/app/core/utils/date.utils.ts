@@ -45,7 +45,10 @@ export function timestampToDate(ts: Timestamp | undefined): Date | null {
  */
 export function coerceFirestoreDate(value: unknown): Date | null {
   if (value == null) return null;
-  if (value instanceof Timestamp) return value.toDate();
+  // Check if it's a Timestamp-like object with toDate method
+  if (value && typeof value === 'object' && 'toDate' in value && typeof (value as any).toDate === 'function') {
+    return (value as any).toDate();
+  }
   if (value instanceof Date) return value;
   if (typeof value === 'number' && Number.isFinite(value)) {
     const d = new Date(value);
@@ -60,7 +63,9 @@ export function coerceFirestoreDate(value: unknown): Date | null {
     const sec = Number(o.seconds ?? o._seconds);
     if (!Number.isFinite(sec)) return null;
     const nano = Number(o.nanoseconds ?? o._nanoseconds ?? 0);
-    return new Timestamp(sec, Number.isFinite(nano) ? nano : 0).toDate();
+    // Create Timestamp-like object and convert to date
+    const ts = { seconds: sec, nanoseconds: Number.isFinite(nano) ? nano : 0 };
+    return new Date(sec * 1000 + (nano ? nano / 1000000 : 0));
   }
   return null;
 }
@@ -70,7 +75,9 @@ export function isDateInCalendarMonth(d: Date, ref: Date = new Date()): boolean 
 }
 
 export function dateToTimestamp(d: Date): Timestamp {
-  return Timestamp.fromDate(d);
+  const sec = Math.floor(d.getTime() / 1000);
+  const nano = (d.getTime() % 1000) * 1000000;
+  return { seconds: sec, nanoseconds: nano } as Timestamp;
 }
 
 /** Due status for UI: overdue | dueToday | paid (ahead) */

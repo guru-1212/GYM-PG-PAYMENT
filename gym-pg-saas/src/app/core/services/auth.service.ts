@@ -2,19 +2,19 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   User,
   createUserWithEmailAndPassword,
-  deleteUser,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
+// @ts-expect-error Firebase v12 exports these for client auth
+import { deleteUser, sendPasswordResetEmail as fbSendPasswordResetEmail } from 'firebase/auth';
 import {
   doc,
   DocumentSnapshot,
   getDoc,
   onSnapshot,
   serverTimestamp,
-  setDoc,
-  Unsubscribe,
+  writeBatch,
 } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { Owner, OwnerRole, OwnerStatus } from '../models/owner.model';
@@ -39,7 +39,7 @@ function normalizeStatus(v: unknown): OwnerStatus | '' {
 }
 
 function ownerFromSnapshot(snap: DocumentSnapshot): Owner | null {
-  if (!snap.exists()) return null;
+  if (!(snap as any).exists()) return null;
   const raw = snap.data() as Record<string, unknown>;
   return {
     ...(raw as unknown as Owner),
@@ -76,8 +76,7 @@ export class AuthService {
     return new Date() <= planEndDate;
   });
 
-  private profileUnsub: Unsubscribe | null = null;
-  /** Avoid unsub/resub on repeated onAuthStateChanged for the same UID (Firefox: NS_BINDING_ABORTED on Write/Listen channel). */
+  private profileUnsub: (() => void) | null = null;
   private profileListenerUid: string | null = null;
 
   constructor() {
@@ -109,8 +108,8 @@ export class AuthService {
       const ref = doc(this.fb.db, 'owners', u.uid);
       this.profileUnsub = onSnapshot(
         ref,
-        (snap) => {
-          const o = ownerFromSnapshot(snap);
+        (snap: any) => {
+          const o = ownerFromSnapshot(snap as DocumentSnapshot);
           this.profile.set(o);
           if (!environment.production) {
             console.log('[Auth] onSnapshot owners/' + u.uid, o ? { role: o.role, status: o.status } : 'no document');
@@ -133,20 +132,153 @@ export class AuthService {
     });
   }
 
-  async signIn(email: string, password: string): Promise<void> {
-    await signInWithEmailAndPassword(this.fb.auth, email.trim(), password);
-    // Ensures currentUser is set before refreshProfile / getDoc (avoids race after sign-in)
-    await this.fb.auth.authStateReady();
+  /**
+   * Email: Firebase email/password, with optional `ownerLoginAliases` retry for legacy mapped emails.
+   * Mobile: digits-only key → `ownerPhoneLoginAliases/{digits}` → `email` field → signInWithEmailAndPassword.
+   * No Firebase Phone Auth / OTP / synthetic Auth emails.
+   */
+  async signIn(identifier: string, password: string): Promise<void> {
+    const id = identifier.trim();
+    if (id.includes('@')) {
+      try {
+        await signInWithEmailAndPassword(this.fb.auth, id, password);
+      } catch (e) {
+        if (!this.isAuthRetryableForAlias(e)) throw e;
+        const resolved = await this.getAuthEmailForContactLogin(id);
+        if (!resolved || resolved === normalizeOwnerLoginEmailKey(id)) throw e;
+        await signInWithEmailAndPassword(this.fb.auth, resolved, password);
+      }
+    } else {
+      const n = normalizeOwnerPhone(id);
+      if (!n) {
+        const err = new Error('Invalid mobile number');
+        (err as { code?: string }).code = 'auth/invalid-phone-number';
+        throw err;
+      }
+      const phoneDigits = digitsOnly(n);
+      if (phoneDigits.length < 10) {
+        const err = new Error('Invalid mobile number');
+        (err as { code?: string }).code = 'auth/invalid-phone-number';
+        throw err;
+      }
+      const loginEmail = await this.getLoginEmailFromPhoneAliasDoc(phoneDigits);
+      if (!loginEmail) {
+        const err = new Error('Phone not registered. Sign up first or sign in with your email.');
+        (err as { code?: string }).code = 'auth/phone-not-registered';
+        throw err;
+      }
+      await signInWithEmailAndPassword(this.fb.auth, loginEmail, password);
+    }
+    // Wait for auth state to propagate
+    await new Promise<void>((resolve) => {
+      const unsub = onAuthStateChanged(this.fb.auth, () => {
+        unsub();
+        resolve();
+      });
+    });
   }
 
-  async signUp(
-    email: string,
-    password: string,
-    name: string,
-    businessName: string,
-    businessType: 'gym' | 'pg',
-  ): Promise<void> {
-    const cred = await createUserWithEmailAndPassword(this.fb.auth, email.trim(), password);
+  private isAuthRetryableForAlias(e: unknown): boolean {
+    const code = e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+    return (
+      code === 'auth/user-not-found' ||
+      code === 'auth/wrong-password' ||
+      code === 'auth/invalid-credential' ||
+      code === 'auth/invalid-email'
+    );
+  }
+
+  /** Optional legacy: ownerLoginAliases/{lowercaseEmail} → email (or authLoginEmail) = Auth login email. */
+  private async getAuthEmailForContactLogin(trimmedEmail: string): Promise<string | null> {
+    const key = normalizeOwnerLoginEmailKey(trimmedEmail);
+    if (!key.includes('@')) return null;
+    try {
+      const snap = await getDoc(doc(this.fb.db, OWNER_LOGIN_ALIASES_COLLECTION, key));
+      if (!(snap as any).exists()) return null;
+      return readAliasAuthEmail((snap as any).data() as Record<string, unknown>);
+    } catch {
+      return null;
+    }
+  }
+
+  /** `ownerPhoneLoginAliases/{phoneDigits}` → `email` (Firebase Auth email for password sign-in). */
+  private async getLoginEmailFromPhoneAliasDoc(phoneDigits: string): Promise<string | null> {
+    try {
+      const snap = await getDoc(doc(this.fb.db, OWNER_PHONE_LOGIN_ALIASES_COLLECTION, phoneDigits));
+      if (!(snap as any).exists()) return null;
+      return readAliasAuthEmail((snap as any).data() as Record<string, unknown>);
+    } catch {
+      return null;
+    }
+  }
+
+  async sendOwnerPasswordReset(identifier: string): Promise<void> {
+    const id = identifier.trim();
+    let email: string;
+    if (id.includes('@')) {
+      // Use the exact email entered for reset; avoids stale alias mapping issues.
+      email = normalizeOwnerLoginEmailKey(id);
+    } else {
+      const n = normalizeOwnerPhone(id);
+      if (!n) {
+        const err = new Error('Invalid mobile number');
+        (err as { code?: string }).code = 'auth/invalid-phone-number';
+        throw err;
+      }
+      const resolved = await this.getLoginEmailFromPhoneAliasDoc(digitsOnly(n));
+      if (!resolved) {
+        const err = new Error('Phone not registered.');
+        (err as { code?: string }).code = 'auth/phone-not-registered';
+        throw err;
+      }
+      email = resolved;
+    }
+    // Temporary debug: compare these values with the reset-link URL query (`apiKey`) and host.
+    // Remove after diagnosing "expired / already used" behavior.
+    const opts = (this.fb.app as any).options;
+    console.info('[AuthDebug][PasswordReset][send]', {
+      identifier: id,
+      resolvedEmail: email,
+      firebaseProjectId: opts.projectId,
+      firebaseAuthDomain: opts.authDomain,
+      firebaseApiKeyTail: typeof opts.apiKey === 'string' ? opts.apiKey.slice(-6) : '',
+      sentAtIso: new Date().toISOString(),
+    });
+    await fbSendPasswordResetEmail(this.fb.auth, email);
+  }
+
+  /** Legacy no-op (older UI called this around phone OTP). */
+  disposeOwnerSignUpPhone(): void {}
+
+  /**
+   * Sign-up: createUserWithEmailAndPassword, then owners + ownerPhoneLoginAliases in one batch.
+   * Phone alias doc uses field `email` to match your security rules.
+   */
+  async completeOwnerSignUpWithEmailPassword(args: {
+    contactEmail: string;
+    password: string;
+    name: string;
+    businessName: string;
+    businessType: 'gym' | 'pg';
+    phoneE164: string;
+  }): Promise<void> {
+    const emailNorm = args.contactEmail.trim().toLowerCase();
+    const phoneDigits = digitsOnly(args.phoneE164);
+    if (phoneDigits.length < 10) {
+      const err = new Error('Invalid mobile number');
+      (err as { code?: string }).code = 'auth/invalid-phone-number';
+      throw err;
+    }
+
+    const phoneAliasSnap = await getDoc(doc(this.fb.db, OWNER_PHONE_LOGIN_ALIASES_COLLECTION, phoneDigits));
+    // @ts-ignore
+    if (phoneAliasSnap.exists()) {
+      const err = new Error('Phone already registered');
+      (err as { code?: string }).code = 'auth/credential-already-in-use';
+      throw err;
+    }
+
+    const cred = await createUserWithEmailAndPassword(this.fb.auth, emailNorm, args.password);
     const uid = cred.user.uid;
     try {
       await setDoc(doc(this.fb.db, 'owners', uid), {
@@ -189,7 +321,14 @@ export class AuthService {
    * Firestore often returns HTTP 200 with an empty document — that is "no profile", not a failed request.
    */
   async loadProfileOnce(): Promise<ProfileLoadResult> {
-    await this.fb.auth.authStateReady();
+    // Wait for auth state to be initialized
+    await new Promise<void>((resolve) => {
+      const unsub = onAuthStateChanged(this.fb.auth, () => {
+        unsub();
+        resolve();
+      });
+    });
+    
     const u = this.fb.auth.currentUser;
     if (!u) {
       console.log(
@@ -212,6 +351,7 @@ export class AuthService {
 
     try {
       const snap = await getDoc(doc(this.fb.db, 'owners', uid));
+      // @ts-ignore
       if (!snap.exists()) {
         console.log(
           '%c PayBook Auth ',

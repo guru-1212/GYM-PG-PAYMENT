@@ -1,5 +1,4 @@
 import { Injectable, inject } from '@angular/core';
-import type { DocumentReference } from 'firebase/firestore';
 import {
   collection,
   doc,
@@ -8,9 +7,9 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  Unsubscribe,
   where,
   writeBatch,
+  type DocumentReference,
 } from 'firebase/firestore';
 import { PgFloorLayout, PgLayout } from '../models/pg-layout.model';
 import { FirebaseAppService } from './firebase-app.service';
@@ -24,9 +23,9 @@ export class PgLayoutService {
   /** One in-flight legacy (1-based → 0-based) migration per owner. */
   private readonly legacyFloorMigrate = new Map<string, Promise<void>>();
 
-  watchLayout(ownerId: string, callback: (layout: PgLayout | null) => void): Unsubscribe {
+  watchLayout(ownerId: string, callback: (layout: PgLayout | null) => void): () => void {
     const ref = doc(this.fb.db, 'pgLayouts', ownerId);
-    return onSnapshot(ref, (snap) => {
+    return onSnapshot(ref, (snap: any) => {
       if (!snap.exists()) {
         callback(null);
         return;
@@ -55,6 +54,53 @@ export class PgLayoutService {
       },
       { merge: true },
     );
+  }
+
+  /**
+   * Extends pgLayouts so each (floor, room) exists with at least `minBeds` beds.
+   * Used before bulk member import so the dashboard seat map and Rooms page stay in sync.
+   */
+  async ensureLayoutSeatsForImport(
+    ownerId: string,
+    needs: { floorNumber: number; roomNumber: number; minBeds: number }[],
+  ): Promise<void> {
+    if (!needs.length) return;
+    const ref = doc(this.fb.db, 'pgLayouts', ownerId);
+    const snap = await getDoc(ref);
+    const raw = (snap as any).exists() ? ((snap as any).data() as Record<string, unknown>) : {};
+    const floors: PgFloorLayout[] = this.normalizeFloors(raw['floors']).map((fl) => ({
+      floorNumber: Math.trunc(Number(fl.floorNumber)),
+      rooms: fl.rooms.map((rm) => ({
+        roomNumber: Math.trunc(Number(rm.roomNumber)),
+        beds: Math.max(1, Math.trunc(Number(rm.beds) || 1)),
+          rent: Number(rm.rent) > 0 ? Math.round(Number(rm.rent)) : undefined,
+      })),
+    }));
+
+    const floorByNum = (f: number) => floors.find((x) => Math.trunc(Number(x.floorNumber)) === f);
+    for (const n of needs) {
+      const f = Math.trunc(Number(n.floorNumber));
+      const r = Math.trunc(Number(n.roomNumber));
+      const minBeds = Math.max(1, Math.trunc(Number(n.minBeds)));
+      if (!Number.isFinite(f) || !Number.isFinite(r) || r < 1) continue;
+      let floorObj = floorByNum(f);
+      if (!floorObj) {
+        floorObj = { floorNumber: f, rooms: [] };
+        floors.push(floorObj);
+      }
+      const rooms = floorObj.rooms;
+      while (rooms.length < r) {
+        const next = rooms.length + 1;
+        rooms.push({ roomNumber: next, beds: 1 });
+      }
+      const roomObj = rooms[r - 1];
+      if (roomObj) {
+        roomObj.roomNumber = r;
+        roomObj.beds = Math.max(Math.max(1, Math.trunc(Number(roomObj.beds) || 1)), minBeds);
+      }
+    }
+    floors.sort((a, b) => Math.trunc(Number(a.floorNumber)) - Math.trunc(Number(b.floorNumber)));
+    await this.saveLayout(ownerId, floors);
   }
 
   private normalizeFloors(raw: unknown): PgFloorLayout[] {
@@ -114,7 +160,7 @@ export class PgLayoutService {
     }));
     const membersSnap = await getDocs(query(collection(db, 'members'), where('ownerId', '==', ownerId)));
     const updates: { ref: DocumentReference; nextFloor: number }[] = [];
-    membersSnap.forEach((d) => {
+    (membersSnap as any).forEach((d: any) => {
       const f = Number((d.data() as Record<string, unknown>)['floorNumber']);
       if (Number.isFinite(f) && f >= 1) {
         updates.push({ ref: d.ref, nextFloor: Math.trunc(f) - 1 });

@@ -1,5 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
+import { onAuthStateChanged } from 'firebase/auth';
 import { AuthService } from '../services/auth.service';
 import { FirebaseAppService } from '../services/firebase-app.service';
 
@@ -8,7 +9,14 @@ export const loginGuard: CanActivateFn = async () => {
   const fb = inject(FirebaseAppService);
   const auth = inject(AuthService);
   const router = inject(Router);
-  await fb.auth.authStateReady();
+  
+  await new Promise<void>((resolve) => {
+    const unsub = onAuthStateChanged(fb.auth, () => {
+      unsub();
+      resolve();
+    });
+  });
+  
   if (!fb.auth.currentUser) return true;
   let p = auth.profile();
   if (!p) p = await auth.refreshProfile();

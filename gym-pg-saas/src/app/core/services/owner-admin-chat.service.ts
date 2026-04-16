@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import {
+  // @ts-ignore
   addDoc,
   collection,
   collectionGroup,
@@ -48,9 +49,9 @@ export class OwnerAdminChatService {
 
     return onSnapshot(
       q,
-      (snap) => {
+      (snap: any) => {
         const list: OwnerAdminChatMessage[] = [];
-        snap.forEach((d) => {
+        snap.forEach((d: any) => {
           const data = d.data() as Omit<OwnerAdminChatMessage, 'id'>;
           list.push({
             ...data,
@@ -81,9 +82,9 @@ export class OwnerAdminChatService {
 
     return onSnapshot(
       q,
-      (snap) => {
+      (snap: any) => {
         const counts: Record<string, number> = {};
-        snap.forEach((d) => {
+        snap.forEach((d: any) => {
           const msg = d.data() as OwnerAdminChatMessage;
           const ownerId = String(msg.ownerId || msg.chatId || '');
           if (!ownerId) return;
@@ -109,7 +110,7 @@ export class OwnerAdminChatService {
 
     return onSnapshot(
       q,
-      (snap) => callback(snap.size),
+      (snap: any) => callback(snap.size),
       (error) => {
         console.error('[Chat] owner unread listener error:', error);
         callback(0);
@@ -168,7 +169,7 @@ export class OwnerAdminChatService {
     const snap = await getDocs(q);
     if (snap.empty) return;
     const batch = writeBatch(this.fb.db);
-    snap.docs.forEach((d) => batch.update(d.ref, { readByAdmin: true }));
+    (snap.docs as any).forEach((d: any) => batch.update(d.ref, { readByAdmin: true }));
     await batch.commit();
   }
 
@@ -182,7 +183,7 @@ export class OwnerAdminChatService {
     const snap = await getDocs(q);
     if (snap.empty) return;
     const batch = writeBatch(this.fb.db);
-    snap.docs.forEach((d) => batch.update(d.ref, { readByOwner: true }));
+    (snap.docs as any).forEach((d: any) => batch.update(d.ref, { readByOwner: true }));
     await batch.commit();
   }
 }

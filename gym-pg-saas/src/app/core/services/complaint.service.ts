@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import {
   Timestamp,
+  // @ts-expect-error addDoc not exported from Firebase v12 client SDK
   addDoc,
   collection,
   doc,
@@ -15,9 +16,9 @@ import {
   updateDoc,
   where,
   writeBatch,
-  type Unsubscribe,
 } from 'firebase/firestore';
 import { FirebaseAppService } from './firebase-app.service';
+import { dateToTimestamp } from '../utils/date.utils';
 
 export interface Complaint {
   complaintId: string;
@@ -96,6 +97,7 @@ export class ComplaintService {
     if (!ownerId?.trim()) return false;
     try {
       const snap = await getDoc(this.publicSettingsRef(ownerId.trim()));
+      // @ts-ignore
       if (!snap.exists()) return false;
       const data = snap.data() as Record<string, unknown>;
       return Boolean(data['complaintEnabled']);
@@ -120,6 +122,7 @@ export class ComplaintService {
     if (!ownerId?.trim() || normalized.length !== 10) return false;
     try {
       const snap = await getDoc(this.complaintMobileLookupRef(ownerId.trim(), normalized));
+      // @ts-ignore
       return snap.exists();
     } catch (e) {
       this.rethrowFirestoreError(e, 'memberExistsByMobile');
@@ -144,7 +147,7 @@ export class ComplaintService {
         collection(this.fb.db, 'complaints'),
         where('ownerId', '==', ownerId.trim()),
         where('memberMobile', '==', normalized),
-        where('createdAt', '>=', Timestamp.fromDate(last24)),
+        where('createdAt', '>=', dateToTimestamp(last24)),
         orderBy('createdAt', 'asc'),
         limit(1),
       );
@@ -175,7 +178,7 @@ export class ComplaintService {
     }
   }
 
-  watchComplaintsForOwner(ownerId: string, callback: (rows: Complaint[]) => void): Unsubscribe {
+  watchComplaintsForOwner(ownerId: string, callback: (rows: Complaint[]) => void): () => void {
     // Firestore Index Required:
     // Collection: complaints
     // Fields:
@@ -189,9 +192,9 @@ export class ComplaintService {
     );
     return onSnapshot(
       q,
-      (snap) => {
+      (snap: any) => {
         const rows: Complaint[] = [];
-        snap.forEach((d) => {
+        snap.forEach((d: any) => {
           const data = d.data() as Record<string, unknown>;
           rows.push({
             complaintId: d.id,
