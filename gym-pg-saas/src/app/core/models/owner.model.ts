@@ -9,6 +9,9 @@ export interface Owner {
   name: string;
   businessName?: string;
   email: string;
+  /** Mobile stored as digits only (e.g. 919876543210) for profile + alias key consistency. */
+  phone?: string;
+  phoneVerified?: boolean;
   businessType: BusinessType;
   role: OwnerRole;
   status: OwnerStatus;

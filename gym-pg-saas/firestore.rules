@@ -32,6 +32,27 @@ service cloud.firestore {
         && get(myOwnerPath()).data.status == 'approved';
     }
 
+    /**
+     * Optional: maps contact email doc id → Auth login email (legacy). Matches deployed rule:
+     * create allowed when document includes uid matching the signed-in user.
+     */
+    match /ownerLoginAliases/{emailKey} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    /** Mobile → Firebase Auth email for password sign-in. Doc id = digits-only phone (same as normalize + digitsOnly). */
+    match /ownerPhoneLoginAliases/{phoneDigitsKey} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.auth != null
+        && request.resource.data.email is string;
+      allow update, delete: if false;
+    }
+
     match /owners/{ownerId} {
       allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
       allow create: if signedIn()

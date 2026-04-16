@@ -3,6 +3,7 @@ import {
   User,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   deleteUser,
@@ -14,13 +15,10 @@ import {
   getDoc,
   onSnapshot,
   serverTimestamp,
-  setDoc,
+
   writeBatch,
 } from 'firebase/firestore';
-import { environment } from '../../../environments/environment';
 import { Owner, OwnerRole, OwnerStatus } from '../models/owner.model';
-// Complaints disabled — restore when feature fixed
-// import { ComplaintService } from './complaint.service';
 import { FirebaseAppService } from './firebase-app.service';
 
 const OWNER_LOGIN_ALIASES_COLLECTION = 'ownerLoginAliases';
@@ -53,6 +51,12 @@ function ownerFromSnapshot(snap: DocumentSnapshot): Owner | null {
   };
 }
 
+/** Auth email stored on alias docs: field name must match Firestore rules (`email` on phone aliases). */
+function readAliasAuthEmail(data: Record<string, unknown>): string | null {
+  const v = data['email'] ?? data['authLoginEmail'];
+  return typeof v === 'string' && v.includes('@') ? v.trim().toLowerCase() : null;
+}
+
 /** Result of reading `owners/{uid}` (used for login toasts / console — not an HTTP error when doc is missing). */
 export type ProfileLoadResult = {
   owner: Owner | null;
@@ -63,7 +67,6 @@ export type ProfileLoadResult = {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly fb = inject(FirebaseAppService);
-  // private readonly complaints = inject(ComplaintService);
 
   readonly user = signal<User | null>(null);
   readonly profile = signal<Owner | null>(null);
@@ -105,30 +108,15 @@ export class AuthService {
       this.profileUnsub = null;
       this.profileListenerUid = u.uid;
 
-      if (!environment.production) {
-        console.log('[Auth] Firebase Auth UID:', u.uid, '(attach owners listener)');
-      }
-
       const ref = doc(this.fb.db, 'owners', u.uid);
       this.profileUnsub = onSnapshot(
         ref,
         (snap: any) => {
           const o = ownerFromSnapshot(snap as DocumentSnapshot);
           this.profile.set(o);
-          if (!environment.production) {
-            console.log('[Auth] onSnapshot owners/' + u.uid, o ? { role: o.role, status: o.status } : 'no document');
-          }
           this.loading.set(false);
-          /* Complaints disabled — restore when feature fixed
-          if (o?.role === 'owner') {
-            void this.complaints.publishPublicComplaintSettings(o.ownerId, Boolean(o.complaintEnabled));
-          }
-          */
         },
-        (err) => {
-          if (!environment.production) {
-            console.error('[Auth] onSnapshot owners/' + u.uid + ' error', err);
-          }
+        () => {
           this.profile.set(null);
           this.loading.set(false);
         },
@@ -345,7 +333,10 @@ export class AuthService {
     const cred = await createUserWithEmailAndPassword(this.fb.auth, emailNorm, password);
     const uid = cred.user.uid;
     try {
-      await setDoc(doc(this.fb.db, 'owners', uid), {
+      const batch = writeBatch(this.fb.db);
+      const ownerRef = doc(this.fb.db, 'owners', uid);
+      // Core fields + app routing (role/status/business*) — phone stored digits-only per product spec.
+      batch.set(ownerRef, {
         ownerId: uid,
         name: name.trim(),
         businessName: businessName.trim(),
@@ -354,19 +345,13 @@ export class AuthService {
         role: 'owner',
         status: 'pending',
         complaintEnabled: false,
+        phoneVerified: false,
         createdAt: serverTimestamp(),
       });
-
-      await setDoc(
-        doc(this.fb.db, OWNER_LOGIN_ALIASES_COLLECTION, emailNorm),
-        {
-          ownerId: uid,
-          email: emailNorm,
-          authLoginEmail: emailNorm,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
+      batch.set(doc(this.fb.db, OWNER_PHONE_LOGIN_ALIASES_COLLECTION, phoneDigits), {
+        email: emailNorm,
+      });
+      await batch.commit();
     } catch (e) {
       try {
         await deleteUser(cred.user);
@@ -381,19 +366,11 @@ export class AuthService {
     await signOut(this.fb.auth);
   }
 
-  /**
-   * One-shot read of `owners/{uid}`. Prefer this return value right after sign-in —
-   * the `profile` signal may not match until the microtask queue runs if you only read `profile()`.
-   */
   async refreshProfile(): Promise<Owner | null> {
     const r = await this.loadProfileOnce();
     return r.owner;
   }
 
-  /**
-   * Same as refreshProfile but explains *why* `owner` is null.
-   * Firestore often returns HTTP 200 with an empty document — that is "no profile", not a failed request.
-   */
   async loadProfileOnce(): Promise<ProfileLoadResult> {
     // Wait for auth state to be initialized
     await new Promise<void>((resolve) => {
@@ -405,37 +382,16 @@ export class AuthService {
     
     const u = this.fb.auth.currentUser;
     if (!u) {
-      console.log(
-        '%c PayBook Auth ',
-        'background:#b45309;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;',
-        'No Firebase user after authStateReady — cannot load owners/{uid}.',
-      );
       this.profile.set(null);
       return { owner: null, uid: null, problem: 'no-signed-in-user' };
     }
 
     const uid = u.uid;
-    // Use console.log (not info/warn): Firefox “Errors”-only filter hides info/warn; production may strip some levels.
-    console.log(
-      '%c PayBook Auth ',
-      'background:#047857;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;',
-      'Signed-in UID (use this as Firestore document ID under collection "owners"):',
-      uid,
-    );
 
     try {
       const snap = await getDoc(doc(this.fb.db, 'owners', uid));
       // @ts-ignore
       if (!snap.exists()) {
-        console.log(
-          '%c PayBook Auth ',
-          'background:#b91c1c;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;',
-          'NO profile document found.',
-          '\n1. Open Firebase Console → Firestore → collection "owners"',
-          '\n2. Add document → Document ID = paste exactly:',
-          '\n   ' + uid,
-          '\n3. Fields: role, status, name, email, businessType, ownerId, createdAt',
-        );
         this.profile.set(null);
         return { owner: null, uid, problem: 'no-firestore-document' };
       }
@@ -443,23 +399,11 @@ export class AuthService {
       const o = ownerFromSnapshot(snap);
       if (o) {
         this.profile.set(o);
-        console.log(
-          '%c PayBook Auth ',
-          'background:#047857;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;',
-          'Profile loaded OK.',
-          { role: o.role, status: o.status },
-        );
       }
       return { owner: o, uid };
     } catch (e: unknown) {
       const code =
         e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
-      console.log(
-        '%c PayBook Auth ERROR ',
-        'background:#b91c1c;color:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;',
-        'getDoc(owners/' + uid + ') failed:',
-        e,
-      );
       this.profile.set(null);
       const problem = code === 'permission-denied' ? 'permission-denied' : 'fetch-failed';
       return { owner: null, uid, problem };

@@ -68,6 +68,37 @@ export const EN: Record<string, unknown> = {
     fixPasswordBelow: 'Add the following to your password:',
     nameRequired: 'Name is required',
     businessNameRequired: 'Business name is required',
+    mobileOrEmail: 'Mobile number or email',
+    mobileOrEmailPlaceholder: 'e.g. 9876543210 or you@email.com',
+    identifierRequired: 'This field is required',
+    identifierInvalid: 'Enter a valid email or mobile number',
+    mobile: 'Mobile number',
+    mobileHint: '10-digit India mobile or +country code',
+    mobileVerifyHint: 'We will send an SMS code to verify this number.',
+    recaptchaHint:
+      'Complete “I’m not a robot” above, then tap Send verification code. If this page was open a long time, tap Send again so the checkbox refreshes.',
+    smsWillBeSentTo: 'SMS will be sent to',
+    mobileRequired: 'Mobile number is required',
+    phoneInvalid: 'Enter a valid mobile number',
+    contactEmail: 'Contact email',
+    signUpEmailResetHint:
+      'Please enter a correct email you can access (for example a Gmail address). Password reset links are sent only to this email.',
+    sendOtp: 'Send verification code',
+    sendOtpWait: 'Wait {seconds}s to send again',
+    smsCooldownActive: 'Please wait {seconds}s before sending another code (Firebase rate limit).',
+    smsTooManyRequestsToast:
+      'Too many SMS attempts for this number or device. Firebase blocks repeats while testing. Wait about {minutes} minutes, avoid spamming Send, or add a test phone + fixed OTP under Firebase Console → Authentication → Sign-in method → Phone.',
+    recaptchaOrApiRejected:
+      'Could not verify this browser with Google (invalid-app-credential). Fix your Firebase Web API key: add HTTP referrers http://localhost:4200/* and allow Identity Toolkit API, then refresh and try again. Open DevTools → Console for the full checklist.',
+    enterOtp: 'Verification code',
+    enterOtpBlurb: 'Enter the code from the SMS we sent to your mobile.',
+    verifyAndCreate: 'Verify and create account',
+    changeNumber: 'Change number',
+    forgotPassword: 'Forgot password?',
+    resetPasswordHint: 'Enter the mobile or email you use to sign in. We will email you a reset link.',
+    sendResetEmail: 'Send reset email',
+    resetEmailSentToast:
+      'If an account exists for what you entered—and you used the correct email at sign-up (same one you use for password reset)—we have sent a password reset link to that email.\n\nPlease check your inbox and your spam or junk folder; the message often lands in spam.',
   },
   dashboard: {
     title: 'Dashboard',

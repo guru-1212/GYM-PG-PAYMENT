@@ -60,6 +60,8 @@
               "src/styles.css"
             ],
             "scripts": []
+            ,
+            "serviceWorker": "ngsw-config.json"
           },
           "configurations": {
             "production": {

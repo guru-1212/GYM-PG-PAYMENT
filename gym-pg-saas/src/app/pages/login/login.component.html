@@ -66,18 +66,28 @@
 
         <div class="mt-6 saas-card border-white/70 bg-white/65 p-6 shadow-[0_18px_35px_rgba(0,0,0,0.08)] backdrop-blur-xl animate-[fadeIn_0.35s_ease]">
       @if (mode() === 'signin') {
+        <div class="space-y-4">
         <form [formGroup]="signInForm" (ngSubmit)="onSignIn()" class="space-y-4">
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="email">{{ 'login.email' | t }}</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="identifier">{{
+              'login.mobileOrEmail' | t
+            }}</label>
             <input
-              id="email"
-              type="email"
-              formControlName="email"
+              id="identifier"
+              type="text"
+              formControlName="identifier"
               class="saas-input w-full"
-              autocomplete="email"
+              [attr.autocomplete]="'username'"
+              [placeholder]="'login.mobileOrEmailPlaceholder' | t"
             />
-            @if (signInForm.controls.email.touched && signInForm.controls.email.invalid) {
-              <p class="mt-1 text-sm text-red-600">{{ 'login.validEmail' | t }}</p>
+            @if (signInForm.controls.identifier.touched && signInForm.controls.identifier.invalid) {
+              @if (signInForm.controls.identifier.hasError('required')) {
+                <p class="mt-1 text-sm text-red-600">{{ 'login.identifierRequired' | t }}</p>
+              } @else if (signInForm.controls.identifier.hasError('email')) {
+                <p class="mt-1 text-sm text-red-600">{{ 'login.validEmail' | t }}</p>
+              } @else if (signInForm.controls.identifier.hasError('phone')) {
+                <p class="mt-1 text-sm text-red-600">{{ 'login.phoneInvalid' | t }}</p>
+              }
             }
           </div>
           <div>
@@ -122,8 +132,39 @@
             {{ 'login.signInBtn' | t }}
           </button>
         </form>
+          <button
+            type="button"
+            class="w-full text-center text-sm font-medium text-indigo-700 underline-offset-2 hover:underline"
+            (click)="showForgotPassword.set(!showForgotPassword())"
+          >
+            {{ 'login.forgotPassword' | t }}
+          </button>
+          @if (showForgotPassword()) {
+            <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+              <p class="mb-3 text-xs text-slate-600">{{ 'login.resetPasswordHint' | t }}</p>
+              <form [formGroup]="forgotForm" (ngSubmit)="onForgotPasswordSubmit()" class="space-y-3">
+                <input
+                  type="text"
+                  formControlName="identifier"
+                  class="saas-input w-full"
+                  [placeholder]="'login.mobileOrEmailPlaceholder' | t"
+                />
+                @if (forgotForm.controls.identifier.touched && forgotForm.controls.identifier.invalid) {
+                  <p class="text-sm text-red-600">{{ 'login.identifierInvalid' | t }}</p>
+                }
+                <button
+                  type="submit"
+                  class="saas-btn-primary flex w-full items-center justify-center gap-2 py-3 text-sm disabled:opacity-60"
+                  [disabled]="busy()"
+                >
+                  {{ 'login.sendResetEmail' | t }}
+                </button>
+              </form>
+            </div>
+          }
+        </div>
       } @else {
-        <form [formGroup]="signUpForm" (ngSubmit)="onSignUp()" class="space-y-4">
+        <form [formGroup]="signUpForm" (ngSubmit)="onSignUpSubmit()" class="space-y-4">
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700" for="name">{{ 'login.yourName' | t }}</label>
             <input
@@ -183,14 +224,40 @@
             }
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700" for="semail">{{ 'login.email' | t }}</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="sphone">
+              {{ 'login.mobile' | t }}<span class="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
+            <input
+              id="sphone"
+              type="tel"
+              formControlName="phone"
+              class="saas-input w-full"
+              autocomplete="tel"
+              required
+              [placeholder]="'login.mobileHint' | t"
+            />
+            <p class="mt-1 text-xs text-slate-500">Required for your profile and contact. We do not send an SMS code during sign-up.</p>
+            @if (signUpForm.controls.phone.touched && signUpForm.controls.phone.invalid) {
+              @if (signUpForm.controls.phone.hasError('required')) {
+                <p class="mt-1 text-sm text-red-600">{{ 'login.mobileRequired' | t }}</p>
+              } @else if (signUpForm.controls.phone.hasError('phone')) {
+                <p class="mt-1 text-sm text-red-600">{{ 'login.phoneInvalid' | t }}</p>
+              }
+            }
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="semail">
+              {{ 'login.contactEmail' | t }}<span class="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <input
               id="semail"
               type="email"
               formControlName="email"
               class="saas-input w-full"
               autocomplete="email"
+              required
             />
+            <p class="mt-1 text-xs text-slate-500">{{ 'login.signUpEmailResetHint' | t }}</p>
             @if (signUpForm.controls.email.touched && signUpForm.controls.email.invalid) {
               @if (signUpForm.controls.email.hasError('required')) {
                 <p class="mt-1 text-sm font-medium text-red-600">{{ 'login.emailRequired' | t }}</p>
@@ -256,7 +323,14 @@
               }
             }
           </div>
-         
+
+          <!-- Phone OTP sign-up removed: reCAPTCHA + SMS verification disabled.
+          <div class="rounded-xl border border-slate-200 bg-slate-50/90 p-3">
+            <p class="mb-2 text-xs font-medium text-slate-700">{{ 'login.recaptchaHint' | t }}</p>
+            <div id="recaptcha-container" class="flex min-h-[4.5rem] items-center justify-start"></div>
+          </div>
+          -->
+
           <button
             type="submit"
             class="saas-btn-primary flex w-full items-center justify-center gap-2 py-4 text-base disabled:opacity-60"
@@ -286,9 +360,38 @@
             {{ 'login.contactWhatsApp' | t }}
           </a>
         </form>
+
+        <!-- OTP step removed — account is created on submit; user goes straight to pending approval.
+        @else { ... verify OTP UI ... }
+        -->
       }
         </div>
       </section>
     </div>
   </div>
 </div>
+
+@if (showInstallHintPopup()) {
+  <div class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+    <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+      <p class="text-base font-semibold text-slate-900">Install app for faster access & rent reminders 📲</p>
+      <p class="mt-2 text-sm text-slate-600">Add PGT to your home screen for quick opening and reminder support.</p>
+      <div class="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          (click)="closeInstallHintPopup()"
+        >
+          Not now
+        </button>
+        <button
+          type="button"
+          class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+          (click)="installAppFromPopup()"
+        >
+          Install App
+        </button>
+      </div>
+    </div>
+  </div>
+}

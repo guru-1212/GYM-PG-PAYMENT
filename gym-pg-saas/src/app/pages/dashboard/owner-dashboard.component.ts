@@ -2,6 +2,7 @@ import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
 import { Component, computed, HostListener, inject, OnDestroy, OnInit, signal, effect } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { jsPDF } from 'jspdf';
 import { Member, SubscriptionType } from '../../core/models/member.model';
 import { Payment } from '../../core/models/payment.model';
 import { PgFloorLayout, PgLayout } from '../../core/models/pg-layout.model';
@@ -25,12 +26,17 @@ import {
   dueUiStatus,
   endOfToday,
   isDateInCalendarMonth,
+  memberDueBucket,
   overdueCalendarDays,
   startOfDay,
   startOfToday,
   timestampToDate,
 } from '../../core/utils/date.utils';
 import { formatPgRoomLabel } from '../../core/utils/pg-layout-display.utils';
+import { sharingLabelForBeds } from '../../core/utils/pg-layout-display.utils';
+import { memberImportSampleAoA, memberImportSampleCsv } from '../../core/utils/member-import-sample.util';
+import { MEMBER_IMPORT_PROGRESS_MESSAGES } from '../../core/utils/member-import-progress.messages';
+import { parsePgImportSeat, pgSheetSubscriptionError } from '../../core/utils/pg-sheet-import.utils';
 
 @Component({
   selector: 'app-owner-dashboard',
@@ -72,6 +78,9 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly importRows = signal<ImportPreviewRow[]>([]);
   readonly importFileName = signal('');
   readonly importBusy = signal(false);
+  readonly importProgressPercent = signal(0);
+  readonly importProgressMessage = signal('');
+  private importProgressRotator: ReturnType<typeof setInterval> | null = null;
   readonly importDueDateForAll = this.fb.nonNullable.control(false);
   readonly importDueDate = this.fb.nonNullable.control('');
   readonly pgLayout = signal<PgLayout | null>(null);
@@ -165,21 +174,6 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const loggedInOwnerId = this.auth.profile()?.ownerId;
     const payments = this.payments();
 
-    // Debug log
-    console.log('🔍 Monthly Earnings Calculation:', {
-      timestamp: now.toISOString(),
-      currentMonth,
-      currentYear,
-      loggedInOwnerId,
-      paymentsCount: payments.length,
-      payments: payments.map((p) => ({
-        paymentId: p.paymentId,
-        amount: p.amount,
-        ownerId: p.ownerId,
-        date: this.convertTimestampToDate(p.date),
-      })),
-    });
-
     const monthlySum = payments.reduce((sum, payment) => {
       // 1. Match ownerId with logged-in user
       if (payment.ownerId !== loggedInOwnerId) {
@@ -189,10 +183,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       // 2. Convert Firestore Timestamp to JS Date using toDate()
       const paymentDate = this.convertTimestampToDate(payment.date);
 
-      if (!paymentDate) {
-        console.warn('⚠️ Could not parse payment date:', payment);
-        return sum;
-      }
+      if (!paymentDate) return sum;
 
       // 3. Filter by current month AND year
       const paymentMonth = paymentDate.getMonth();
@@ -202,17 +193,9 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
         return sum;
       }
 
-      // 4. Add to sum
       const amount = Number(payment.amount) || 0;
-      console.log('✅ Payment included:', {
-        amount,
-        date: paymentDate.toISOString(),
-        runningTotal: sum + amount,
-      });
       return sum + amount;
     }, 0);
-
-    console.log('💰 Monthly Earnings Total:', monthlySum);
     return monthlySum;
   });
 
@@ -371,10 +354,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     this.notifications.requestPermissionOnce();
     this.subscriptionCountdownTimer = setInterval(() => this.nowMs.set(Date.now()), 1000);
     this.loading.set(true);
-    console.log('🚀 Dashboard init started');
     await this.auth.refreshProfile();
     const uid = this.auth.profile()?.ownerId;
-    console.log('👤 Logged-in user ID:', uid);
     if (!uid) {
       this.loading.set(false);
       console.error('❌ No owner ID found');
@@ -382,13 +363,11 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     }
     
     this.currentOwnerId = uid;
-    console.log('📡 Loading data from cache...');
     
     try {
       await this.cache.loadAllData(uid);
       // Low-cost check using already loaded members (no extra listener/polling here).
       this.notifications.checkDueMembers(this.members());
-      console.log('✅ Dashboard data loaded');
     } catch (error) {
       console.error('❌ Error loading dashboard data:', error);
       this.toast.error('Failed to load data');
@@ -400,6 +379,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       clearInterval(this.subscriptionCountdownTimer);
       this.subscriptionCountdownTimer = null;
     }
+    this.clearImportProgressUi();
     // Cache service handles listener cleanup
   }
 
@@ -428,7 +408,6 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   async refreshData(): Promise<void> {
     if (!this.currentOwnerId) return;
     this.loading.set(true);
-    console.log('🔄 Refreshing data...');
     try {
       await this.cache.refresh(this.currentOwnerId);
       this.toast.success('Data refreshed');
@@ -457,6 +436,106 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   toggleRecentJoinersExpanded(): void {
     this.recentJoinersExpanded.update((v) => !v);
+  }
+
+  rowTone(m: Member): 'blue' | 'red' | 'orange' | 'green' | 'neutral' {
+    if (m.status === 'active' && (Number(m.pendingAmount) || 0) > 0) return 'blue';
+    const d = coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
+    const b = memberDueBucket(d, m.status === 'active');
+    if (b === 'inactive' || b === 'unknown') return 'neutral';
+    if (b === 'overdue') return 'red';
+    if (b === 'dueToday' || b === 'oneDayLeft' || b === 'twoDaysLeft') return 'orange';
+    return 'green';
+  }
+
+  canSendReceipt(m: Member): boolean {
+    if (this.rowTone(m) !== 'green') return false;
+    const digits = (m.mobile || '').replace(/\D/g, '');
+    return digits.length === 10;
+  }
+
+  async sendReceipt(m: Member): Promise<void> {
+    if (!this.canSendReceipt(m)) {
+      this.toast.error('Valid mobile number is required');
+      return;
+    }
+    try {
+      const paymentDate = new Date();
+      const pendingAmount = Math.max(0, Number(m.pendingAmount) || 0);
+      const estimatedPaidAmount = Math.max(0, Number(m.amount || 0) - pendingAmount) || Number(m.amount || 0);
+      const ownerProfile = this.auth.profile();
+      const businessName = ownerProfile?.businessName?.trim() || ownerProfile?.name || 'PayBook';
+      const monthText = paymentDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      const mobile = (m.mobile || '').replace(/\D/g, '');
+      const fileName = `receipt-${m.firstName}-${monthText.replace(/\s+/g, '-')}.pdf`;
+      const receiptNo = `RCPT-${paymentDate.getFullYear()}${String(paymentDate.getMonth() + 1).padStart(2, '0')}${String(
+        paymentDate.getDate(),
+      ).padStart(2, '0')}-${m.memberId.slice(0, 6).toUpperCase()}`;
+      const memberName = `${m.firstName} ${m.lastName || ''}`.trim();
+      const paymentDateText = paymentDate.toLocaleDateString('en-IN');
+      const doc = new jsPDF();
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 14;
+      doc.setDrawColor(180, 180, 180);
+      doc.rect(8, 8, pageW - 16, 281);
+      doc.setFillColor(16, 185, 129);
+      doc.rect(8, 8, pageW - 16, 24, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.text('PAYMENT RECEIPT', margin, 23);
+      doc.setFontSize(11);
+      doc.text(businessName.toUpperCase(), pageW - margin, 23, { align: 'right' });
+      doc.setTextColor(33, 37, 41);
+      doc.setFontSize(10);
+      doc.text(`Receipt No: ${receiptNo}`, margin, 42);
+      doc.text(`Date: ${paymentDateText}`, pageW - margin, 42, { align: 'right' });
+      doc.setDrawColor(220, 220, 220);
+      doc.roundedRect(margin, 48, pageW - margin * 2, 34, 2, 2);
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Received From', margin + 4, 56);
+      doc.setTextColor(33, 37, 41);
+      doc.setFontSize(12);
+      doc.text(memberName || '-', margin + 4, 63);
+      doc.setFontSize(10);
+      doc.text(`Mobile: ${m.mobile || '-'}`, margin + 4, 70);
+      doc.text(`Payment Month: ${monthText}`, pageW - margin - 4, 70, { align: 'right' });
+      const tableY = 92;
+      doc.setFillColor(248, 250, 252);
+      doc.rect(margin, tableY, pageW - margin * 2, 10, 'F');
+      doc.setDrawColor(220, 220, 220);
+      doc.rect(margin, tableY, pageW - margin * 2, 44);
+      doc.setFontSize(10);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Description', margin + 4, tableY + 7);
+      doc.text('Amount (INR)', pageW - margin - 4, tableY + 7, { align: 'right' });
+      doc.setDrawColor(230, 230, 230);
+      doc.line(margin, tableY + 10, pageW - margin, tableY + 10);
+      doc.setTextColor(33, 37, 41);
+      doc.text(`Membership payment - ${monthText}`, margin + 4, tableY + 20);
+      doc.text(`Rs ${estimatedPaidAmount.toLocaleString('en-IN')}`, pageW - margin - 4, tableY + 20, { align: 'right' });
+      doc.line(margin, tableY + 26, pageW - margin, tableY + 26);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total Paid', margin + 4, tableY + 36);
+      doc.text(`Rs ${estimatedPaidAmount.toLocaleString('en-IN')}`, pageW - margin - 4, tableY + 36, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFillColor(240, 253, 244);
+      doc.roundedRect(margin, 150, pageW - margin * 2, 26, 2, 2, 'F');
+      doc.setTextColor(22, 101, 52);
+      doc.setFontSize(11);
+      doc.text('Thank you for your payment!', margin + 4, 160);
+      doc.setTextColor(75, 85, 99);
+      doc.setFontSize(9);
+      doc.text('This is a system-generated receipt. Please keep it for your records.', margin + 4, 167);
+      doc.text(`${businessName}`, pageW - margin - 4, 167, { align: 'right' });
+      doc.save(fileName);
+      const msg = encodeURIComponent(`Hi ${m.firstName}, here is your payment receipt for ${monthText}.`);
+      const wa = `https://wa.me/91${mobile}?text=${msg}`;
+      window.open(wa, '_blank', 'noopener,noreferrer');
+    } catch {
+      this.toast.error('Could not generate receipt');
+    }
   }
 
   openMemberDetail(m: Member): void {
@@ -553,6 +632,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     this.importFileName.set('');
     this.importDueDateForAll.setValue(false);
     this.importDueDate.setValue('');
+    this.clearImportProgressUi();
     this.importModalOpen.set(true);
   }
 
@@ -560,30 +640,22 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     this.importModalOpen.set(false);
   }
 
-  downloadSampleCsv(): void {
-    let sample: string;
-    if (this.isPg()) {
-      sample = [
-        'name,mobile,plan,dueDate,subscriptionType,floor,room,bed',
-        'Ravi Kumar,9876543210,4000,2026-04-30,monthly,1,101,1',
-        'Priya Singh,9988776655,5000,2026-05-15,quarterly,5,503,3',
-        'Amit Patel,9123456789,3500,2026-06-10,monthly,4,407,2',
-      ].join('\n');
-    } else {
-      sample = [
-        'name,mobile,plan,dueDate,subscriptionType,floor,room,bed',
-        'Ravi Kumar,9876543210,2500,2026-04-30,monthly,,',
-        'Anita Sharma,9988776655,3200,2026-05-15,quarterly,,',
-        'Vikram Singh,9123456789,2000,2026-05-20,monthly,,',
-      ].join('\n');
+  viewSampleExcel(): void {
+    this.importFileName.set('Sample template (in-app preview)');
+    this.parseImportCsv(memberImportSampleCsv(this.isPg()));
+  }
+
+  async downloadSampleExcel(): Promise<void> {
+    const rows = memberImportSampleAoA(this.isPg());
+    try {
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Members');
+      XLSX.writeFile(wb, 'members-import-sample.xlsx');
+    } catch {
+      this.toast.error('Could not create sample Excel. Try again.');
     }
-    const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'members-import-sample.csv';
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   async onImportFileSelected(event: Event): Promise<void> {
@@ -676,7 +748,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       const mobile = this.readCol(cols, idx.mobile).replace(/\D/g, '');
       const planText = this.readCol(cols, idx.plan);
       const dueDateText = this.readCol(cols, idx.dueDate);
-      const subText = this.readCol(cols, idx.subscriptionType).toLowerCase();
+      const subRaw = this.readCol(cols, idx.subscriptionType);
+      const subText = subRaw.toLowerCase();
       const floor = this.readCol(cols, idx.floor);
       const room = this.readCol(cols, idx.room);
       const bed = this.readCol(cols, idx.bed);
@@ -685,22 +758,37 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       if (!firstName) errors.push('Name is required');
       const amount = Number(planText);
       if (!Number.isFinite(amount) || amount <= 0) errors.push('Plan should be a positive number');
-      const subscriptionType = (subText || 'monthly') as SubscriptionType;
-      if (!['monthly', 'quarterly', 'yearly'].includes(subscriptionType)) {
-        errors.push('subscriptionType should be monthly/quarterly/yearly');
+      const subErr = pgSheetSubscriptionError(this.isPg(), subRaw);
+      if (subErr) errors.push(subErr);
+      let subscriptionType: SubscriptionType = 'monthly';
+      if (this.isGym()) {
+        const st = (subText || 'monthly').trim();
+        subscriptionType = (st === 'quarterly' || st === 'yearly' ? st : 'monthly') as SubscriptionType;
       }
       const dueDate = this.parseDateInput(dueDateText);
       if (!dueDate) errors.push('dueDate should be YYYY-MM-DD');
       if (mobile && mobile.length !== 10) errors.push('Mobile should be 10 digits');
 
-      const assignedBed = this.resolveBedForImport(floor, room, bed);
+      const assignedBed = this.isPg()
+        ? parsePgImportSeat(floor, room, bed)
+        : { floorNumber: '', roomNumber: '', bedNumber: '', errors: [] as string[] };
+      if (this.isPg()) errors.push(...assignedBed.errors);
+
       const identityLoc = this.identityLocationParts(assignedBed.floorNumber, assignedBed.roomNumber, assignedBed.bedNumber);
       const key = this.memberIdentityKey(firstName, lastName, mobile, identityLoc.floorNumber, identityLoc.roomNumber, identityLoc.bedNumber);
       if (existingKeys.has(key)) errors.push('Member details already exist');
-      if (fileKeys.has(key)) errors.push('Duplicate row in file');
+      if (fileKeys.has(key)) errors.push('Duplicate row in file (same name/mobile/seat as another row)');
       fileKeys.add(key);
 
-      if (assignedBed.error) errors.push(assignedBed.error);
+      if (this.isPg() && assignedBed.errors.length === 0 && assignedBed.floorNumber) {
+        const f = Number(assignedBed.floorNumber);
+        const r = Number(assignedBed.roomNumber);
+        const b = Number(assignedBed.bedNumber);
+        if (Number.isFinite(f) && Number.isFinite(r) && Number.isFinite(b) && this.isBedOccupied(f, r, b)) {
+          const label = formatPgRoomLabel(f, r) || `${f}-${r}`;
+          errors.push(`Seat ${label} · bed ${b} is already assigned to an active member.`);
+        }
+      }
 
       rows.push({
         rowNo: i + 1,
@@ -735,36 +823,94 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       this.toast.error('No valid rows to import');
       return;
     }
+
+    const seatNeeds = this.isPg() && owner.ownerId ? this.collectImportSeatNeeds(validRows) : [];
+    const willSyncLayout = Boolean(this.isPg() && owner.ownerId && seatNeeds.length > 0);
+    const layoutWeight = willSyncLayout ? 14 : 0;
+    const n = validRows.length;
+    const memberWeight = 100 - layoutWeight;
+
     this.importBusy.set(true);
+    this.startImportProgressUi();
+
     let imported = 0;
-    for (const row of validRows) {
-      const due = dueForAll || this.parseDateInput(row.dueDate);
-      if (!due) continue;
-      const join = new Date(due);
-      join.setMonth(join.getMonth() - 1);
-      try {
-        await this.membersApi.addMember({
-          firstName: row.firstName,
-          lastName: row.lastName || undefined,
-          mobile: row.mobile || undefined,
-          floorNumber: row.floorNumber || '',
-          roomNumber: row.roomNumber || '',
-          bedNumber: row.bedNumber || '',
-          joinDate: join,
-          dueDate: due,
-          amount: row.amount,
-          paymentMethod: 'cash', // Default to cash for bulk import
-          status: 'active',
-          subscriptionType: owner.businessType === 'gym' ? row.subscriptionType : 'monthly',
-        });
-        imported += 1;
-      } catch {
-        // Skip failed row, continue import.
+    try {
+      if (willSyncLayout) {
+        try {
+          await this.pgLayoutApi.ensureLayoutSeatsForImport(owner.ownerId, seatNeeds);
+          this.setImportProgressPercent(layoutWeight);
+        } catch {
+          this.toast.error('Could not update the room map for this import. Try again or set up floors in Rooms first.');
+          return;
+        }
+      } else {
+        this.setImportProgressPercent(4);
       }
+
+      for (let i = 0; i < validRows.length; i += 1) {
+        const row = validRows[i];
+        const due = dueForAll || this.parseDateInput(row.dueDate);
+        if (!due) {
+          this.setImportProgressPercent(layoutWeight + ((i + 1) / n) * memberWeight);
+          continue;
+        }
+        const join = new Date(due);
+        join.setMonth(join.getMonth() - 1);
+        try {
+          await this.membersApi.addMember({
+            firstName: row.firstName,
+            lastName: row.lastName || undefined,
+            mobile: row.mobile || undefined,
+            floorNumber: row.floorNumber || '',
+            roomNumber: row.roomNumber || '',
+            bedNumber: row.bedNumber || '',
+            joinDate: join,
+            dueDate: due,
+            amount: row.amount,
+            paymentMethod: 'cash',
+            status: 'active',
+            subscriptionType: owner.businessType === 'gym' ? row.subscriptionType : 'monthly',
+          });
+          imported += 1;
+        } catch {
+          // Skip failed row, continue import.
+        }
+        this.setImportProgressPercent(layoutWeight + ((i + 1) / n) * memberWeight);
+      }
+
+      this.setImportProgressPercent(100);
+      this.importProgressMessage.set('All set! Putting the finishing touches on your import.');
+      await new Promise<void>((resolve) => setTimeout(resolve, 480));
+      this.toast.success(`Imported ${imported} members. Skipped ${validRows.length - imported}.`);
+      this.importModalOpen.set(false);
+    } finally {
+      this.clearImportProgressUi();
+      this.importBusy.set(false);
     }
-    this.importBusy.set(false);
-    this.toast.success(`Imported ${imported} members. Skipped ${validRows.length - imported}.`);
-    this.closeImportModal();
+  }
+
+  private startImportProgressUi(): void {
+    this.clearImportProgressUi();
+    this.importProgressPercent.set(2);
+    this.importProgressMessage.set(MEMBER_IMPORT_PROGRESS_MESSAGES[0] ?? 'Importing members, please wait.');
+    let idx = 0;
+    this.importProgressRotator = setInterval(() => {
+      idx = (idx + 1) % MEMBER_IMPORT_PROGRESS_MESSAGES.length;
+      this.importProgressMessage.set(MEMBER_IMPORT_PROGRESS_MESSAGES[idx] ?? '');
+    }, 2600);
+  }
+
+  private setImportProgressPercent(p: number): void {
+    this.importProgressPercent.set(Math.min(100, Math.max(0, Math.round(p))));
+  }
+
+  private clearImportProgressUi(): void {
+    if (this.importProgressRotator) {
+      clearInterval(this.importProgressRotator);
+      this.importProgressRotator = null;
+    }
+    this.importProgressPercent.set(0);
+    this.importProgressMessage.set('');
   }
 
   onFloorCountChange(raw: unknown): void {
@@ -786,7 +932,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   onRoomCountChange(floorIndex: number, raw: unknown): void {
     const rooms = this.roomGroupsAt(floorIndex);
-    const count = this.coerceCount(raw, 1, 500);
+    const count = this.coerceCount(raw, 0, 500);
     const floorNumber = this.floorNumberAtFormIndex(floorIndex);
     if (count < rooms.length && this.hasAssignedOnOrAboveRoom(floorNumber, count + 1)) {
       const floorGroup = this.floorGroups.at(floorIndex);
@@ -801,6 +947,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
         this.fb.nonNullable.group({
           roomNumber: rooms.length + 1,
           beds: [1, [Validators.required, Validators.min(1)]],
+          rent: [null as number | null, [Validators.min(1)]],
         }),
       );
     }
@@ -848,14 +995,15 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     this.setupForm.controls.floorCount.setValue(floorCount);
     this.floorGroups.clear();
     for (let i = 0; i < floorCount; i += 1) {
-      const floor = layout.floors[i] ?? { floorNumber: i + 1, rooms: [{ roomNumber: 1, beds: 1 }] };
+      const floor = layout.floors[i] ?? { floorNumber: i + 1, rooms: [] };
       const stored = Math.trunc(Number(floor.floorNumber));
       const floorNumber = Number.isFinite(stored) ? stored : i + 1;
       const rooms = this.fb.array(
-        (floor.rooms.length ? floor.rooms : [{ roomNumber: 1, beds: 1 }]).map((room, idx) =>
+        (floor.rooms ?? []).map((room, idx) =>
           this.fb.nonNullable.group({
             roomNumber: idx + 1,
             beds: [Math.max(1, Number(room.beds) || 1), [Validators.required, Validators.min(1)]],
+            rent: [Number(room.rent) > 0 ? Math.round(Number(room.rent)) : null, [Validators.min(1)]],
           }),
         ),
       );
@@ -891,13 +1039,14 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
         current[i] ??
         ({
           floorNumber: this.defaultFloorNumberForIndex(i, current),
-          rooms: [{ roomNumber: 1, beds: 1 }],
+          rooms: [],
         } as PgFloorLayout);
       const rooms = this.fb.array(
-        (floor.rooms.length ? floor.rooms : [{ roomNumber: 1, beds: 1 }]).map((room, idx) =>
+        (floor.rooms ?? []).map((room, idx) =>
           this.fb.nonNullable.group({
             roomNumber: idx + 1,
             beds: [Math.max(1, Number(room.beds) || 1), [Validators.required, Validators.min(1)]],
+            rent: [Number(room.rent) > 0 ? Math.round(Number(room.rent)) : null, [Validators.min(1)]],
           }),
         ),
       );
@@ -924,6 +1073,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       const rooms = (floorCtrl.get('rooms') as FormArray).controls.map((roomCtrl, roomIdx) => ({
         roomNumber: roomIdx + 1,
         beds: Math.max(1, Number(roomCtrl.get('beds')?.value) || 1),
+        rent: Number(roomCtrl.get('rent')?.value) > 0 ? Math.round(Number(roomCtrl.get('rent')?.value)) : undefined,
       }));
       const fromCtrl = Math.trunc(Number(floorCtrl.get('floorNumber')?.value));
       const floorNumber = Number.isFinite(fromCtrl) ? fromCtrl : floorIdx;
@@ -1015,6 +1165,25 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   formatRoomNumber(floorNumber: number, roomNumber: number): string {
     return formatPgRoomLabel(floorNumber, roomNumber);
+  }
+
+  sharingLabel(beds: unknown): string {
+    return sharingLabelForBeds(beds);
+  }
+
+  roomRentText(rent: unknown): string {
+    const n = Number(rent);
+    if (!Number.isFinite(n) || n <= 0) return 'Price not mentioned';
+    return `₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)}`;
+  }
+
+  importSeatSummary(row: ImportPreviewRow): string {
+    if (!this.isPg()) return '—';
+    if (!row.floorNumber || !row.roomNumber || !row.bedNumber) return 'No seat';
+    const f = Number(row.floorNumber);
+    const r = Number(row.roomNumber);
+    const label = formatPgRoomLabel(f, r);
+    return label ? `${label} · bed ${row.bedNumber}` : `Floor ${row.floorNumber} · room ${row.roomNumber} · bed ${row.bedNumber}`;
   }
 
   private bedKey(floor: unknown, room: unknown, bed: unknown): string {
@@ -1124,67 +1293,21 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     ].join('|');
   }
 
-  private resolveBedForImport(
-    floorRaw: string,
-    roomRaw: string,
-    bedRaw: string,
-  ): { floorNumber: string; roomNumber: string; bedNumber: string; error?: string } {
-    const floor = String(floorRaw || '').trim();
-    const room = String(roomRaw || '').trim();
-    const bed = String(bedRaw || '').trim();
-    if (!this.isPg()) return { floorNumber: '', roomNumber: '', bedNumber: '' };
-    if (!room || !bed) return { floorNumber: '', roomNumber: '', bedNumber: '' };
-
-    // Try to parse room number - check if it contains floor info (e.g., 101, 407, 503)
-    const roomNum = Number(room);
-    let f: number;
-    let r: number;
-
-    if (!Number.isFinite(roomNum) || roomNum <= 0) {
-      return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Invalid room/floor format' };
+  private collectImportSeatNeeds(rows: ImportPreviewRow[]): { floorNumber: number; roomNumber: number; minBeds: number }[] {
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      if (!row.floorNumber || !row.roomNumber || !row.bedNumber) continue;
+      const f = Number(row.floorNumber);
+      const r = Number(row.roomNumber);
+      const b = Number(row.bedNumber);
+      if (!Number.isFinite(f) || !Number.isFinite(r) || !Number.isFinite(b)) continue;
+      const k = `${Math.trunc(f)}-${Math.trunc(r)}`;
+      map.set(k, Math.max(map.get(k) || 0, Math.trunc(b)));
     }
-
-    // If room number >= 100, extract floor and room (e.g., 101 -> floor=1, room=1)
-    if (roomNum >= 100) {
-      f = Math.floor(roomNum / 100);
-      r = roomNum % 100;
-      
-      // If floor is also provided separately, validate it matches
-      if (floor) {
-        const floorNum = Number(floor);
-        if (Number.isFinite(floorNum) && floorNum !== f) {
-          return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Floor mismatch: data has floor 1 but room 501' };
-        }
-      }
-    } else {
-      // Otherwise use floor and room separately (old format)
-      if (!floor) return { floorNumber: '', roomNumber: '', bedNumber: '' };
-      f = Number(floor);
-      r = roomNum;
-      
-      if (!Number.isFinite(f) || f < 0) {
-        return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Invalid floor value' };
-      }
-    }
-
-    const b = Number(bed);
-    if (!Number.isFinite(b) || b <= 0) {
-      return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Invalid bed value' };
-    }
-
-    // Validate against layout
-    const fl = (this.pgLayout()?.floors || []).find((x) => Number(x.floorNumber) === Math.trunc(f));
-    const rm = fl?.rooms.find((x) => Number(x.roomNumber) === Math.trunc(r));
-    if (!fl || !rm) {
-      return { floorNumber: '', roomNumber: '', bedNumber: '', error: `Floor ${f}, Room ${r} not found in layout` };
-    }
-    if (Math.trunc(b) > Number(rm.beds || 0)) {
-      return { floorNumber: '', roomNumber: '', bedNumber: '', error: `Bed ${b} not found in room` };
-    }
-    if (this.isBedOccupied(f, r, b)) {
-      return { floorNumber: '', roomNumber: '', bedNumber: '', error: 'Bed already occupied' };
-    }
-    return { floorNumber: String(Math.trunc(f)), roomNumber: String(Math.trunc(r)), bedNumber: String(Math.trunc(b)) };
+    return [...map.entries()].map(([k, minBeds]) => {
+      const [a, b] = k.split('-');
+      return { floorNumber: Number(a), roomNumber: Number(b), minBeds };
+    });
   }
 
   private identityLocationParts(

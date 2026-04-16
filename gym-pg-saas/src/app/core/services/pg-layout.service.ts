@@ -3,6 +3,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
@@ -46,11 +47,12 @@ export class PgLayoutService {
 
   async saveLayout(ownerId: string, floors: PgFloorLayout[]): Promise<void> {
     const ref = doc(this.fb.db, 'pgLayouts', ownerId);
+    const sanitizedFloors = this.sanitizeFloorsForSave(floors);
     await setDoc(
       ref,
       {
         ownerId,
-        floors,
+        floors: sanitizedFloors,
         updatedAt: serverTimestamp(),
       },
       { merge: true },
@@ -120,14 +122,37 @@ export class PgLayoutService {
       const roomsRaw = Array.isArray(floor['rooms']) ? floor['rooms'] : [];
       const rooms = roomsRaw.map((r, idx) => {
         const row = r as Record<string, unknown>;
+        const rentRaw = Number(row['rent']);
         return {
           roomNumber: Number(row['roomNumber']) || idx + 1,
           beds: Math.max(1, Number(row['beds']) || 1),
+          rent: Number.isFinite(rentRaw) && rentRaw > 0 ? Math.round(rentRaw) : undefined,
         };
       });
       floors.push({ floorNumber, rooms });
     }
     return floors;
+  }
+
+  /**
+   * Firestore rejects `undefined` fields.
+   * Keep rent only when valid positive number; otherwise omit the key.
+   */
+  private sanitizeFloorsForSave(floors: PgFloorLayout[]): PgFloorLayout[] {
+    return (floors ?? []).map((floor) => ({
+      floorNumber: Math.trunc(Number(floor.floorNumber)),
+      rooms: (floor.rooms ?? []).map((room, idx) => {
+        const normalized = {
+          roomNumber: Math.max(1, Math.trunc(Number(room.roomNumber) || idx + 1)),
+          beds: Math.max(1, Math.trunc(Number(room.beds) || 1)),
+        };
+        const rent = Number(room.rent);
+        if (Number.isFinite(rent) && rent > 0) {
+          return { ...normalized, rent: Math.round(rent) };
+        }
+        return normalized;
+      }),
+    }));
   }
 
   /**

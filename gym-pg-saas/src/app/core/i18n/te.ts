@@ -68,6 +68,37 @@ export const TE: Record<string, unknown> = {
     fixPasswordBelow: 'మీ పాస్‌వర్డ్‌లో ఇవి చేర్చండి:',
     nameRequired: 'పేరు అవసరం',
     businessNameRequired: 'వ్యాపార పేరు అవసరం',
+    mobileOrEmail: 'మొబైల్ నంబర్ లేదా ఇమెయిల్',
+    mobileOrEmailPlaceholder: 'ఉదా. 9876543210 లేదా you@email.com',
+    identifierRequired: 'ఈ ఫీల్డ్ అవసరం',
+    identifierInvalid: 'చెల్లుబాటు అయ్యే ఇమెయిల్ లేదా మొబైల్ నమోదు చేయండి',
+    mobile: 'మొబైల్ నంబర్',
+    mobileHint: '10 అంకెల భారత మొబైల్ లేదా +దేశ కోడ్',
+    mobileVerifyHint: 'ఈ నంబర్‌ను ధృవీకరించడానికి SMS కోడ్ పంపుతాము.',
+    recaptchaHint:
+      'పైన “నేను రోబో కాదు” పూర్తి చేసి, తర్వాత ధృవీకరణ కోడ్ పంపు నొక్కండి. పేజీ ఎక్కువ సేపు తెరిచి ఉంటే మళ్లీ పంపు నొక్కి చెక్‌బాక్స్ రిఫ్రెష్ చేయండి.',
+    smsWillBeSentTo: 'SMS ఇక్కడికి పంపబడుతుంది',
+    mobileRequired: 'మొబైల్ నంబర్ అవసరం',
+    phoneInvalid: 'చెల్లుబాటు అయ్యే మొబైల్ నంబర్ నమోదు చేయండి',
+    contactEmail: 'సంప్రదింపు ఇమెయిల్',
+    signUpEmailResetHint:
+      'మీరు నిజంగా ఉపయోగించే సరైన ఇమెయిల్ (ఉదా. Gmail) నమోదు చేయండి. పాస్‌వర్డ్ రీసెట్ లింక్ ఈ ఇమెయిల్‌కు మాత్రమే పంపబడుతుంది.',
+    sendOtp: 'ధృవీకరణ కోడ్ పంపండి',
+    sendOtpWait: 'మళ్లీ పంపడానికి {seconds}సె వేచి ఉండండి',
+    smsCooldownActive: 'మరో కోడ్ పంపడానికి {seconds}సె వేచి ఉండండి (Firebase రేట్ పరిమితి).',
+    smsTooManyRequestsToast:
+      'ఈ నంబర్ లేదా పరికరానికి ఎక్కువ SMS ప్రయత్నాలు. పరీక్ష చేస్తున్నప్పుడు Firebase పునరావృత్తులను నిరోధిస్తుంది. సుమారు {minutes} నిమిషాలు వేచి ఉండండి, పంపు ను పదేపదే నొక్కకండి, లేదా Firebase Console → Authentication → Sign-in method → Phone లో టెస్ట్ నంబర్ + స్థిర OTP చేర్చండి.',
+    recaptchaOrApiRejected:
+      'Google ఈ బ్రౌజర్‌ను ధృవీకరించలేదు (invalid-app-credential). Firebase Web API keyలో HTTP referrers http://localhost:4200/* మరియు Identity Toolkit API అనుమతించండి, రిఫ్రెష్ చేసి మళ్లీ ప్రయత్నించండి. పూర్తి చెక్‌లిస్ట్ కోసం DevTools → Console చూడండి.',
+    enterOtp: 'ధృవీకరణ కోడ్',
+    enterOtpBlurb: 'మీ మొబైల్‌కు పంపిన SMSలోని కోడ్‌ను నమోదు చేయండి.',
+    verifyAndCreate: 'ధృవీకరించి ఖాతా సృష్టించండి',
+    changeNumber: 'నంబర్ మార్చండి',
+    forgotPassword: 'పాస్‌వర్డ్ మర్చిపోయారా?',
+    resetPasswordHint: 'సైన్ ఇన్‌కు ఉపయోగించే మొబైల్ లేదా ఇమెయిల్ నమోదు చేయండి. రీసెట్ లింక్ ఇమెయిల్ చేస్తాము.',
+    sendResetEmail: 'రీసెట్ ఇమెయిల్ పంపండి',
+    resetEmailSentToast:
+      'మీరు నమోదు చేసిన వివరాలకు ఖాతా ఉంటే—మరియు సైన్ అప్ సమయంలో సరైన ఇమెయిల్ (పాస్‌వర్డ్ రీసెట్‌కు అదే ఇమెయిల్) ఇచ్చి ఉంటే—ఆ ఇమెయిల్‌కు పాస్‌వర్డ్ రీసెట్ లింక్ పంపాము.\n\nఇన్‌బాక్స్ మరియు స్పామ్ / జంక్ ఫోల్డర్‌లను తప్పక చూడండి; సందేశం తరచుగా స్పామ్‌లో పడుతుంది.',
   },
   dashboard: {
     title: 'డాష్‌బోర్డ్',

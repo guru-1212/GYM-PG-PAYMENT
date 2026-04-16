@@ -1,34 +1,70 @@
 <div class="home-bg min-h-screen">
-  <div class="saas-page mx-auto max-w-6xl space-y-8 px-4 py-5 sm:px-6 lg:px-8">
-    <nav class="glass-nav flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-3 backdrop-blur-xl">
-      <app-brand-logo [logoSize]="'38px'" [showText]="true" brandName="OurPGTracker"></app-brand-logo>
-      <a routerLink="/login" [queryParams]="{ mode: 'signin' }" class="rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:opacity-95">
-        {{ 'nav.login' | t }}
-      </a>
+  <div class="saas-page mx-auto max-w-6xl space-y-10 px-4 py-5 sm:px-6 lg:px-8">
+    <nav class="glass-nav sticky top-3 z-50 rounded-2xl border border-white/60 bg-white/85 px-4 py-3 shadow-sm backdrop-blur-xl">
+      <div class="flex items-center justify-between gap-4">
+        <app-brand-logo [logoSize]="'38px'" [showText]="true" brandName="OurPGTracker"></app-brand-logo>
+
+        <div class="hidden items-center gap-4 lg:flex">
+          <button class="nav-link" type="button" (click)="scrollTo('benefits')">Benefits</button>
+          <button class="nav-link" type="button" (click)="scrollTo('features')">Features</button>
+          <button class="nav-link" type="button" (click)="scrollTo('how-it-works')">How It Works</button>
+          <button class="nav-link" type="button" (click)="scrollTo('contact')">Contact Us</button>
+        </div>
+
+        <div class="hidden items-center gap-3 lg:flex">
+          <app-theme-toggle />
+          <a routerLink="/login" [queryParams]="{ mode: 'signin', installHint: '1' }" class="rounded-xl border border-slate-200 bg-white/75 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white">
+            Sign In
+          </a>
+          <a routerLink="/login" [queryParams]="{ mode: 'signup', installHint: '1' }" class="btn-gradient btn-border-anim rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:opacity-95">
+            Start Free
+          </a>
+        </div>
+
+        <button class="menu-btn lg:hidden" type="button" (click)="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle menu">
+          <i class="fa-solid" [class.fa-bars]="!mobileMenuOpen" [class.fa-xmark]="mobileMenuOpen"></i>
+        </button>
+      </div>
+
+      <div *ngIf="mobileMenuOpen" class="mt-3 space-y-2 rounded-xl border border-slate-200 bg-white/90 p-3 lg:hidden">
+        <app-theme-toggle />
+        <button class="mobile-link" type="button" (click)="scrollTo('benefits')">Benefits</button>
+        <button class="mobile-link" type="button" (click)="scrollTo('features')">Features</button>
+        <button class="mobile-link" type="button" (click)="scrollTo('how-it-works')">How It Works</button>
+        <button class="mobile-link" type="button" (click)="scrollTo('contact')">Contact Us</button>
+        <div class="flex gap-2 pt-1">
+          <a routerLink="/login" [queryParams]="{ mode: 'signin', installHint: '1' }" class="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-700">
+            Sign In
+          </a>
+          <a routerLink="/login" [queryParams]="{ mode: 'signup', installHint: '1' }" class="btn-gradient btn-border-anim flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold text-white">
+            Start Free
+          </a>
+        </div>
+      </div>
     </nav>
 
-    <section class="saas-card relative overflow-hidden p-6 sm:p-8">
+    <section class="saas-card relative overflow-hidden p-6 sm:p-8" id="top">
       <div class="hero-glow"></div>
       <div class="relative z-10 grid gap-8 lg:grid-cols-[1.3fr_1fr] lg:items-center">
         <div>
           <p
             class="mb-3 inline-flex rounded-full border border-indigo-200/80 bg-indigo-50/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:border-indigo-500/35 dark:bg-indigo-950/70 dark:text-indigo-200"
           >
-            Production Ready Platform
+            Built for PG & Hostel Owners
           </p>
           <h1 class="text-3xl font-bold leading-tight text-slate-900 sm:text-4xl">
-            Manage your <span class="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Gym & PG</span> with clarity
+            Manage your <span class="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">PG digitally</span> with clarity.
           </h1>
           <p class="mt-4 max-w-2xl text-sm text-slate-600 sm:text-base">
-            Unified member, payment, room, and operations management with responsive dashboards and automation-friendly workflows.
+            Track members, dues, rooms, and earnings in one place. Simple setup, clear dashboard, and fast daily operations.
           </p>
           <div class="mt-6 flex flex-wrap gap-3">
-            <a routerLink="/login" [queryParams]="{ mode: 'signup' }" class="rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-95">
-              Owner Sign Up
+            <a routerLink="/login" [queryParams]="{ mode: 'signup', installHint: '1' }" class="btn-gradient btn-border-anim rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-95">
+              Start Free
             </a>
-            <a routerLink="/login" [queryParams]="{ mode: 'signin' }" class="rounded-xl border border-slate-200 bg-white/70 px-5 py-2.5 text-sm font-semibold text-slate-700 backdrop-blur hover:bg-white">
-              Sign In
-            </a>
+            <button type="button" class="rounded-xl border border-slate-200 bg-white/70 px-5 py-2.5 text-sm font-semibold text-slate-700 backdrop-blur hover:bg-white" (click)="scrollTo('contact')">
+              Request Demo
+            </button>
           </div>
         </div>
 
@@ -38,15 +74,15 @@
           <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Live Snapshot</p>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
             <div class="rounded-xl border border-white/70 bg-white/70 p-3">
-              <p class="text-xs text-slate-500">Members</p>
+              <p class="text-xs text-slate-500">Total Members</p>
               <p class="mt-1 text-xl font-bold text-slate-900">1,280</p>
             </div>
             <div class="rounded-xl border border-white/70 bg-white/70 p-3">
-              <p class="text-xs text-slate-500">Collections</p>
+              <p class="text-xs text-slate-500">Monthly Earnings</p>
               <p class="mt-1 text-xl font-bold text-emerald-700">₹4.2L</p>
             </div>
             <div class="rounded-xl border border-white/70 bg-white/70 p-3">
-              <p class="text-xs text-slate-500">Active Rooms</p>
+              <p class="text-xs text-slate-500">Occupied Beds</p>
               <p class="mt-1 text-xl font-bold text-slate-900">96</p>
             </div>
             <div class="rounded-xl border border-white/70 bg-white/70 p-3">
@@ -58,32 +94,133 @@
       </div>
     </section>
 
-    <section class="space-y-4">
+    <section class="space-y-4" id="benefits">
       <div class="text-center">
-        <h2 class="text-2xl font-bold text-slate-900">Powerful Features</h2>
-        <p class="mt-1 text-sm text-slate-600">Everything you need in one clean workflow.</p>
+        <h2 class="text-2xl font-bold text-slate-900">Core Benefits</h2>
+        <p class="mt-1 text-sm text-slate-600">Quickly understand what you get as an owner.</p>
       </div>
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <article *ngFor="let feature of features" class="saas-card border-white/70 bg-white/60 p-5 backdrop-blur-xl transition hover:-translate-y-0.5">
-          <div class="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-lg shadow-sm">
-            {{ feature.icon }}
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <article *ngFor="let benefit of quickBenefits" class="saas-card border-white/70 bg-white/60 p-5 backdrop-blur-xl transition hover:-translate-y-0.5">
+          <div class="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 shadow-sm">
+            <i class="fa-solid {{ benefit.icon }}" aria-hidden="true"></i>
           </div>
-          <h3 class="text-base font-semibold text-slate-900">{{ feature.title }}</h3>
-          <p class="mt-1 text-sm text-slate-600">{{ feature.description }}</p>
+          <h3 class="text-base font-semibold text-slate-900">{{ benefit.title }}</h3>
+        </article>
+      </div>
+    </section>
+
+    <section class="space-y-4" id="features">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold text-slate-900">Feature Sections</h2>
+        <p class="mt-1 text-sm text-slate-600">Everything grouped for easy day-to-day operations.</p>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <article *ngFor="let section of groupedFeatures" class="saas-card border-white/70 bg-white/60 p-5 backdrop-blur-xl">
+          <div class="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700 shadow-sm">
+            <i class="fa-solid {{ section.icon }}" aria-hidden="true"></i>
+          </div>
+          <h3 class="text-lg font-semibold text-slate-900">{{ section.title }}</h3>
+          <ul class="mt-3 list-disc space-y-1.5 pl-5 text-sm text-slate-600">
+            <li *ngFor="let point of section.points">{{ point }}</li>
+          </ul>
+          <p class="mt-3 text-sm font-semibold text-indigo-700">{{ section.summary }}</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="saas-card border-white/70 bg-white/65 p-6 backdrop-blur-xl sm:p-8" id="how-it-works">
+      <h2 class="text-center text-2xl font-bold text-slate-900">How It Works</h2>
+      <div class="mt-6 grid gap-4 md:grid-cols-3">
+        <article class="step-card">
+          <p class="step-tag">Step 1</p>
+          <h3>Set up your PG</h3>
+          <p>Configure floors, rooms, and beds as per your property setup.</p>
+        </article>
+        <article class="step-card">
+          <p class="step-tag">Step 2</p>
+          <h3>Add members</h3>
+          <p>Add tenant details and assign beds in just a few clicks.</p>
+        </article>
+        <article class="step-card">
+          <p class="step-tag">Step 3</p>
+          <h3>Track earnings</h3>
+          <p>Monitor payments, pending dues, and monthly growth from dashboard.</p>
         </article>
       </div>
     </section>
 
     <section class="saas-card border-white/70 bg-gradient-to-br from-indigo-600/90 to-blue-700/90 p-6 text-center text-white backdrop-blur-xl sm:p-8">
-      <h2 class="text-2xl font-bold">Ready to transform your operations?</h2>
-      <p class="mt-2 text-sm text-indigo-100">Join operators already scaling with OurPGTracker.</p>
-      <a routerLink="/login" [queryParams]="{ mode: 'signup' }" class="mt-5 inline-flex rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-md transition hover:bg-indigo-50">
-        Start Free Trial
-      </a>
+      <h2 class="text-2xl font-bold">Start managing your PG digitally today.</h2>
+      <p class="mt-2 text-sm text-indigo-100">Get faster operations and better visibility with one system.</p>
+      <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
+        <a routerLink="/login" [queryParams]="{ mode: 'signup', installHint: '1' }" class="btn-light btn-border-anim inline-flex rounded-xl px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-md transition hover:bg-indigo-50">
+          Start Free
+        </a>
+        <button type="button" class="btn-gradient btn-border-anim inline-flex rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500/45" (click)="scrollTo('contact')">
+          Contact / Demo
+        </button>
+      </div>
+    </section>
+
+    <section class="saas-card border-white/70 bg-white/70 p-6 backdrop-blur-xl sm:p-8" id="contact">
+      <div class="mb-5 text-center">
+        <h2 class="text-2xl font-bold text-slate-900">Request Demo</h2>
+        <p class="mt-1 text-sm text-slate-600">Fill details and send directly on WhatsApp.</p>
+      </div>
+      <form #demoFormRef="ngForm" class="grid gap-4 md:grid-cols-2" (ngSubmit)="sendDemoRequest(demoFormRef)" novalidate>
+        <label class="field">
+          <span>Name</span>
+          <input type="text" [(ngModel)]="demoForm.name" name="name" required minlength="2" maxlength="60" placeholder="Enter your name" #nameModel="ngModel" />
+          <small class="field-error" *ngIf="nameModel.invalid && (nameModel.dirty || nameModel.touched)">Enter valid name</small>
+        </label>
+        <label class="field">
+          <span>Business Type</span>
+          <select [(ngModel)]="demoForm.businessType" name="businessType" required>
+            <option value="pg">PG</option>
+            <option value="hostel">Hostel</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label class="field md:col-span-2">
+          <span>Address</span>
+          <textarea rows="3" [(ngModel)]="demoForm.address" name="address" required minlength="5" maxlength="180" placeholder="Enter your address" #addressModel="ngModel"></textarea>
+          <small class="field-error" *ngIf="addressModel.invalid && (addressModel.dirty || addressModel.touched)">Enter valid address</small>
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" [(ngModel)]="demoForm.email" name="email" required email placeholder="Enter your email" #emailModel="ngModel" />
+          <small class="field-error" *ngIf="emailModel.invalid && (emailModel.dirty || emailModel.touched)">Enter valid email</small>
+        </label>
+        <label class="field">
+          <span>Mobile</span>
+          <input type="tel" [(ngModel)]="demoForm.mobile" name="mobile" required pattern="[0-9]{10}" maxlength="10" placeholder="Enter 10-digit mobile number" #mobileModel="ngModel" />
+          <small class="field-error" *ngIf="mobileModel.invalid && (mobileModel.dirty || mobileModel.touched)">Enter valid 10-digit mobile</small>
+        </label>
+
+        <div class="md:col-span-2 flex flex-wrap justify-end gap-3">
+          <button type="button" class="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" (click)="openWhatsAppGeneral()">
+            General WhatsApp
+          </button>
+          <button type="submit" [disabled]="demoFormRef.invalid || !isDemoFormValid()" class="btn-gradient btn-border-anim rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50">
+            Send Demo Request
+          </button>
+        </div>
+      </form>
     </section>
 
     <footer class="rounded-2xl border border-white/60 bg-white/60 p-4 text-center text-xs text-slate-500 backdrop-blur-xl">
       © 2026 OurPGTracker. Management made simple.
     </footer>
   </div>
+
+  <button
+    class="wa-fab"
+    type="button"
+    (click)="openWhatsAppGeneral()"
+    aria-label="Contact on WhatsApp"
+    title="Chat on WhatsApp"
+  >
+    <i class="fa-brands fa-whatsapp wa-icon" aria-hidden="true"></i>
+    <span class="wa-text">WhatsApp</span>
+  </button>
 </div>

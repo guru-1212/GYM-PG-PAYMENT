@@ -42,6 +42,8 @@ export interface MemberInput {
   /** Internal advance lifecycle marker. */
   advanceStatus?: 'held' | 'returned';
   paymentMethod: PaymentMethod;
+  /** Edit flow: optionally add a payment record while updating member details. */
+  recordPaymentOnUpdate?: boolean;
   status: Member['status'];
   /** Optional explicit due date (used by bulk import). */
   dueDate?: Date;
@@ -149,7 +151,6 @@ export class MemberService {
 
     // If an amount is provided (payment made during member creation), create payment record
     if (paidAmount > 0) {
-      console.log('💰 Creating payment record for new member:', paidAmount);
       await addDoc(collection(this.fb.db, 'payments'), {
         memberId: memberRef.id,
         ownerId: owner.ownerId,
@@ -160,14 +161,12 @@ export class MemberService {
         pendingAmount,
         createdAt: serverTimestamp(),
       });
-      console.log('✅ Payment record created for member:', memberRef.id);
     }
 
     /* Complaints disabled — restore when feature fixed
     try {
       await this.upsertComplaintLookup(owner.ownerId, input.mobile || '');
     } catch (e) {
-      console.warn('[MemberService] Member saved but complaint mobile index failed (public complaint form may miss this number):', e);
     }
     */
   }
@@ -183,6 +182,8 @@ export class MemberService {
     const sub: SubscriptionType =
       owner?.businessType === 'gym' ? input.subscriptionType || 'monthly' : 'monthly';
     const due = input.dueDate || firstDueFromJoin(join, sub);
+    const pendingAmount = Math.max(0, Number(input.pendingAmount) || 0);
+    const paidAmount = Math.max(0, Number(input.paidAmount) || 0);
     const payload: Record<string, any> = {
       firstName: input.firstName.trim(),
       lastName: input.lastName?.trim() || '',
@@ -200,13 +201,26 @@ export class MemberService {
       dueDate: dateToTimestamp(due),
       status: input.status,
       subscriptionType: sub,
-      pendingAmount: 0,
+      pendingAmount,
       advancePaid: Math.max(0, Number(input.advancePaid) || 0),
     };
     if (input.status === 'inactive') {
       payload['advanceStatus'] = 'returned';
     }
     await updateDoc(ref, payload);
+
+    if (input.recordPaymentOnUpdate && paidAmount > 0 && owner?.ownerId) {
+      await addDoc(collection(this.fb.db, 'payments'), {
+        memberId,
+        ownerId: owner.ownerId,
+        amount: paidAmount,
+        date: dateToTimestamp(new Date()),
+        method: input.paymentMethod,
+        isPartialPayment: pendingAmount > 0,
+        pendingAmount,
+        createdAt: serverTimestamp(),
+      });
+    }
     /* Complaints disabled — restore when feature fixed
     const oid = owner?.ownerId;
     if (oid) {
@@ -217,7 +231,6 @@ export class MemberService {
         }
         await this.upsertComplaintLookup(oid, nextMobile);
       } catch (e) {
-        console.warn('[MemberService] Member updated but complaint mobile index failed:', e);
       }
     }
     */
@@ -239,6 +252,12 @@ export class MemberService {
     await updateDoc(doc(this.fb.db, 'members', memberId), updatePayload);
   }
 
+  async updateMemberStatus(memberId: string, status: Member['status']): Promise<void> {
+    const payload: { status: Member['status']; advanceStatus?: 'held' | 'returned' } = { status };
+    if (status === 'inactive') payload.advanceStatus = 'returned';
+    await updateDoc(doc(this.fb.db, 'members', memberId), payload);
+  }
+
   async deleteMember(memberId: string): Promise<void> {
     const ref = doc(this.fb.db, 'members', memberId);
     await deleteDoc(ref);
@@ -250,7 +269,6 @@ export class MemberService {
       try {
         await this.removeComplaintLookup(owner.ownerId, prevMobile);
       } catch (e) {
-        console.warn('[MemberService] Member removed but complaint lookup cleanup failed:', e);
       }
     }
     */

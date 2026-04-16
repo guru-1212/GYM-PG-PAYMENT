@@ -65,13 +65,11 @@ export class DataCacheService {
   async loadMembers(ownerId: string): Promise<Member[]> {
     // If already loaded for this owner, return cached data
     if (this.currentOwnerId === ownerId && this.hasMembersLoaded()) {
-      console.log('📦 Members loaded from cache');
       return this._members();
     }
 
     // Prevent duplicate loads
     if (this._isLoading()['members']) {
-      console.log('⏳ Members load already in progress');
       return new Promise((resolve) => {
         const timer = setInterval(() => {
           if (!this._isLoading()['members']) {
@@ -82,7 +80,6 @@ export class DataCacheService {
       });
     }
 
-    console.log('🔄 Loading members from Firestore...');
     this.setLoading('members', true);
     this.currentOwnerId = ownerId;
 
@@ -92,7 +89,6 @@ export class DataCacheService {
     try {
       // Set up real-time listener
       this.memberUnsub = this.memberApi.watchMembersForOwner(ownerId, (list) => {
-        console.log(`✅ Members updated from Firestore: ${list.length} members`);
         this._members.set(list);
         this.setLoading('members', false);
       });
@@ -113,13 +109,11 @@ export class DataCacheService {
   async loadPayments(ownerId: string): Promise<Payment[]> {
     // If already loaded for this owner, return cached data
     if (this.currentOwnerId === ownerId && this.hasPaymentsLoaded()) {
-      console.log('📦 Payments loaded from cache');
       return this._payments();
     }
 
     // Prevent duplicate loads
     if (this._isLoading()['payments']) {
-      console.log('⏳ Payments load already in progress');
       return new Promise((resolve) => {
         const timer = setInterval(() => {
           if (!this._isLoading()['payments']) {
@@ -130,7 +124,6 @@ export class DataCacheService {
       });
     }
 
-    console.log('🔄 Loading payments from Firestore...');
     this.setLoading('payments', true);
     this.currentOwnerId = ownerId;
 
@@ -140,7 +133,6 @@ export class DataCacheService {
     try {
       // Set up real-time listener
       this.paymentUnsub = this.paymentApi.watchPaymentsForOwner(ownerId, (list) => {
-        console.log(`✅ Payments updated from Firestore: ${list.length} payments`);
         this._payments.set(list);
         this.setLoading('payments', false);
       });
@@ -159,13 +151,11 @@ export class DataCacheService {
   async loadLayout(ownerId: string): Promise<PgLayout | null> {
     // If already loaded for this owner, return cached data
     if (this.currentOwnerId === ownerId && this.hasLayoutLoaded()) {
-      console.log('📦 Layout loaded from cache');
       return this._layout();
     }
 
     // Prevent duplicate loads
     if (this._isLoading()['layout']) {
-      console.log('⏳ Layout load already in progress');
       return new Promise((resolve) => {
         const timer = setInterval(() => {
           if (!this._isLoading()['layout']) {
@@ -176,7 +166,6 @@ export class DataCacheService {
       });
     }
 
-    console.log('🔄 Loading layout from Firestore...');
     this.setLoading('layout', true);
     this.currentOwnerId = ownerId;
 
@@ -186,7 +175,6 @@ export class DataCacheService {
     try {
       // Set up real-time listener
       this.layoutUnsub = this.layoutApi.watchLayout(ownerId, (layout) => {
-        console.log('✅ Layout updated from Firestore');
         this._layout.set(layout);
         this.setLoading('layout', false);
       });
@@ -204,14 +192,12 @@ export class DataCacheService {
    * Used by dashboard to fetch everything together
    */
   async loadAllData(ownerId: string): Promise<void> {
-    console.log('📥 Loading all data for owner:', ownerId);
     try {
       await Promise.all([
         this.loadMembers(ownerId),
         this.loadPayments(ownerId),
         this.loadLayout(ownerId),
       ]);
-      console.log('✅ All data loaded');
     } catch (error) {
       console.error('❌ Error loading all data:', error);
       throw error;
@@ -223,19 +209,16 @@ export class DataCacheService {
    * Used when user clicks "Refresh Data" button
    */
   async refresh(ownerId: string): Promise<void> {
-    console.log('🔄 Manual refresh initiated for owner:', ownerId);
-    
     // Clear cached data
     this._members.set([]);
     this._payments.set([]);
     this._layout.set(null);
-    
+
     // Clear owner ID to force reload
     this.currentOwnerId = null;
-    
+
     // Reload all data
     await this.loadAllData(ownerId);
-    console.log('✅ Manual refresh complete');
   }
 
   /**
@@ -243,7 +226,6 @@ export class DataCacheService {
    * Used on logout or when switching accounts
    */
   clear(): void {
-    console.log('🧹 Clearing data cache');
     this._members.set([]);
     this._payments.set([]);
     this._layout.set(null);
