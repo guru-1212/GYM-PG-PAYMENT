@@ -256,6 +256,24 @@ export class WorkerService {
 
     // Map worker permissions to owner features
     const permissionMap: Record<keyof WorkerPermissions, keyof OwnerFeatures | null> = {
+      dashboard_view_basic: 'monthly_view',
+      dashboard_view_member_count: 'monthly_view',
+      dashboard_view_earnings: 'monthly_view',
+      members_view_list: 'monthly_view',
+      members_add: 'worker_management',
+      members_edit: 'worker_management',
+      members_activate_deactivate: 'worker_management',
+      members_delete: 'worker_management',
+      members_view_history: 'monthly_view',
+      payments_view: 'payment_edit',
+      payments_collect: 'payment_edit',
+      payments_export_pdf: 'payment_edit',
+      monthly_earnings_view: 'monthly_view',
+      rooms_view: 'worker_management',
+      rooms_edit_layout: 'worker_management',
+      workers_view: 'worker_management',
+      workers_manage: 'worker_management',
+      reports_download: 'monthly_view',
       view_members: 'monthly_view', // Example mapping
       view_payments: 'payment_edit',
       view_rooms: 'worker_management',

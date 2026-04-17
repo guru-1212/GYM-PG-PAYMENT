@@ -25,6 +25,7 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
 
   readonly workers = signal<Worker[]>([]);
   readonly showAddWorkerModal = signal(false);
+  readonly showEditPermissionsModal = signal(false);
   readonly loading = signal(false);
   readonly loadError = signal<string | null>(null);
   readonly submitting = signal(false);
@@ -35,6 +36,9 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
   readonly workerEmail = signal('');
   readonly workerPassword = signal('');
   readonly workerPermissions = signal<WorkerPermissions>({});
+  readonly editingWorkerId = signal<string | null>(null);
+  readonly editingWorkerName = signal('');
+  readonly editWorkerPermissions = signal<WorkerPermissions>({});
 
   readonly canManageWorkers = computed(() => this.permission.hasAccess('worker_management'));
   readonly ownerFeatures = computed(() => this.auth.profile()?.features || {});
@@ -102,53 +106,130 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
 
     return [
       {
-        key: 'view_members',
+        key: 'dashboard_view_basic',
+        label: 'Dashboard Access',
+        description: 'Can open dashboard page',
+        feature: 'monthly_view',
+        enabled: !!features.monthly_view,
+      },
+      {
+        key: 'dashboard_view_member_count',
+        label: 'Dashboard Member Count',
+        description: 'Can view total members on dashboard',
+        feature: 'monthly_view',
+        enabled: !!features.monthly_view,
+      },
+      {
+        key: 'dashboard_view_earnings',
+        label: 'Dashboard Earnings',
+        description: 'Can view dashboard earnings cards',
+        feature: 'monthly_view',
+        enabled: !!features.monthly_view,
+      },
+      {
+        key: 'members_view_list',
         label: 'View Members',
         description: 'Can view member list',
         feature: 'monthly_view',
         enabled: !!features.monthly_view,
       },
       {
-        key: 'view_payments',
-        label: 'View Payments',
-        description: 'Can view payment history',
-        feature: 'payment_edit',
-        enabled: !!features.payment_edit,
-      },
-      {
-        key: 'view_rooms',
-        label: 'View Rooms',
-        description: 'Can view room information',
-        feature: 'worker_management',
-        enabled: !!features.worker_management,
-      },
-      {
-        key: 'view_monthly_earnings',
-        label: 'View Monthly Earnings',
-        description: 'Can view monthly earnings report',
-        feature: 'monthly_view',
-        enabled: !!features.monthly_view,
-      },
-      {
-        key: 'view_dashboard_earnings',
-        label: 'View Dashboard Earnings',
-        description: 'Can view earnings dashboard',
-        feature: 'monthly_view',
-        enabled: !!features.monthly_view,
-      },
-      {
-        key: 'add_member',
+        key: 'members_add',
         label: 'Add Members',
         description: 'Can create new members',
         feature: 'worker_management',
         enabled: !!features.worker_management,
       },
       {
-        key: 'collect_payment',
-        label: 'Collect Payments',
-        description: 'Can process payments',
+        key: 'members_edit',
+        label: 'Edit Members',
+        description: 'Can edit member details',
+        feature: 'worker_management',
+        enabled: !!features.worker_management,
+      },
+      {
+        key: 'members_activate_deactivate',
+        label: 'Activate/Deactivate Members',
+        description: 'Can change active or inactive status',
+        feature: 'worker_management',
+        enabled: !!features.worker_management,
+      },
+      {
+        key: 'members_delete',
+        label: 'Delete Members',
+        description: 'Can remove members permanently',
+        feature: 'worker_management',
+        enabled: !!features.worker_management,
+      },
+      {
+        key: 'members_view_history',
+        label: 'Member History',
+        description: 'Can open member history and payment history',
+        feature: 'monthly_view',
+        enabled: !!features.monthly_view,
+      },
+      {
+        key: 'payments_view',
+        label: 'View Payments',
+        description: 'Can view payment history',
         feature: 'payment_edit',
         enabled: !!features.payment_edit,
+      },
+      {
+        key: 'payments_collect',
+        label: 'Collect Payments',
+        description: 'Can process and collect payments',
+        feature: 'payment_edit',
+        enabled: !!features.payment_edit,
+      },
+      {
+        key: 'payments_export_pdf',
+        label: 'Export Payments PDF',
+        description: 'Can download payments PDF reports',
+        feature: 'payment_edit',
+        enabled: !!features.payment_edit,
+      },
+      {
+        key: 'monthly_earnings_view',
+        label: 'Monthly Earnings',
+        description: 'Can view monthly earnings report',
+        feature: 'monthly_view',
+        enabled: !!features.monthly_view,
+      },
+      {
+        key: 'rooms_view',
+        label: 'View Rooms',
+        description: 'Can view room information',
+        feature: 'worker_management',
+        enabled: !!features.worker_management,
+      },
+      {
+        key: 'rooms_edit_layout',
+        label: 'Edit Room Layout',
+        description: 'Can change room/floor/bed layout',
+        feature: 'worker_management',
+        enabled: !!features.worker_management,
+      },
+      {
+        key: 'workers_view',
+        label: 'View Workers',
+        description: 'Can open workers page',
+        feature: 'worker_management',
+        enabled: !!features.worker_management,
+      },
+      {
+        key: 'workers_manage',
+        label: 'Manage Workers',
+        description: 'Can create/update/deactivate workers',
+        feature: 'worker_management',
+        enabled: !!features.worker_management,
+      },
+      {
+        key: 'reports_download',
+        label: 'Download Reports',
+        description: 'Can download summary reports',
+        feature: 'monthly_view',
+        enabled: !!features.monthly_view,
       },
     ];
   }
@@ -165,9 +246,31 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
     this.showAddWorkerModal.set(false);
   }
 
+  openEditPermissionsModal(worker: Worker): void {
+    this.editingWorkerId.set(worker.workerId);
+    this.editingWorkerName.set(worker.name);
+    this.editWorkerPermissions.set(this.normalizePermissions(worker.permissions || {}));
+    this.showEditPermissionsModal.set(true);
+  }
+
+  closeEditPermissionsModal(): void {
+    this.showEditPermissionsModal.set(false);
+    this.editingWorkerId.set(null);
+    this.editingWorkerName.set('');
+    this.editWorkerPermissions.set({});
+  }
+
   togglePermission(key: keyof WorkerPermissions): void {
     const current = this.workerPermissions();
     this.workerPermissions.set({
+      ...current,
+      [key]: !current[key],
+    });
+  }
+
+  toggleEditPermission(key: keyof WorkerPermissions): void {
+    const current = this.editWorkerPermissions();
+    this.editWorkerPermissions.set({
       ...current,
       [key]: !current[key],
     });
@@ -207,7 +310,7 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
         name,
         email,
         password,
-        this.workerPermissions(),
+        this.permissionsWithLegacyAliases(this.workerPermissions()),
         this.ownerFeatures()
       );
       this.toast.success('Worker created successfully');
@@ -259,8 +362,75 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
     }
   }
 
+  async saveWorkerPermissions(): Promise<void> {
+    const workerId = this.editingWorkerId();
+    if (!workerId) {
+      this.toast.error('Worker not selected');
+      return;
+    }
+
+    this.submitting.set(true);
+    this.busyWorkerId.set(workerId);
+    try {
+      await this.workerService.updateWorkerPermissions(
+        workerId,
+        this.permissionsWithLegacyAliases(this.editWorkerPermissions()),
+        this.ownerFeatures(),
+      );
+      this.toast.success('Worker permissions updated');
+      this.closeEditPermissionsModal();
+    } catch (error: any) {
+      this.toast.error(error?.message || 'Failed to update worker permissions');
+    } finally {
+      this.submitting.set(false);
+      this.busyWorkerId.set(null);
+    }
+  }
+
   canCreateMoreWorkers(): boolean {
     return this.workers().filter((w) => w.status === 'active').length < 2;
+  }
+
+  permissionCount(permissions: WorkerPermissions | undefined): number {
+    if (!permissions) return 0;
+    const normalized = this.normalizePermissions(permissions);
+    return this.availablePermissions().filter((p) => normalized[p.key]).length;
+  }
+
+  permissionTags(permissions: WorkerPermissions | undefined): string[] {
+    if (!permissions) return [];
+    const normalized = this.normalizePermissions(permissions);
+    return this.availablePermissions()
+      .filter((p) => normalized[p.key])
+      .slice(0, 4)
+      .map((p) => p.label);
+  }
+
+  private normalizePermissions(input: WorkerPermissions): WorkerPermissions {
+    return {
+      ...input,
+      members_view_list: input.members_view_list || input.view_members || false,
+      payments_view: input.payments_view || input.view_payments || false,
+      rooms_view: input.rooms_view || input.view_rooms || false,
+      monthly_earnings_view: input.monthly_earnings_view || input.view_monthly_earnings || false,
+      dashboard_view_earnings: input.dashboard_view_earnings || input.view_dashboard_earnings || false,
+      members_add: input.members_add || input.add_member || false,
+      payments_collect: input.payments_collect || input.collect_payment || false,
+    };
+  }
+
+  private permissionsWithLegacyAliases(input: WorkerPermissions): WorkerPermissions {
+    const normalized = this.normalizePermissions(input);
+    return {
+      ...normalized,
+      view_members: normalized.members_view_list || false,
+      view_payments: normalized.payments_view || false,
+      view_rooms: normalized.rooms_view || false,
+      view_monthly_earnings: normalized.monthly_earnings_view || false,
+      view_dashboard_earnings: normalized.dashboard_view_earnings || false,
+      add_member: normalized.members_add || false,
+      collect_payment: normalized.payments_collect || false,
+    };
   }
 
   getPermissionDescription(permission: keyof WorkerPermissions): string {
