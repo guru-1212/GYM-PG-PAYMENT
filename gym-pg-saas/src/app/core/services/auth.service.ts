@@ -132,6 +132,7 @@ export class AuthService {
     onAuthStateChanged(this.fb.auth, (u) => {
       this.user.set(u);
 
+      const savedWorker = restoreWorkerProfile();
       if (!u) {
         // No Firebase Auth user
         this.profileUnsub?.();
@@ -140,7 +141,6 @@ export class AuthService {
         this.profile.set(null);
         
         // Check if worker is saved in localStorage
-        const savedWorker = restoreWorkerProfile();
         if (savedWorker) {
           console.debug('[Auth] Restoring worker profile from localStorage');
           this.workerProfile.set(savedWorker);
@@ -551,6 +551,27 @@ export class AuthService {
     await signOut(this.fb.auth);
   }
 
+  /**
+   * Unified owner id for both owner-login and worker-login sessions.
+   */
+  currentOwnerId(): string | null {
+    return this.profile()?.ownerId || this.workerProfile()?.ownerId || null;
+  }
+
+  /**
+   * Unified display name for shell/header UI.
+   */
+  currentDisplayName(): string | null {
+    return this.profile()?.name || this.workerProfile()?.name || null;
+  }
+
+  /**
+   * Unified display email for shell/header UI.
+   */
+  currentDisplayEmail(): string | null {
+    return this.profile()?.email || this.workerProfile()?.email || null;
+  }
+
   async refreshProfile(): Promise<Owner | null> {
     const r = await this.loadProfileOnce();
     return r.owner;
@@ -594,6 +615,7 @@ export class AuthService {
       return { owner: null, uid, problem };
     }
   }
+
 }
 
 function normalizeOwnerLoginEmailKey(id: string): string {

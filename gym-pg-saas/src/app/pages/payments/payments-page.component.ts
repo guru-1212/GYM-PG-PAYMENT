@@ -210,7 +210,7 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    const id = this.auth.profile()?.ownerId;
+    const id = this.auth.currentOwnerId();
     if (!id) return;
     this.unsubM = this.membersApi.watchMembersForOwner(id, (list) => this.members.set(list));
     this.unsubP = this.paymentsApi.watchPaymentsForOwner(id, (list) => this.payments.set(list));

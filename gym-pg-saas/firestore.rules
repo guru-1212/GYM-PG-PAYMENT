@@ -32,6 +32,12 @@ service cloud.firestore {
         && get(myOwnerPath()).data.status == 'approved';
     }
 
+    function isOwnerOrAdmin() {
+      return signedIn()
+        && myOwnerExists()
+        && get(myOwnerPath()).data.role in ['owner', 'admin'];
+    }
+
     /**
      * Optional: maps contact email doc id → Auth login email (legacy). Matches deployed rule:
      * create allowed when document includes uid matching the signed-in user.
@@ -210,33 +216,13 @@ service cloud.firestore {
      * Workers authenticate via Firestore (email/password), not Firebase Auth
      */
     match /workers/{workerId} {
-      // ✅ Admins: full access to all workers
       allow read, create, update, delete: if isAdmin();
 
-      // ✅ Approved owners can read only their own workers
-      allow read: if isApprovedOwner()
+      allow read, update, delete: if isOwnerOrAdmin()
         && resource.data.ownerId == request.auth.uid;
 
-      // ✅ Approved owners can create workers only under their own ownerId
-      allow create: if isApprovedOwner()
-        && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.role == 'worker';
-
-      // ✅ Approved owners can update their own workers (ownerId must not change)
-      allow update: if isApprovedOwner()
-        && resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerId == resource.data.ownerId
-        && request.resource.data.role == 'worker'
-        && resource.data.role == 'worker';
-
-      // ✅ Approved owners can delete only their own workers
-      allow delete: if isApprovedOwner()
-        && resource.data.ownerId == request.auth.uid;
-
-      // ✅ Unauthenticated: read-only for active worker login (self-service)
-      // Query: where('email' == X) && where('status' == 'active')
-      allow read: if !signedIn()
-        && resource.data.get('status', 'active') == 'active';
+      allow create: if isOwnerOrAdmin()
+        && request.resource.data.ownerId == request.auth.uid;
     }
   }
 }

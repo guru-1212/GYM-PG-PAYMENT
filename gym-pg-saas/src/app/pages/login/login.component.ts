@@ -319,7 +319,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     if (code === 'firestore/permission-denied' || message?.includes('Firestore permissions error')) {
       return 'Firestore setup incomplete. Admin needs to deploy firestore.rules. Check admin console.';
     }
-    
     switch (code) {
       case 'auth/wrong-password':
       case 'auth/user-not-found':

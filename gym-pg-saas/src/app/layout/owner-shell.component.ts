@@ -27,9 +27,12 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   readonly permissionService = inject(PermissionService);
 
   readonly profile = this.auth.profile;
+  readonly workerProfile = this.auth.workerProfile;
   readonly isPgOwner = computed(() => this.profile()?.businessType === 'pg');
+  readonly shellDisplayName = computed(() => this.auth.currentDisplayName() || '');
+  readonly shellDisplayEmail = computed(() => this.auth.currentDisplayEmail() || '');
   readonly ownerInitial = computed(() => {
-    const n = this.profile()?.name?.trim();
+    const n = this.shellDisplayName().trim();
     if (!n) return '?';
     return n.charAt(0).toUpperCase();
   });
@@ -78,7 +81,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
 
   constructor() {
     effect(() => {
-      const ownerId = this.profile()?.ownerId;
+      const ownerId = this.auth.currentOwnerId();
       this.unsubThread?.();
       this.unsubUnread?.();
       this.chatMessages.set([]);
@@ -116,7 +119,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
 
   async openNotifications(): Promise<void> {
     this.notificationsOpen.set(true);
-    const ownerId = this.profile()?.ownerId;
+    const ownerId = this.auth.currentOwnerId();
     if (!ownerId) return;
     await this.chat.markThreadReadByOwner(ownerId);
   }

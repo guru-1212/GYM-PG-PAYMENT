@@ -1,17 +1,20 @@
 import { Injectable, inject } from '@angular/core';
 import {
   collection,
-  doc,
+  addDoc,
+  DocumentData,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
+  QuerySnapshot,
+  serverTimestamp,
+  Unsubscribe,
   where,
-  addDoc,
+  QueryDocumentSnapshot,
   updateDoc,
   deleteDoc,
-  getDocs,
-  serverTimestamp,
-  Timestamp,
+  doc,
 } from 'firebase/firestore';
 import { Worker, WorkerPermissions } from '../models/worker.model';
 import { OwnerFeatures } from '../models/feture.model';
@@ -28,7 +31,7 @@ export class WorkerService {
     ownerId: string,
     callback: (workers: Worker[]) => void,
     onError?: (error: any) => void
-  ): () => void {
+  ): Unsubscribe {
     const q = query(
       collection(this.fb.db, 'workers'),
       where('ownerId', '==', ownerId),
@@ -36,14 +39,11 @@ export class WorkerService {
     );
     return onSnapshot(
       q,
-      (snap: any) => {
-        const list: Worker[] = [];
-        snap.forEach((d: any) => {
-          list.push({
-            ...(d.data() as Worker),
-            workerId: d.id,
-          });
-        });
+      (snap: QuerySnapshot<DocumentData>) => {
+        const list: Worker[] = snap.docs.map((d: QueryDocumentSnapshot<DocumentData>) => ({
+          ...(d.data() as Worker),
+          workerId: d.id,
+        }));
         callback(list);
       },
       (error: any) => {

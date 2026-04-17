@@ -55,7 +55,7 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
   }
 
   private loadWorkers(): void {
-    const ownerId = this.auth.profile()?.ownerId;
+    const ownerId = this.auth.currentOwnerId();
     if (!ownerId) {
       this.toast.error('Owner not found');
       return;
@@ -297,7 +297,7 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const ownerId = this.auth.profile()?.ownerId;
+    const ownerId = this.auth.currentOwnerId();
     if (!ownerId) {
       this.toast.error('Owner not found');
       return;

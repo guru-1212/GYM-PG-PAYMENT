@@ -448,7 +448,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.listMode.set(routePath === 'inactive-members' ? 'inactive' : 'active');
 
     await this.auth.refreshProfile();
-    const id = this.auth.profile()?.ownerId;
+    const id = this.auth.currentOwnerId();
     if (id) {
       this.currentOwnerId = id;
       try {

@@ -171,7 +171,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const now = new Date();
     const currentMonth = now.getMonth();      // 0-11
     const currentYear = now.getFullYear();
-    const loggedInOwnerId = this.auth.profile()?.ownerId;
+    const loggedInOwnerId = this.auth.currentOwnerId();
     const payments = this.payments();
 
     const monthlySum = payments.reduce((sum, payment) => {
@@ -355,7 +355,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     this.subscriptionCountdownTimer = setInterval(() => this.nowMs.set(Date.now()), 1000);
     this.loading.set(true);
     await this.auth.refreshProfile();
-    const uid = this.auth.profile()?.ownerId;
+    const uid = this.auth.currentOwnerId();
     if (!uid) {
       this.loading.set(false);
       console.error('❌ No owner ID found');
@@ -385,7 +385,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   /* Complaints disabled — restore when feature fixed
   async setComplaintEnabled(enabled: boolean): Promise<void> {
-    const ownerId = this.auth.profile()?.ownerId;
+    const ownerId = this.auth.currentOwnerId();
     const profile = this.auth.profile();
     if (!ownerId || !profile || this.complaintToggleBusy()) return;
     this.complaintToggleBusy.set(true);
@@ -976,7 +976,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   }
 
   async saveDraft(stayOpen = true): Promise<void> {
-    const ownerId = this.auth.profile()?.ownerId;
+    const ownerId = this.auth.currentOwnerId();
     if (!ownerId) return;
     const floors = this.formToLayoutFloors();
     try {
