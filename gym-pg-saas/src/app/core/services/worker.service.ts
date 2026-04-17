@@ -75,7 +75,8 @@ export class WorkerService {
     email: string,
     password: string,
     permissions: WorkerPermissions,
-    ownerFeatures: OwnerFeatures
+    ownerFeatures: OwnerFeatures,
+    businessType?: 'gym' | 'pg'
   ): Promise<string> {
     // Check max 2 workers limit
     const activeCount = await this.getActiveWorkersCount(ownerId);
@@ -89,6 +90,7 @@ export class WorkerService {
     try {
       const docRef = await addDoc(collection(this.fb.db, 'workers'), {
         ownerId,
+        businessType: businessType || 'pg',
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password, // Note: Should be hashed in production! For now using Firestore-based login
@@ -179,6 +181,10 @@ export class WorkerService {
       }
     } catch (error: any) {
       console.warn('[Worker] Query 1 failed:', error?.code, error?.message);
+      if (error?.code === 'permission-denied' || String(error?.message || '').includes('permission-denied')) {
+        // Do not swallow rules problems as "invalid credentials".
+        throw error;
+      }
       // Continue to fallback query
     }
 
@@ -221,6 +227,9 @@ export class WorkerService {
       };
     } catch (error: any) {
       console.error('[Worker] Query 2 also failed:', error?.code, error?.message);
+      if (error?.code === 'permission-denied' || String(error?.message || '').includes('permission-denied')) {
+        throw error;
+      }
       return null;
     }
   }

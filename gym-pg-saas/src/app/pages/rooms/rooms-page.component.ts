@@ -83,7 +83,7 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
   readonly setupModalOpen = signal(false);
   readonly validationError = signal<string | null>(null);
 
-  readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
+  readonly isPg = computed(() => this.auth.currentBusinessType() === 'pg');
   readonly hasLayout = computed(() => (this.pgLayout()?.floors?.length ?? 0) > 0);
   readonly totalRooms = computed(() => (this.pgLayout()?.floors ?? []).reduce((s, f) => s + f.rooms.length, 0));
   readonly totalBeds = computed(() =>
@@ -141,7 +141,7 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
   private unsubMembers: (() => void) | null = null;
 
   ngOnInit(): void {
-    const ownerId = this.auth.profile()?.ownerId;
+    const ownerId = this.auth.currentOwnerId();
     if (!ownerId) return;
     this.unsubLayout = this.pgLayoutApi.watchLayout(ownerId, (layout) => this.pgLayout.set(layout));
     this.unsubMembers = this.membersApi.watchMembersForOwner(ownerId, (list) => this.members.set(list));

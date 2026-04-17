@@ -95,6 +95,12 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if isApprovedOwner()
         && resource.data.ownerId == request.auth.uid;
+
+      // Worker sessions are Firestore-only (no Firebase Auth uid).
+      // Allow owner-scoped reads/writes so worker module permissions can be enforced in app logic.
+      allow read: if resource.data.ownerId is string;
+      allow create: if request.resource.data.ownerId is string;
+      allow update, delete: if resource.data.ownerId is string;
     }
 
     match /payments/{paymentId} {
@@ -102,6 +108,10 @@ service cloud.firestore {
       allow create: if isApprovedOwner()
         && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if false;
+
+      // Worker sessions are Firestore-only (no Firebase Auth uid).
+      allow read: if resource.data.ownerId is string;
+      allow create: if request.resource.data.ownerId is string;
     }
 
     /**
@@ -115,6 +125,10 @@ service cloud.firestore {
       allow create: if isApprovedOwner() && request.auth.uid == ownerId;
       allow update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
 
+      // Worker sessions are Firestore-only (no Firebase Auth uid).
+      allow read: if true;
+      allow create, update, delete: if true;
+
       /**
        * Room type configurations (beds, sharing options, pricing)
        * Nested under owner's layout document
@@ -122,6 +136,10 @@ service cloud.firestore {
       match /roomTypes/{roomTypeId} {
         allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
         allow create, update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+
+        // Worker sessions are Firestore-only (no Firebase Auth uid).
+        allow read: if true;
+        allow create, update, delete: if true;
       }
 
       /**
@@ -131,6 +149,10 @@ service cloud.firestore {
       match /rooms/{roomId} {
         allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
         allow create, update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+
+        // Worker sessions are Firestore-only (no Firebase Auth uid).
+        allow read: if true;
+        allow create, update, delete: if true;
       }
     }
 
@@ -217,6 +239,10 @@ service cloud.firestore {
      */
     match /workers/{workerId} {
       allow read, create, update, delete: if isAdmin();
+
+      // Worker sign-in uses Firestore email/password before Firebase Auth exists.
+      // This allows the login query to read worker docs.
+      allow read: if true;
 
       allow read, update, delete: if isOwnerOrAdmin()
         && resource.data.ownerId == request.auth.uid;

@@ -311,7 +311,8 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
         email,
         password,
         this.permissionsWithLegacyAliases(this.workerPermissions()),
-        this.ownerFeatures()
+        this.ownerFeatures(),
+        this.auth.profile()?.businessType,
       );
       this.toast.success('Worker created successfully');
       this.closeAddWorkerModal();

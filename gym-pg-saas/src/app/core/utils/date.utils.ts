@@ -34,9 +34,21 @@ export function isSameCalendarDay(a: Date, b: Date): boolean {
   );
 }
 
-export function timestampToDate(ts: Timestamp | undefined): Date | null {
-  if (!ts) return null;
-  return ts.toDate();
+export function timestampToDate(ts: unknown): Date | null {
+  if (ts == null) return null;
+  if (ts instanceof Date) return Number.isNaN(ts.getTime()) ? null : ts;
+  if (typeof ts === 'object' && ts && 'toDate' in (ts as Record<string, unknown>)) {
+    const toDate = (ts as { toDate?: unknown }).toDate;
+    if (typeof toDate === 'function') {
+      try {
+        const d = (toDate as () => Date).call(ts);
+        return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return coerceFirestoreDate(ts);
 }
 
 /**

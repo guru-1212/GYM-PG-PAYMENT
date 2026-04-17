@@ -123,13 +123,13 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   readonly dueLabel = computed(() => {
     this.i18n.lang();
-    return this.auth.profile()?.businessType === 'pg'
+    return this.auth.currentBusinessType() === 'pg'
       ? this.i18n.t('fees.rentDue')
       : this.i18n.t('fees.planExpiry');
   });
 
-  readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
-  readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
+  readonly isGym = computed(() => this.auth.currentBusinessType() === 'gym');
+  readonly isPg = computed(() => this.auth.currentBusinessType() === 'pg');
   readonly hasSeatLayout = computed(
     () => this.isPg() && (this.pgLayout()?.floors?.length ?? 0) > 0,
   );
@@ -763,8 +763,8 @@ export class MembersComponent implements OnInit, OnDestroy {
     }
 
     const m = this.payTarget();
-    const owner = this.auth.profile();
-    if (!m || !owner) return;
+    const ownerId = this.auth.currentOwnerId();
+    if (!m || !ownerId) return;
 
     const due = timestampToDate(m.dueDate);
     if (!due) {
@@ -791,7 +791,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     try {
       await this.paymentsApi.markPaid({
         memberId: m.memberId,
-        ownerId: owner.ownerId,
+        ownerId,
         amount: paymentAmount,
         method: v.method,
         currentDueDate: due,
@@ -1455,8 +1455,9 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   async importValidMembers(): Promise<void> {
-    const owner = this.auth.profile();
-    if (!owner?.ownerId) return;
+    const ownerId = this.auth.currentOwnerId();
+    const businessType = this.auth.currentBusinessType();
+    if (!ownerId) return;
     const rows = this.importRows();
     const dueForAll = this.importDueDateForAll.value ? this.parseDateInput(this.importDueDate.value) : null;
     if (this.importDueDateForAll.value && !dueForAll) {
@@ -1469,8 +1470,8 @@ export class MembersComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const seatNeeds = this.isPg() && owner.ownerId ? this.collectImportSeatNeeds(validRows) : [];
-    const willSyncLayout = Boolean(this.isPg() && owner.ownerId && seatNeeds.length > 0);
+    const seatNeeds = this.isPg() && ownerId ? this.collectImportSeatNeeds(validRows) : [];
+    const willSyncLayout = Boolean(this.isPg() && ownerId && seatNeeds.length > 0);
     const layoutWeight = willSyncLayout ? 14 : 0;
     const n = validRows.length;
     const memberWeight = 100 - layoutWeight;
@@ -1482,7 +1483,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     try {
       if (willSyncLayout) {
         try {
-          await this.pgLayoutApi.ensureLayoutSeatsForImport(owner.ownerId, seatNeeds);
+          await this.pgLayoutApi.ensureLayoutSeatsForImport(ownerId, seatNeeds);
           this.setImportProgressPercent(layoutWeight);
         } catch {
           this.toast.error('Could not update the room map for this import. Try again or set up floors in Rooms first.');
@@ -1514,7 +1515,7 @@ export class MembersComponent implements OnInit, OnDestroy {
             amount: row.amount,
             paymentMethod: 'cash',
             status: 'active',
-            subscriptionType: owner.businessType === 'gym' ? row.subscriptionType : 'monthly',
+            subscriptionType: businessType === 'gym' ? row.subscriptionType : 'monthly',
           });
           imported += 1;
         } catch {

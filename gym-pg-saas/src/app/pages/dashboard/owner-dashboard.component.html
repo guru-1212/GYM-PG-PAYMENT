@@ -242,7 +242,7 @@
                 <div>
                   <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
                   <p class="text-xs text-slate-500">
-                    {{ 'dashboard.dueWord' | t }} {{ (m.dueDate.toDate()) | date: 'mediumDate' }}
+                    {{ 'dashboard.dueWord' | t }} {{ memberDueDate(m) | date: 'mediumDate' }}
                   </p>
                 </div>
                 <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">{{
@@ -600,7 +600,7 @@
               <tbody class="divide-y divide-slate-100">
                 @for (p of memberDetailPayments(); track p.paymentId) {
                   <tr class="hover:bg-indigo-50/50">
-                    <td class="px-3 py-2 text-slate-800">{{ p.date.toDate() | date: 'mediumDate' }}</td>
+                    <td class="px-3 py-2 text-slate-800">{{ convertTimestampToDate(p.date) | date: 'mediumDate' }}</td>
                     <td class="px-3 py-2 font-medium text-slate-900">₹{{ p.amount | number: '1.0-0' }}</td>
                     <td class="px-3 py-2 uppercase text-slate-600">{{ p.method }}</td>
                   </tr>

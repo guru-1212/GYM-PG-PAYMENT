@@ -28,7 +28,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
 
   readonly profile = this.auth.profile;
   readonly workerProfile = this.auth.workerProfile;
-  readonly isPgOwner = computed(() => this.profile()?.businessType === 'pg');
+  readonly isPgOwner = computed(() => this.auth.currentBusinessType() === 'pg');
   readonly shellDisplayName = computed(() => this.auth.currentDisplayName() || '');
   readonly shellDisplayEmail = computed(() => this.auth.currentDisplayEmail() || '');
   readonly ownerInitial = computed(() => {
@@ -81,12 +81,13 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
 
   constructor() {
     effect(() => {
+      const isWorkerSession = this.auth.isWorker();
       const ownerId = this.auth.currentOwnerId();
       this.unsubThread?.();
       this.unsubUnread?.();
       this.chatMessages.set([]);
       this.unreadCount.set(0);
-      if (!ownerId) return;
+      if (!ownerId || isWorkerSession) return;
       this.unsubThread = this.chat.watchThread(ownerId, (messages) => this.chatMessages.set(messages));
       this.unsubUnread = this.chat.watchOwnerUnreadCount(ownerId, (count) => this.unreadCount.set(count));
       /* Complaints disabled — restore when feature fixed
@@ -118,6 +119,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   }
 
   async openNotifications(): Promise<void> {
+    if (this.auth.isWorker()) return;
     this.notificationsOpen.set(true);
     const ownerId = this.auth.currentOwnerId();
     if (!ownerId) return;
@@ -141,6 +143,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   }
 
   async sendMessageToAdmin(): Promise<void> {
+    if (this.auth.isWorker()) return;
     const owner = this.profile();
     const text = this.chatText().trim();
     if (!owner?.ownerId || !text) return;

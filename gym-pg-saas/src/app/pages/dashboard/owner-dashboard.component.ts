@@ -98,8 +98,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly dueSoonPage = signal(1);
   readonly overduePage = signal(1);
   readonly itemsPerPage = 10;
-  readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
-  readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
+  readonly isPg = computed(() => this.auth.currentBusinessType() === 'pg');
+  readonly isGym = computed(() => this.auth.currentBusinessType() === 'gym');
   readonly hasPgLayout = computed(() => {
     if ((this.pgLayout()?.floors?.length ?? 0) > 0) return true;
     return this.formToLayoutFloors().some((f) => f.rooms.length > 0);
@@ -121,7 +121,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   readonly dueLabel = computed(() => {
     this.i18n.lang();
-    return this.auth.profile()?.businessType === 'pg'
+    return this.auth.currentBusinessType() === 'pg'
       ? this.i18n.t('fees.rentDue')
       : this.i18n.t('fees.planExpiry');
   });
@@ -1199,7 +1199,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
    * Convert Firestore Timestamp to JavaScript Date
    * Handles multiple formats: Firestore Timestamp with toDate(), fallback utils, etc.
    */
-  private convertTimestampToDate(timestamp: unknown): Date | null {
+  convertTimestampToDate(timestamp: unknown): Date | null {
     try {
       // Try Firestore Timestamp.toDate() method first
       if (timestamp && typeof timestamp === 'object') {

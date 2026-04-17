@@ -1,4 +1,5 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { Routes, Router } from '@angular/router';
 import { accountRejectedGuard } from './core/guards/account-rejected.guard';
 import { adminGuard } from './core/guards/admin.guard';
 import { authGuard } from './core/guards/auth.guard';
@@ -6,6 +7,8 @@ import { loginGuard } from './core/guards/login.guard';
 import { ownerGuard } from './core/guards/owner.guard';
 import { pendingApprovalGuard } from './core/guards/pending-approval.guard';
 import { subscriptionGuard } from './core/guards/subscription.guard';
+import { AuthService } from './core/services/auth.service';
+import { PermissionService } from './core/services/permission.service';
 import { AdminShellComponent } from './layout/admin-shell.component';
 import { OwnerShellComponent } from './layout/owner-shell.component';
 import { AccountRejectedComponent } from './pages/account-rejected/account-rejected.component';
@@ -25,6 +28,16 @@ import { WorkerControlComponent } from './pages/worker-control/worker-control.co
 // Complaints feature temporarily disabled — re-enable imports + routes when fixed.
 // import { PublicComplaintPageComponent } from './pages/public-complaint/public-complaint-page.component';
 // import { ComplaintsPageComponent } from './pages/complaints/complaints-page.component';
+
+const workerPermissionGuard = (route: any, state: any) => {
+  const auth = inject(AuthService);
+  const permission = inject(PermissionService);
+  const router = inject(Router);
+  if (!auth.isWorker()) return true;
+  const targetPath = route.routeConfig?.path || state.url;
+  if (permission.canAccessRoute(targetPath)) return true;
+  return router.createUrlTree([permission.firstAccessibleRoute()]);
+};
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', component: HomeComponent },
@@ -62,13 +75,13 @@ export const routes: Routes = [
     canActivate: [authGuard, ownerGuard, subscriptionGuard],
     component: OwnerShellComponent,
     children: [
-      { path: 'dashboard', component: OwnerDashboardComponent },
-      { path: 'members', component: MembersComponent },
-      { path: 'inactive-members', component: MembersComponent },
-      { path: 'payments', component: PaymentsPageComponent },
-      { path: 'rooms', component: RoomsPageComponent },
-      { path: 'monthly-earnings', component: MonthlyEarningsPageComponent },
-      { path: 'workers', component: WorkerControlComponent },
+      { path: 'dashboard', canActivate: [workerPermissionGuard], component: OwnerDashboardComponent },
+      { path: 'members', canActivate: [workerPermissionGuard], component: MembersComponent },
+      { path: 'inactive-members', canActivate: [workerPermissionGuard], component: MembersComponent },
+      { path: 'payments', canActivate: [workerPermissionGuard], component: PaymentsPageComponent },
+      { path: 'rooms', canActivate: [workerPermissionGuard], component: RoomsPageComponent },
+      { path: 'monthly-earnings', canActivate: [workerPermissionGuard], component: MonthlyEarningsPageComponent },
+      { path: 'workers', canActivate: [workerPermissionGuard], component: WorkerControlComponent },
       /* Complaints disabled: was ComplaintsPageComponent */
       { path: 'complaints', redirectTo: 'dashboard', pathMatch: 'full' },
     ],

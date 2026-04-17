@@ -23,7 +23,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { Owner, OwnerRole, OwnerStatus } from '../models/owner.model';
-import { Worker } from '../models/worker.model';
+import { Worker, WorkerPermissions } from '../models/worker.model';
 import { FirebaseAppService } from './firebase-app.service';
 
 const OWNER_LOGIN_ALIASES_COLLECTION = 'ownerLoginAliases';
@@ -145,7 +145,11 @@ export class AuthService {
           console.debug('[Auth] Restoring worker profile from localStorage');
           this.workerProfile.set(savedWorker);
           this.permissionService.setRole('worker');
-          this.permissionService.setOwnerFeatures(savedWorker.features || {});
+          const ownerFeatures =
+            savedWorker.features && Object.keys(savedWorker.features).length > 0
+              ? savedWorker.features
+              : deriveOwnerFeaturesFromWorkerPermissions(savedWorker.permissions || {});
+          this.permissionService.setOwnerFeatures(ownerFeatures);
           this.permissionService.setWorkerPermissions(savedWorker.permissions as any);
           this.loading.set(false);
         } else {
@@ -155,6 +159,9 @@ export class AuthService {
       }
 
       // Firebase Auth user exists - clear workers and set up owner listener
+      // Always reset to owner session state as soon as Firebase user is present.
+      this.permissionService.setRole('owner');
+      this.permissionService.setWorkerPermissions(undefined);
       if (this.workerProfile()) {
         console.debug('[Auth] Firebase Auth user found, clearing worker profile');
         this.workerProfile.set(null);
@@ -192,6 +199,7 @@ export class AuthService {
         },
         (error: any) => {
           console.error('[Auth] Error loading owner profile:', error);
+          this.permissionService.setOwnerFeatures({});
           if (!this.profileLoadedOnce) {
             this.profileLoadedOnce = true;
             this.loading.set(false);
@@ -500,8 +508,12 @@ export class AuthService {
       }
 
       console.debug('[Auth] Worker found, loading features from worker document...');
-      // Worker found, get features from worker document (no auth needed)
-      const ownerFeatures = worker.features || {};
+      // Worker found, get features from worker document (no auth needed).
+      // Fallback for older worker docs that were saved without `features`.
+      const ownerFeatures =
+        worker.features && Object.keys(worker.features).length > 0
+          ? worker.features
+          : deriveOwnerFeaturesFromWorkerPermissions(worker.permissions || {});
 
       // Set worker profile and permissions
       this.workerProfile.set(worker);
@@ -525,7 +537,12 @@ export class AuthService {
       
       console.error('[Auth] Worker login error - Code:', code, 'Message:', message);
       
-      if (message?.includes('Missing or insufficient permissions') || message?.includes('permission-denied')) {
+      if (
+        code === 'permission-denied' ||
+        code === 'firestore/permission-denied' ||
+        message?.toLowerCase().includes('missing or insufficient permissions') ||
+        message?.toLowerCase().includes('permission-denied')
+      ) {
         console.error('[Auth] FIRESTORE RULES ERROR: Workers collection read denied. Make sure firestore.rules allows worker queries.');
         const permError = new Error('Firestore permissions error. Admin needs to deploy latest firestore.rules.');
         (permError as { code?: string }).code = 'firestore/permission-denied';
@@ -570,6 +587,16 @@ export class AuthService {
    */
   currentDisplayEmail(): string | null {
     return this.profile()?.email || this.workerProfile()?.email || null;
+  }
+
+  currentBusinessType(): 'gym' | 'pg' | null {
+    const ownerType = this.profile()?.businessType;
+    if (ownerType) return ownerType;
+    const workerType = this.workerProfile()?.businessType;
+    if (workerType) return workerType;
+    // Backward compatibility for older worker docs created before businessType was stored.
+    if (this.workerProfile()) return 'pg';
+    return null;
   }
 
   async refreshProfile(): Promise<Owner | null> {
@@ -633,4 +660,36 @@ function normalizeOwnerPhone(id: string): string | null {
   if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
   if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
   return d.length === 10 ? d : null;
+}
+
+function deriveOwnerFeaturesFromWorkerPermissions(permissions: WorkerPermissions) {
+  const has = (...keys: Array<keyof WorkerPermissions>) => keys.some((k) => !!permissions?.[k]);
+  return {
+    monthly_view: has(
+      'dashboard_view_basic',
+      'dashboard_view_member_count',
+      'dashboard_view_earnings',
+      'members_view_list',
+      'members_view_history',
+      'monthly_earnings_view',
+      'reports_download',
+      'view_members',
+      'view_monthly_earnings',
+      'view_dashboard_earnings',
+    ),
+    payment_edit: has('payments_view', 'payments_collect', 'payments_export_pdf', 'view_payments', 'collect_payment'),
+    worker_management: has(
+      'members_add',
+      'members_edit',
+      'members_activate_deactivate',
+      'members_delete',
+      'rooms_view',
+      'rooms_edit_layout',
+      'workers_view',
+      'workers_manage',
+      'add_member',
+      'view_rooms',
+    ),
+    whatsapp_automation: false,
+  };
 }

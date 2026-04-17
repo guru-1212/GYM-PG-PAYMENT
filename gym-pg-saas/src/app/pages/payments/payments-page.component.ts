@@ -42,7 +42,7 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
 
   readonly dueLabel = computed(() => {
     this.i18n.lang();
-    return this.auth.profile()?.businessType === 'pg'
+    return this.auth.currentBusinessType() === 'pg'
       ? this.i18n.t('fees.rentDue')
       : this.i18n.t('fees.planExpiry');
   });

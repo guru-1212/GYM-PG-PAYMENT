@@ -34,6 +34,7 @@ export interface WorkerPermissions {
 export interface Worker {
   workerId: string;
   ownerId: string;
+  businessType?: 'gym' | 'pg';
   name: string;
   email: string;
   password: string;

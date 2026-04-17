@@ -34,40 +34,46 @@
       </div>
     </div>
     <nav class="flex flex-1 flex-col gap-1 p-3">
-      <a
-        routerLink="/dashboard"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-        [routerLinkActiveOptions]="{ exact: true }"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-      >
-        <span class="material-icons-outlined">dashboard</span>
-        {{ 'nav.dashboard' | t }}
-      </a>
-      <a
-        routerLink="/members"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-      >
-        <span class="material-icons-outlined">groups</span>
-        {{ 'nav.members' | t }}
-      </a>
-      <a
-        routerLink="/inactive-members"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-      >
-        <span class="material-icons-outlined">person_off</span>
-        Inactive Members
-      </a>
-      <a
-        routerLink="/payments"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-      >
-        <span class="material-icons-outlined">payments</span>
-        {{ 'nav.payments' | t }}
-      </a>
-      @if (isPgOwner()) {
+      @if (permissionService.hasModuleAccess('dashboard')) {
+        <a
+          routerLink="/dashboard"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          [routerLinkActiveOptions]="{ exact: true }"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">dashboard</span>
+          {{ 'nav.dashboard' | t }}
+        </a>
+      }
+      @if (permissionService.hasModuleAccess('members')) {
+        <a
+          routerLink="/members"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">groups</span>
+          {{ 'nav.members' | t }}
+        </a>
+        <a
+          routerLink="/inactive-members"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">person_off</span>
+          Inactive Members
+        </a>
+      }
+      @if (permissionService.hasModuleAccess('payments')) {
+        <a
+          routerLink="/payments"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">payments</span>
+          {{ 'nav.payments' | t }}
+        </a>
+      }
+      @if (isPgOwner() && permissionService.hasModuleAccess('rooms')) {
         <a
           routerLink="/rooms"
           routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
@@ -77,7 +83,7 @@
           {{ 'nav.rooms' | t }}
         </a>
       }
-      @if (permissionService.hasAccess('monthly_view')) {
+      @if (permissionService.hasModuleAccess('monthly-earnings')) {
     <a
         routerLink="/monthly-earnings"
         routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
@@ -87,7 +93,7 @@
         Monthly Earnings
       </a>
 }
-      @if (permissionService.hasAccess('worker_management')) {
+      @if (permissionService.hasModuleAccess('workers')) {
         <a
           routerLink="/workers"
           routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
@@ -241,44 +247,50 @@
             </button>
           </div>
           <nav class="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-            <a
-              routerLink="/dashboard"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-              [routerLinkActiveOptions]="{ exact: true }"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-              (click)="closeMobileMenu()"
-            >
-              <span class="material-icons-outlined">dashboard</span>
-              {{ 'nav.home' | t }}
-            </a>
-            <a
-              routerLink="/members"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-              (click)="closeMobileMenu()"
-            >
-              <span class="material-icons-outlined">groups</span>
-              {{ 'nav.members' | t }}
-            </a>
-            <a
-              routerLink="/inactive-members"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-              (click)="closeMobileMenu()"
-            >
-              <span class="material-icons-outlined">person_off</span>
-              Inactive Members
-            </a>
-            <a
-              routerLink="/payments"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-              (click)="closeMobileMenu()"
-            >
-              <span class="material-icons-outlined">payments</span>
-              {{ 'nav.payments' | t }}
-            </a>
-            @if (isPgOwner()) {
+            @if (permissionService.hasModuleAccess('dashboard')) {
+              <a
+                routerLink="/dashboard"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                [routerLinkActiveOptions]="{ exact: true }"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">dashboard</span>
+                {{ 'nav.home' | t }}
+              </a>
+            }
+            @if (permissionService.hasModuleAccess('members')) {
+              <a
+                routerLink="/members"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">groups</span>
+                {{ 'nav.members' | t }}
+              </a>
+              <a
+                routerLink="/inactive-members"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">person_off</span>
+                Inactive Members
+              </a>
+            }
+            @if (permissionService.hasModuleAccess('payments')) {
+              <a
+                routerLink="/payments"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">payments</span>
+                {{ 'nav.payments' | t }}
+              </a>
+            }
+            @if (isPgOwner() && permissionService.hasModuleAccess('rooms')) {
               <a
                 routerLink="/rooms"
                 routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
@@ -289,7 +301,7 @@
                 {{ 'nav.rooms' | t }}
               </a>
             }
-            @if (permissionService.hasAccess('monthly_view')) {
+            @if (permissionService.hasModuleAccess('monthly-earnings')) {
               <a
                 routerLink="/monthly-earnings"
                 routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
@@ -300,7 +312,7 @@
                 Monthly Earnings
               </a>
             }
-            @if (permissionService.hasAccess('worker_management')) {
+            @if (permissionService.hasModuleAccess('workers')) {
               <a
                 routerLink="/workers"
                 routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
