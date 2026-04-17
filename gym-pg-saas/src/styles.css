@@ -23,6 +23,13 @@
     font-family: 'Inter', 'Noto Sans Telugu', system-ui, sans-serif;
   }
 
+  /* Ensure all interactive elements are always clickable */
+  button,
+  a[routerLink],
+  a[href] {
+    pointer-events: auto !important;
+  }
+
   body {
     @apply text-slate-900 antialiased;
     background:

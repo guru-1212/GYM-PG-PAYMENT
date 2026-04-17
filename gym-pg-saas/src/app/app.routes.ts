@@ -20,6 +20,8 @@ import { PendingApprovalComponent } from './pages/pending-approval/pending-appro
 import { RoomsPageComponent } from './pages/rooms/rooms-page.component';
 import { MonthlyEarningsPageComponent } from './pages/monthly-earnings/monthly-earnings-page.component';
 import { SubscriptionExpiredComponent } from './pages/subscription-expired/subscription-expired.component';
+import { OwnerControlComponent } from './pages/admin/owner-control/owner-control.component';
+import { WorkerControlComponent } from './pages/worker-control/worker-control.component';
 // Complaints feature temporarily disabled — re-enable imports + routes when fixed.
 // import { PublicComplaintPageComponent } from './pages/public-complaint/public-complaint-page.component';
 // import { ComplaintsPageComponent } from './pages/complaints/complaints-page.component';
@@ -52,6 +54,7 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       { path: 'dashboard', component: AdminDashboardComponent },
       { path: 'owners', component: AdminOwnersComponent },
+      { path: 'owners-control', component: OwnerControlComponent },
     ],
   },
   {
@@ -65,6 +68,7 @@ export const routes: Routes = [
       { path: 'payments', component: PaymentsPageComponent },
       { path: 'rooms', component: RoomsPageComponent },
       { path: 'monthly-earnings', component: MonthlyEarningsPageComponent },
+      { path: 'workers', component: WorkerControlComponent },
       /* Complaints disabled: was ComplaintsPageComponent */
       { path: 'complaints', redirectTo: 'dashboard', pathMatch: 'full' },
     ],

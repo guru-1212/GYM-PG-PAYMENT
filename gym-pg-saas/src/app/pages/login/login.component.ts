@@ -152,7 +152,20 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.signInError.set('');
     this.busy.set(true);
     try {
+      console.debug('[Login] Signing in with identifier:', this.signInForm.controls.identifier.value.trim());
       await this.auth.signIn(this.signInForm.controls.identifier.value, this.signInForm.controls.password.value);
+      console.debug('[Login] Sign in successful');
+      
+      // Check if worker login was successful
+      if (this.auth.isWorker()) {
+        console.debug('[Login] Worker login detected - redirecting to dashboard');
+        // Worker login - redirect to dashboard
+        await this.router.navigateByUrl('/dashboard');
+        return;
+      }
+
+      console.debug('[Login] Owner login detected - loading profile');
+      // Owner login - load profile
       const load = await this.auth.loadProfileOnce();
       const p = load.owner;
       if (!p) {
@@ -167,7 +180,7 @@ export class LoginComponent implements OnInit, OnDestroy {
         } else if (load.problem === 'no-signed-in-user') {
           this.toast.error('Sign-in did not complete. Try again or clear site data for localhost.');
         } else {
-          this.toast.error('Could not load profile. See browser console (filter: PayBook Auth).');
+          this.toast.error('Could not load profile. See browser console (filter: [Login]).');
         }
         await this.auth.signOut();
         return;
@@ -178,6 +191,7 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
       await this.redirectAfterProfile(p);
     } catch (e: unknown) {
+      console.error('[Login] Sign in failed:', e);
       this.signInError.set(this.signInErrorMessage(e));
     } finally {
       this.busy.set(false);
@@ -292,15 +306,29 @@ export class LoginComponent implements OnInit, OnDestroy {
   private signInErrorMessage(e: unknown): string {
     const code =
       e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+    const message =
+      e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : '';
+    
+    // Log the full error for debugging
+    if (e && typeof e === 'object') {
+      const msg = (e as { message?: string }).message || String(e);
+      console.debug('[Login] Error details - Code:', code, 'Message:', msg);
+    }
+    
+    // Firestore permission errors
+    if (code === 'firestore/permission-denied' || message?.includes('Firestore permissions error')) {
+      return 'Firestore setup incomplete. Admin needs to deploy firestore.rules. Check admin console.';
+    }
+    
     switch (code) {
       case 'auth/wrong-password':
       case 'auth/user-not-found':
       case 'auth/invalid-credential':
       case 'auth/invalid-login-credentials':
-        return 'Mobile/email or password is incorrect. Please check and try again.';
+        return 'Email or password is incorrect. Please check and try again. (If you are a worker, use your worker credentials.)';
       case 'auth/invalid-email':
         return 'Please enter a valid email address.';
-           case 'auth/invalid-phone-number':
+      case 'auth/invalid-phone-number':
         return 'Please enter a valid mobile number (with country code, e.g. +91…).';
       case 'auth/phone-not-registered':
         return 'This mobile number is not registered. Sign up first or sign in with your email.';

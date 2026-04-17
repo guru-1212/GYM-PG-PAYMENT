@@ -1,4 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { PermissionService } from './permission.service';
+import { WorkerService } from './worker.service';
+
 import {
   User,
   createUserWithEmailAndPassword,
@@ -7,6 +10,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   deleteUser,
+  
   sendPasswordResetEmail as fbSendPasswordResetEmail,
 } from 'firebase/auth';
 import {
@@ -19,6 +23,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { Owner, OwnerRole, OwnerStatus } from '../models/owner.model';
+import { Worker } from '../models/worker.model';
 import { FirebaseAppService } from './firebase-app.service';
 
 const OWNER_LOGIN_ALIASES_COLLECTION = 'ownerLoginAliases';
@@ -67,15 +72,18 @@ export type ProfileLoadResult = {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly fb = inject(FirebaseAppService);
-
+  private readonly permissionService = inject(PermissionService);
+  private readonly workerService = inject(WorkerService);
   readonly user = signal<User | null>(null);
   readonly profile = signal<Owner | null>(null);
+  readonly workerProfile = signal<Worker | null>(null);
   readonly loading = signal(true);
 
   readonly isAdmin = computed(() => this.profile()?.role === 'admin');
   readonly isApprovedOwner = computed(
     () => this.profile()?.role === 'owner' && this.profile()?.status === 'approved',
   );
+  readonly isWorker = computed(() => this.workerProfile() !== null);
   readonly isSubscriptionValid = computed(() => {
     const profile = this.profile();
     if (!profile || !profile.planEndDate) return false;
@@ -109,38 +117,88 @@ export class AuthService {
       this.profileListenerUid = u.uid;
 
       const ref = doc(this.fb.db, 'owners', u.uid);
-      this.profileUnsub = onSnapshot(
-        ref,
-        (snap: any) => {
-          const o = ownerFromSnapshot(snap as DocumentSnapshot);
-          this.profile.set(o);
-          this.loading.set(false);
-        },
-        () => {
-          this.profile.set(null);
-          this.loading.set(false);
-        },
-      );
+          this.profileUnsub = onSnapshot(ref, (snap: any) => {
+        const o = ownerFromSnapshot(snap);
+        this.profile.set(o);
+
+        if (o) {
+          this.permissionService.setRole('owner');
+          this.permissionService.setOwnerFeatures(o.features);
+        }
+      });
     });
   }
 
   /**
-   * Email: Firebase email/password, with optional `ownerLoginAliases` retry for legacy mapped emails.
+   * Email: Firebase email/password (owner), with optional `ownerLoginAliases` retry.
+   * If owner login fails, try worker login (Firestore-based).
    * Mobile: digits-only key → `ownerPhoneLoginAliases/{digits}` → `email` field → signInWithEmailAndPassword.
    * No Firebase Phone Auth / OTP / synthetic Auth emails.
    */
   async signIn(identifier: string, password: string): Promise<void> {
     const id = identifier.trim();
     if (id.includes('@')) {
+      // Email login: try owner, then alias, then worker
+      let lastError: any = null;
+
+      // Try 1: Direct owner login
       try {
+        console.debug('[Auth] Attempting Firebase Auth (owner) login with email:', id);
         await signInWithEmailAndPassword(this.fb.auth, id, password);
+        console.debug('[Auth] Firebase Auth login successful');
+        // Wait for auth state to propagate
+        await new Promise<void>((resolve) => {
+          const unsub = onAuthStateChanged(this.fb.auth, () => {
+            unsub();
+            resolve();
+          });
+        });
+        return;
       } catch (e) {
-        if (!this.isAuthRetryableForAlias(e)) throw e;
+        lastError = e;
+        const code = e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+        console.debug('[Auth] Firebase Auth login failed with code:', code);
+        console.info('[Auth] This is normal if: (1) Email not in Firebase Auth, or (2) Wrong password. System will try Firestore worker login next.');
+        // If not a credential error, don't retry further
+        if (!['auth/user-not-found', 'auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-email'].includes(code)) {
+          throw e;
+        }
+      }
+
+      // Try 2: Try alias resolution for owner
+      try {
+        console.debug('[Auth] Attempting alias resolution for owner...');
         const resolved = await this.getAuthEmailForContactLogin(id);
-        if (!resolved || resolved === normalizeOwnerLoginEmailKey(id)) throw e;
-        await signInWithEmailAndPassword(this.fb.auth, resolved, password);
+        if (resolved && resolved !== normalizeOwnerLoginEmailKey(id)) {
+          console.debug('[Auth] Alias resolved, attempting Firebase Auth with resolved email');
+          await signInWithEmailAndPassword(this.fb.auth, resolved, password);
+          // Wait for auth state to propagate
+          await new Promise<void>((resolve) => {
+            const unsub = onAuthStateChanged(this.fb.auth, () => {
+              unsub();
+              resolve();
+            });
+          });
+          return;
+        }
+      } catch (e) {
+        lastError = e;
+        console.debug('[Auth] Alias resolution failed:', e);
+      }
+
+      // Try 3: Worker login (Firestore-based)
+      try {
+        console.debug('[Auth] Firebase Auth failed - Attempting Firestore worker login...');
+        await this.workerSignIn(id, password);
+        console.debug('[Auth] Worker login successful');
+        return;
+      } catch (e) {
+        console.debug('[Auth] Worker login also failed:', e);
+        // If worker login also fails, throw the ACTUAL worker error (not the Firebase error)
+        throw e;
       }
     } else {
+      // Phone-based login (owner only)
       const n = normalizeOwnerPhone(id);
       if (!n) {
         const err = new Error('Invalid mobile number');
@@ -160,24 +218,14 @@ export class AuthService {
         throw err;
       }
       await signInWithEmailAndPassword(this.fb.auth, loginEmail, password);
-    }
-    // Wait for auth state to propagate
-    await new Promise<void>((resolve) => {
-      const unsub = onAuthStateChanged(this.fb.auth, () => {
-        unsub();
-        resolve();
+      // Wait for auth state to propagate
+      await new Promise<void>((resolve) => {
+        const unsub = onAuthStateChanged(this.fb.auth, () => {
+          unsub();
+          resolve();
+        });
       });
-    });
-  }
-
-  private isAuthRetryableForAlias(e: unknown): boolean {
-    const code = e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
-    return (
-      code === 'auth/user-not-found' ||
-      code === 'auth/wrong-password' ||
-      code === 'auth/invalid-credential' ||
-      code === 'auth/invalid-email'
-    );
+    }
   }
 
   /** Optional legacy: ownerLoginAliases/{lowercaseEmail} → email (or authLoginEmail) = Auth login email. */
@@ -362,7 +410,67 @@ export class AuthService {
     }
   }
 
+  /**
+   * Worker Firestore-based login (no Firebase Auth)
+   * Checks workers collection for email/password match
+   * Then loads owner features for permission calculation
+   */
+  async workerSignIn(email: string, password: string): Promise<void> {
+    try {
+      console.debug('[Auth] Worker login: Querying workers collection for email:', email);
+      const worker = await this.workerService.workerLogin(email, password);
+      
+      if (!worker) {
+        console.debug('[Auth] Worker not found or password mismatch');
+        const err = new Error('Invalid worker email or password');
+        (err as { code?: string }).code = 'auth/invalid-credential';
+        throw err;
+      }
+
+      console.debug('[Auth] Worker found, loading features from worker document...');
+      // Worker found, get features from worker document (no auth needed)
+      const ownerFeatures = worker.features || {};
+
+      // Set worker profile and permissions
+      this.workerProfile.set(worker);
+      this.permissionService.setRole('worker');
+      this.permissionService.setOwnerFeatures(ownerFeatures);
+      this.permissionService.setWorkerPermissions(worker.permissions as any);
+      this.loading.set(false);
+      console.debug('[Auth] Worker login complete with permissions:', Object.keys(worker.permissions));
+      console.debug('[Auth] Worker features:', ownerFeatures);
+
+    } catch (error: any) {
+      this.workerProfile.set(null);
+      this.loading.set(false);
+      
+      const code = error?.code;
+      const message = error?.message || String(error);
+      
+      console.error('[Auth] Worker login error - Code:', code, 'Message:', message);
+      
+      if (message?.includes('Missing or insufficient permissions') || message?.includes('permission-denied')) {
+        console.error('[Auth] FIRESTORE RULES ERROR: Workers collection read denied. Make sure firestore.rules allows worker queries.');
+        const permError = new Error('Firestore permissions error. Admin needs to deploy latest firestore.rules.');
+        (permError as { code?: string }).code = 'firestore/permission-denied';
+        throw permError;
+      }
+      
+      throw error;
+    }
+  }
+
   async signOut(): Promise<void> {
+    // Clear worker profile if logged in as worker
+    if (this.workerProfile()) {
+      this.workerProfile.set(null);
+      this.permissionService.setRole('owner');
+      this.permissionService.setWorkerPermissions(undefined);
+      this.loading.set(false);
+      return;
+    }
+
+    // Clear Firebase auth for owner login
     await signOut(this.fb.auth);
   }
 

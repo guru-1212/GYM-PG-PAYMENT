@@ -1,0 +1,225 @@
+<div class="mx-auto max-w-7xl space-y-6">
+  <div>
+    <h1 class="text-2xl font-bold text-slate-900">{{ 'workers' | t }}</h1>
+    <p class="text-slate-600">Manage your worker sub-accounts and permissions</p>
+  </div>
+
+  @if (!canManageWorkers()) {
+    <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+      <p class="text-sm text-yellow-800">
+        <strong>Worker Management disabled.</strong> Enable "Worker Management" feature in your account settings.
+      </p>
+    </div>
+  } @else {
+    <div class="flex justify-between items-center">
+      <div class="flex-1">
+        @if (workers().length === 0) {
+          <div class="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
+            <p class="text-slate-600 mb-4">No workers created yet. You can create up to 2 workers.</p>
+          </div>
+        } @else {
+          <div class="text-sm text-slate-600">
+            <strong>{{ workers().length }}</strong> worker(s) created (Max: 2)
+          </div>
+        }
+      </div>
+      @if (canCreateMoreWorkers()) {
+        <button
+          type="button"
+          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+          (click)="openAddWorkerModal()"
+          [disabled]="submitting()"
+        >
+          Add Worker
+        </button>
+      }
+    </div>
+
+    @if (loading()) {
+      <div class="text-center py-8">
+        <p class="text-slate-600">Loading workers...</p>
+      </div>
+    } @else if (loadError()) {
+      <div class="rounded-lg border border-red-200 bg-red-50 p-6">
+        <div class="flex flex-col gap-4">
+          <p class="text-sm text-red-800">
+            <strong>Error:</strong> {{ loadError() }}
+          </p>
+          <button
+            type="button"
+            class="w-fit rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            (click)="retryLoadWorkers()"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    } @else if (workers().length > 0) {
+      <div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left text-sm">
+            <thead class="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+              <tr>
+                <th class="px-4 py-3">Name</th>
+                <th class="px-4 py-3">Email</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3">Permissions</th>
+                <th class="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              @for (worker of workers(); track worker.workerId) {
+                <tr class="hover:bg-slate-50">
+                  <td class="px-4 py-3 font-medium text-slate-900">{{ worker.name }}</td>
+                  <td class="px-4 py-3 text-slate-600 text-xs">{{ worker.email }}</td>
+                  <td class="px-4 py-3">
+                    <span
+                      class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                      [class.bg-emerald-100]="worker.status === 'active'"
+                      [class.text-emerald-900]="worker.status === 'active'"
+                      [class.bg-slate-100]="worker.status === 'inactive'"
+                      [class.text-slate-900]="worker.status === 'inactive'"
+                    >
+                      {{ worker.status }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-xs">
+                    <div class="flex flex-wrap gap-1">
+                      @if (worker.permissions.view_members) {
+                        <span class="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800">Members</span>
+                      }
+                      @if (worker.permissions.view_payments) {
+                        <span class="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800">Payments</span>
+                      }
+                      @if (worker.permissions.collect_payment) {
+                        <span class="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800">Collect</span>
+                      }
+                      @if (worker.permissions.add_member) {
+                        <span class="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800">Add Members</span>
+                      }
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-right">
+                    <div class="flex justify-end gap-2">
+                      @if (worker.status === 'active') {
+                        <button
+                          type="button"
+                          class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          (click)="deactivateWorker(worker)"
+                          [disabled]="busyWorkerId() === worker.workerId || submitting()"
+                        >
+                          Deactivate
+                        </button>
+                      } @else {
+                        <button
+                          type="button"
+                          class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                          (click)="reactivateWorker(worker)"
+                          [disabled]="busyWorkerId() === worker.workerId || submitting()"
+                        >
+                          Reactivate
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50"
+                        (click)="deleteWorker(worker)"
+                        [disabled]="busyWorkerId() === worker.workerId || submitting()"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+</div>
+
+<!-- Add Worker Modal -->
+<app-modal [open]="showAddWorkerModal()" title="Create New Worker" (closed)="closeAddWorkerModal()">
+  <div class="space-y-4">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">Worker Name *</label>
+      <input
+        type="text"
+        class="saas-input w-full"
+        placeholder="e.g., John Doe"
+        [value]="workerName()"
+        (input)="workerName.set($any($event.target).value)"
+        [disabled]="submitting()"
+      />
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">Email *</label>
+      <input
+        type="email"
+        class="saas-input w-full"
+        placeholder="worker@example.com"
+        [value]="workerEmail()"
+        (input)="workerEmail.set($any($event.target).value)"
+        [disabled]="submitting()"
+      />
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">Password *</label>
+      <input
+        type="password"
+        class="saas-input w-full"
+        placeholder="Minimum 6 characters"
+        [value]="workerPassword()"
+        (input)="workerPassword.set($any($event.target).value)"
+        [disabled]="submitting()"
+      />
+    </div>
+
+    <div class="border-t border-slate-200 pt-4">
+      <label class="block text-sm font-semibold text-slate-700 mb-3">Permissions (based on owner features)</label>
+      <div class="space-y-2">
+        @for (permission of availablePermissions(); track permission.key) {
+          <label class="flex items-start gap-3 rounded-lg border" [class.border-slate-200]="permission.enabled" [class.border-slate-100]="!permission.enabled" [class.bg-slate-50]="!permission.enabled" [class.p-3]="permission.enabled" [class.p-2]="!permission.enabled" [class.cursor-pointer]="permission.enabled" [class.opacity-50]="!permission.enabled">
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-slate-300 text-indigo-600 mt-0.5"
+              [checked]="workerPermissions()[permission.key]"
+              (change)="togglePermission(permission.key)"
+              [disabled]="!permission.enabled || submitting()"
+            />
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-slate-900 text-sm">{{ permission.label }}</p>
+              <p class="text-xs text-slate-500">{{ permission.description }}</p>
+              @if (!permission.enabled) {
+                <p class="text-xs text-slate-400 mt-1">Requires: <strong>{{ permission.feature }}</strong> feature</p>
+              }
+            </div>
+          </label>
+        }
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
+      <button
+        type="button"
+        class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        (click)="closeAddWorkerModal()"
+        [disabled]="submitting()"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+        (click)="createWorker()"
+        [disabled]="submitting()"
+      >
+        {{ submitting() ? 'Creating...' : 'Create Worker' }}
+      </button>
+    </div>
+  </div>
+</app-modal>

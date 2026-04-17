@@ -150,7 +150,16 @@
                 </span>
               </td>
               <td class="px-4 py-3 text-right">
-                <div class="mb-2 flex justify-end">
+                <div class="mb-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    class="rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50"
+                    [disabled]="busyId() === o.ownerId"
+                    (click)="openFeaturesModal(o)"
+                    title="Manage features"
+                  >
+                    <span class="material-icons-outlined text-base">settings</span>
+                  </button>
                   <button
                     type="button"
                     class="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50"
@@ -440,6 +449,95 @@
           (keydown.enter)="sendAdminMessage()"
         />
         <button type="button" class="saas-btn-primary px-4 py-2 text-sm" (click)="sendAdminMessage()">Send</button>
+      </div>
+    </div>
+  }
+</app-modal>
+
+<!-- Features Modal -->
+<app-modal [open]="showFeaturesModal()" title="Manage Owner Features" (closed)="closeFeaturesModal()">
+  @if (selectedOwnerForFeatures(); as owner) {
+    <div class="space-y-4">
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+        <span class="font-semibold text-slate-900">{{ owner.name }}</span>
+        <span class="ml-2 text-slate-600">{{ owner.email }}</span>
+      </div>
+
+      <div class="space-y-3">
+        <label class="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50 cursor-pointer">
+          <input
+            type="checkbox"
+            class="h-4 w-4 rounded border-slate-300 text-indigo-600"
+            [checked]="featureToggles().whatsapp_automation"
+            (change)="toggleFeature('whatsapp_automation')"
+            [disabled]="featuresLoading()"
+          />
+          <div class="flex-1">
+            <p class="font-medium text-slate-900">WhatsApp Automation</p>
+            <p class="text-xs text-slate-500">Enable automated WhatsApp messaging</p>
+          </div>
+        </label>
+
+        <label class="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50 cursor-pointer">
+          <input
+            type="checkbox"
+            class="h-4 w-4 rounded border-slate-300 text-indigo-600"
+            [checked]="featureToggles().monthly_view"
+            (change)="toggleFeature('monthly_view')"
+            [disabled]="featuresLoading()"
+          />
+          <div class="flex-1">
+            <p class="font-medium text-slate-900">Monthly View</p>
+            <p class="text-xs text-slate-500">Access monthly analytics and reports</p>
+          </div>
+        </label>
+
+        <label class="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50 cursor-pointer">
+          <input
+            type="checkbox"
+            class="h-4 w-4 rounded border-slate-300 text-indigo-600"
+            [checked]="featureToggles().worker_management"
+            (change)="toggleFeature('worker_management')"
+            [disabled]="featuresLoading()"
+          />
+          <div class="flex-1">
+            <p class="font-medium text-slate-900">Worker Management</p>
+            <p class="text-xs text-slate-500">Manage and track worker information</p>
+          </div>
+        </label>
+
+        <label class="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50 cursor-pointer">
+          <input
+            type="checkbox"
+            class="h-4 w-4 rounded border-slate-300 text-indigo-600"
+            [checked]="featureToggles().payment_edit"
+            (change)="toggleFeature('payment_edit')"
+            [disabled]="featuresLoading()"
+          />
+          <div class="flex-1">
+            <p class="font-medium text-slate-900">Payment Edit</p>
+            <p class="text-xs text-slate-500">Allow editing of payment information</p>
+          </div>
+        </label>
+      </div>
+
+      <div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
+        <button
+          type="button"
+          class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          (click)="closeFeaturesModal()"
+          [disabled]="featuresLoading()"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+          (click)="saveFeatures()"
+          [disabled]="featuresLoading()"
+        >
+          {{ featuresLoading() ? 'Saving...' : 'Save Features' }}
+        </button>
       </div>
     </div>
   }

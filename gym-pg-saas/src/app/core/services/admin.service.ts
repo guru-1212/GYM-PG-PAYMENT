@@ -6,9 +6,13 @@ import {
   orderBy,
   query,
   updateDoc,
+  getDocs,
+  where,
+  writeBatch,
 } from 'firebase/firestore';
 import { Observable } from 'rxjs';
 import { Owner } from '../models/owner.model';
+import { OwnerFeatures } from '../models/feture.model';
 import { FirebaseAppService } from './firebase-app.service';
 
 @Injectable({ providedIn: 'root' })
@@ -61,6 +65,24 @@ export class AdminService {
 
   async setOwnerStatus(ownerId: string, status: Owner['status']): Promise<void> {
     await updateDoc(doc(this.fb.db, 'owners', ownerId), { status });
+  }
+
+  async updateOwnerFeatures(ownerId: string, features: OwnerFeatures): Promise<void> {
+    // Update owner features
+    await updateDoc(doc(this.fb.db, 'owners', ownerId), { features });
+    
+    // Sync features to all active workers of this owner
+    const q = query(
+      collection(this.fb.db, 'workers'),
+      where('ownerId', '==', ownerId),
+      where('status', '==', 'active')
+    );
+    const snap = await getDocs(q);
+    const batch = writeBatch(this.fb.db);
+    snap.docs.forEach(workerDoc => {
+      batch.update(doc(this.fb.db, 'workers', workerDoc.id), { features });
+    });
+    await batch.commit();
   }
 
   stats(owners: Owner[]): { total: number; pending: number; approved: number } {

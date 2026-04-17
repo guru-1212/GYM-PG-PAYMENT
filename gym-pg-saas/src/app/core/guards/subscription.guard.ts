@@ -20,6 +20,11 @@ export const subscriptionGuard = async () => {
     }, 100);
   });
 
+  // Allow workers to proceed (their owner's subscription is checked separately)
+  if (auth.isWorker()) {
+    return true;
+  }
+
   // Check if subscription is valid for owners
   if (auth.isApprovedOwner() && !auth.isSubscriptionValid()) {
     await router.navigateByUrl('/subscription-expired');

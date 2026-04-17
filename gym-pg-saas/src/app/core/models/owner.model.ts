@@ -1,8 +1,11 @@
 import { Timestamp } from 'firebase/firestore';
+import { OwnerFeatures } from './feture.model';
 
 export type OwnerRole = 'admin' | 'owner';
 export type OwnerStatus = 'pending' | 'approved' | 'rejected' | 'inactive';
 export type BusinessType = 'gym' | 'pg';
+
+
 
 export interface Owner {
   ownerId: string;
@@ -21,6 +24,7 @@ export interface Owner {
   planEndDate?: Timestamp;
   emailVerified?: boolean;
   complaintEnabled?: boolean;
+  features?: OwnerFeatures;
 }
 
 export interface AdminPayment {

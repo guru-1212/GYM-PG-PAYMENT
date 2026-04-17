@@ -77,7 +77,8 @@
           {{ 'nav.rooms' | t }}
         </a>
       }
-      <a
+      @if (permissionService.hasAccess('monthly_view')) {
+    <a
         routerLink="/monthly-earnings"
         routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
         class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
@@ -85,6 +86,18 @@
         <span class="material-icons-outlined">bar_chart</span>
         Monthly Earnings
       </a>
+}
+      @if (permissionService.hasAccess('worker_management')) {
+        <a
+          routerLink="/workers"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">engineering</span>
+          Workers
+        </a>
+      }
+    
       <!-- Complaints disabled — restore when feature fixed
       <a
         routerLink="/complaints"

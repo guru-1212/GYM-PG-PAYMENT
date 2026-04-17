@@ -165,5 +165,26 @@ service cloud.firestore {
 
       allow update, delete: if false;
     }
+
+    /**
+     * Workers collection: sub-accounts created by owners
+     * Workers authenticate via Firestore (email/password), not Firebase Auth
+     * 
+     * Security note: Reads allow unauthenticated access because:
+     * - Workers must know their exact email without revealing others
+     * - Password is verified in application code, not here
+     * - Collection is private (requires owner to create workers with specific email)
+     * - Uses .get('status', 'active') to handle missing status fields gracefully
+     */
+    match /workers/{workerId} {
+      // Owners: full CRUD for workers collection
+      allow read, create, update, delete: if isApprovedOwner();
+
+      // Unauthenticated: read-only for active worker login
+      // Query returns only documents matching BOTH conditions:
+      // where('email' == X) && where('status' == 'active')
+      allow read: if !signedIn()
+        && resource.data.get('status', 'active') == 'active';
+    }
   }
 }

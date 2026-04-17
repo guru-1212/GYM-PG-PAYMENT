@@ -10,6 +10,7 @@ import { ModalComponent } from '../shared/modal.component';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../shared/brand-logo.component';
 import { ThemeToggleComponent } from '../shared/theme-toggle.component';
+import { PermissionService } from '../core/services/permission.service';
 
 @Component({
   selector: 'app-owner-shell',
@@ -23,6 +24,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   // private readonly complaintApi = inject(ComplaintService);
   private readonly router = inject(Router);
   readonly i18n = inject(TranslationService);
+  readonly permissionService = inject(PermissionService);
 
   readonly profile = this.auth.profile;
   readonly isPgOwner = computed(() => this.profile()?.businessType === 'pg');

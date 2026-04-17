@@ -1,0 +1,103 @@
+<div class="p-6 bg-slate-50 min-h-screen dark:bg-slate-950/30">
+
+  <!-- HEADER -->
+  <div class="mb-6 flex items-center justify-between">
+    <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-100">
+      Owner Feature Control
+    </h2>
+  </div>
+
+  <!-- TABLE CONTAINER -->
+  <div class="bg-white shadow rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+
+    <!-- LOADING -->
+    @if (loading) {
+      <div class="p-6 text-center text-slate-500 dark:text-slate-400">
+        Loading owners...
+      </div>
+    }
+
+    <!-- EMPTY STATE -->
+    @if (!loading && owners.length === 0) {
+      <div class="p-6 text-center text-slate-500 dark:text-slate-400">
+        No owners found
+      </div>
+    }
+
+    <!-- TABLE -->
+    @if (!loading && owners.length > 0) {
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+
+          <!-- HEADER -->
+          <thead class="bg-slate-100 text-slate-700 uppercase text-xs dark:bg-slate-700 dark:text-slate-200">
+            <tr>
+              <th class="p-3 text-left">Owner</th>
+
+              @for (feature of features; track feature.key) {
+                <th class="p-3 text-center">
+                  {{ feature.label }}
+                </th>
+              }
+            </tr>
+          </thead>
+
+          <!-- BODY -->
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+
+            @for (owner of owners; track owner.ownerId) {
+              <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition">
+
+                <!-- OWNER INFO -->
+                <td class="p-3">
+                  <div class="font-medium text-slate-800 dark:text-slate-100">
+                    {{ owner.name || 'No Name' }}
+                  </div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">
+                    {{ owner.ownerId }}
+                  </div>
+                </td>
+
+                <!-- FEATURES -->
+                @for (feature of features; track feature.key) {
+                  <td class="p-3 text-center">
+
+                    <label class="inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        #chk
+                        class="sr-only peer"
+                        [checked]="!!owner.features?.[feature.key]"
+                        (change)="toggleFeature(owner.ownerId, feature.key, chk.checked)"
+                      />
+
+                      <!-- TOGGLE SWITCH -->
+                      <div class="w-10 h-5 bg-slate-300 dark:bg-slate-600 rounded-full peer 
+                                  peer-checked:bg-green-500 peer-checked:dark:bg-green-600
+                                  relative transition">
+
+                        <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full
+                                    transition
+                                    peer-checked:translate-x-5">
+                        </div>
+
+                      </div>
+                    </label>
+
+                  </td>
+                }
+
+              </tr>
+            }
+
+          </tbody>
+
+        </table>
+      </div>
+
+    }
+
+  </div>
+
+</div>

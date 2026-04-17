@@ -5,6 +5,12 @@ import { AuthService } from '../services/auth.service';
 export const ownerGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  
+  // Allow workers to access owner routes
+  if (auth.isWorker()) {
+    return true;
+  }
+
   let p = auth.profile();
   if (!p) p = await auth.refreshProfile();
   if (!p) {

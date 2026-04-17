@@ -1,6 +1,7 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { BusinessType, Owner, OwnerStatus } from '../../core/models/owner.model';
+import { OwnerFeatures, DEFAULT_OWNER_FEATURES } from '../../core/models/feture.model';
 import { OwnerAdminChatMessage } from '../../core/models/owner-admin-chat.model';
 import { AdminService } from '../../core/services/admin.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -42,6 +43,10 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
   readonly filterStatus = signal<'all' | OwnerStatus>('all');
   readonly filterPlan = signal<'all' | 'active' | 'expired' | 'expiring-soon'>('all');
   readonly filterBusinessType = signal<'all' | BusinessType>('all');
+  readonly showFeaturesModal = signal(false);
+  readonly selectedOwnerForFeatures = signal<Owner | null>(null);
+  readonly featureToggles = signal<OwnerFeatures>({ ...DEFAULT_OWNER_FEATURES });
+  readonly featuresLoading = signal(false);
   private unsub: (() => void) | null = null;
   private unsubUnread: (() => void) | null = null;
   private unsubMemberCounts: (() => void) | null = null;
@@ -334,6 +339,41 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
       this.toast.error('Could not reject');
     } finally {
       this.busyId.set(null);
+    }
+  }
+
+  openFeaturesModal(owner: Owner): void {
+    this.selectedOwnerForFeatures.set(owner);
+    this.featureToggles.set({ ...(owner.features || DEFAULT_OWNER_FEATURES) });
+    this.showFeaturesModal.set(true);
+  }
+
+  closeFeaturesModal(): void {
+    this.showFeaturesModal.set(false);
+    this.selectedOwnerForFeatures.set(null);
+    this.featureToggles.set({ ...DEFAULT_OWNER_FEATURES });
+  }
+
+  toggleFeature(key: keyof OwnerFeatures): void {
+    this.featureToggles.update((f) => ({
+      ...f,
+      [key]: !f[key],
+    }));
+  }
+
+  async saveFeatures(): Promise<void> {
+    const owner = this.selectedOwnerForFeatures();
+    if (!owner) return;
+
+    this.featuresLoading.set(true);
+    try {
+      await this.admin.updateOwnerFeatures(owner.ownerId, this.featureToggles());
+      this.toast.success('Features updated successfully');
+      this.closeFeaturesModal();
+    } catch {
+      this.toast.error('Could not update features');
+    } finally {
+      this.featuresLoading.set(false);
     }
   }
 
