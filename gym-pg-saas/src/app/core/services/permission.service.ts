@@ -74,6 +74,10 @@ export class PermissionService {
   }
 
   private ownerHasModuleAccess(module: WorkerModule): boolean {
+    // Backward compatibility: older owner docs may not have `features` set.
+    // In that case owners should retain full module access instead of being blocked.
+    if (!this.hasExplicitOwnerFeatureConfig()) return true;
+
     switch (module) {
       case 'dashboard':
       case 'members':
@@ -87,6 +91,15 @@ export class PermissionService {
       default:
         return false;
     }
+  }
+
+  private hasExplicitOwnerFeatureConfig(): boolean {
+    const f = this.ownerFeatures || {};
+    return (
+      typeof f.monthly_view === 'boolean' ||
+      typeof f.payment_edit === 'boolean' ||
+      typeof f.worker_management === 'boolean'
+    );
   }
 
   private workerHasModuleAccess(module: WorkerModule): boolean {
