@@ -4,11 +4,24 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { AuthService } from '../services/auth.service';
 import { FirebaseAppService } from '../services/firebase-app.service';
 
+const WORKER_PROFILE_STORAGE_KEY = 'pgt.worker.profile';
+
 /** Redirect authenticated users away from login/register. */
 export const loginGuard: CanActivateFn = async () => {
   const fb = inject(FirebaseAppService);
   const auth = inject(AuthService);
   const router = inject(Router);
+  
+  // Check if worker has a saved session
+  try {
+    const json = localStorage.getItem(WORKER_PROFILE_STORAGE_KEY);
+    if (json) {
+      console.debug('[LoginGuard] Worker session found in localStorage, redirecting to dashboard');
+      return router.createUrlTree(['/dashboard']);
+    }
+  } catch (e) {
+    // Ignore localStorage errors
+  }
   
   await new Promise<void>((resolve) => {
     const unsub = onAuthStateChanged(fb.auth, () => {

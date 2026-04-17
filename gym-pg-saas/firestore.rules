@@ -84,7 +84,7 @@ service cloud.firestore {
     }
 
     match /members/{memberId} {
-      allow read: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
+      allow read: if isAdmin() || (isApprovedOwner() && resource.data.ownerId == request.auth.uid);
       allow create: if isApprovedOwner()
         && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if isApprovedOwner()
@@ -92,10 +92,40 @@ service cloud.firestore {
     }
 
     match /payments/{paymentId} {
-      allow read: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
+      allow read: if isAdmin() || (isApprovedOwner() && resource.data.ownerId == request.auth.uid);
       allow create: if isApprovedOwner()
         && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if false;
+    }
+
+    /**
+     * PG Layout (Bed/Room Management) - Essential for bed availability setup
+     * Owners can only manage their own layouts
+     * Admins have full access
+     * Nested roomTypes collection for room configurations
+     */
+    match /pgLayouts/{ownerId} {
+      allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
+      allow create: if isApprovedOwner() && request.auth.uid == ownerId;
+      allow update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+
+      /**
+       * Room type configurations (beds, sharing options, pricing)
+       * Nested under owner's layout document
+       */
+      match /roomTypes/{roomTypeId} {
+        allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
+        allow create, update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+      }
+
+      /**
+       * Individual rooms with bed availability tracking
+       * Nested under owner's layout document
+       */
+      match /rooms/{roomId} {
+        allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
+        allow create, update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+      }
     }
 
     match /adminPayments/{paymentId} {
@@ -167,22 +197,44 @@ service cloud.firestore {
     }
 
     /**
+     * Collection group rule for admin to query all messages across chat threads.
+     * Admins can read all messages; chat participants can only read their own.
+     */
+    match /{path=**}/messages/{messageId} {
+      allow read: if isAdmin() 
+        || (isApprovedOwner() && exists(/databases/$(database)/documents/chats/$(request.auth.uid)) && get(/databases/$(database)/documents/chats/$(request.auth.uid)).data.chatId == request.auth.uid);
+    }
+
+    /**
      * Workers collection: sub-accounts created by owners
      * Workers authenticate via Firestore (email/password), not Firebase Auth
-     * 
-     * Security note: Reads allow unauthenticated access because:
-     * - Workers must know their exact email without revealing others
-     * - Password is verified in application code, not here
-     * - Collection is private (requires owner to create workers with specific email)
-     * - Uses .get('status', 'active') to handle missing status fields gracefully
      */
     match /workers/{workerId} {
-      // Owners: full CRUD for workers collection
-      allow read, create, update, delete: if isApprovedOwner();
+      // ✅ Admins: full access to all workers
+      allow read, create, update, delete: if isAdmin();
 
-      // Unauthenticated: read-only for active worker login
-      // Query returns only documents matching BOTH conditions:
-      // where('email' == X) && where('status' == 'active')
+      // ✅ Approved owners can read only their own workers
+      allow read: if isApprovedOwner()
+        && resource.data.ownerId == request.auth.uid;
+
+      // ✅ Approved owners can create workers only under their own ownerId
+      allow create: if isApprovedOwner()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.role == 'worker';
+
+      // ✅ Approved owners can update their own workers (ownerId must not change)
+      allow update: if isApprovedOwner()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.role == 'worker'
+        && resource.data.role == 'worker';
+
+      // ✅ Approved owners can delete only their own workers
+      allow delete: if isApprovedOwner()
+        && resource.data.ownerId == request.auth.uid;
+
+      // ✅ Unauthenticated: read-only for active worker login (self-service)
+      // Query: where('email' == X) && where('status' == 'active')
       allow read: if !signedIn()
         && resource.data.get('status', 'active') == 'active';
     }

@@ -69,6 +69,35 @@ export type ProfileLoadResult = {
   problem?: 'no-signed-in-user' | 'no-firestore-document' | 'permission-denied' | 'fetch-failed';
 };
 
+const WORKER_PROFILE_STORAGE_KEY = 'pgt.worker.profile';
+
+function saveWorkerProfile(worker: Worker): void {
+  try {
+    localStorage.setItem(WORKER_PROFILE_STORAGE_KEY, JSON.stringify(worker));
+  } catch (e) {
+    console.warn('[Auth] Failed to save worker profile to localStorage:', e);
+  }
+}
+
+function restoreWorkerProfile(): Worker | null {
+  try {
+    const json = localStorage.getItem(WORKER_PROFILE_STORAGE_KEY);
+    if (!json) return null;
+    return JSON.parse(json) as Worker;
+  } catch (e) {
+    console.warn('[Auth] Failed to restore worker profile from localStorage:', e);
+    return null;
+  }
+}
+
+function clearWorkerProfile(): void {
+  try {
+    localStorage.removeItem(WORKER_PROFILE_STORAGE_KEY);
+  } catch (e) {
+    console.warn('[Auth] Failed to clear worker profile from localStorage:', e);
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly fb = inject(FirebaseAppService);
@@ -93,39 +122,82 @@ export class AuthService {
 
   private profileUnsub: (() => void) | null = null;
   private profileListenerUid: string | null = null;
+  private profileLoadedOnce = false;
 
   constructor() {
+    // Initialize loading state - will be set to false once auth state is ready
+    this.loading.set(true);
+
+    // Set up Firebase auth state listener first
     onAuthStateChanged(this.fb.auth, (u) => {
       this.user.set(u);
 
       if (!u) {
+        // No Firebase Auth user
         this.profileUnsub?.();
         this.profileUnsub = null;
         this.profileListenerUid = null;
         this.profile.set(null);
-        this.loading.set(false);
+        
+        // Check if worker is saved in localStorage
+        const savedWorker = restoreWorkerProfile();
+        if (savedWorker) {
+          console.debug('[Auth] Restoring worker profile from localStorage');
+          this.workerProfile.set(savedWorker);
+          this.permissionService.setRole('worker');
+          this.permissionService.setOwnerFeatures(savedWorker.features || {});
+          this.permissionService.setWorkerPermissions(savedWorker.permissions as any);
+          this.loading.set(false);
+        } else {
+          this.loading.set(false);
+        }
         return;
       }
 
+      // Firebase Auth user exists - clear workers and set up owner listener
+      if (this.workerProfile()) {
+        console.debug('[Auth] Firebase Auth user found, clearing worker profile');
+        this.workerProfile.set(null);
+        clearWorkerProfile();
+      }
+
       if (this.profileListenerUid === u.uid && this.profileUnsub) {
-        this.loading.set(false);
+        // Already listening for this user
         return;
       }
 
       this.profileUnsub?.();
       this.profileUnsub = null;
       this.profileListenerUid = u.uid;
+      this.profileLoadedOnce = false;
 
       const ref = doc(this.fb.db, 'owners', u.uid);
-          this.profileUnsub = onSnapshot(ref, (snap: any) => {
-        const o = ownerFromSnapshot(snap);
-        this.profile.set(o);
+      this.profileUnsub = onSnapshot(
+        ref,
+        (snap: any) => {
+          const o = ownerFromSnapshot(snap);
+          this.profile.set(o);
 
-        if (o) {
-          this.permissionService.setRole('owner');
-          this.permissionService.setOwnerFeatures(o.features);
+          if (o) {
+            this.permissionService.setRole('owner');
+            this.permissionService.setOwnerFeatures(o.features);
+          }
+
+          // Set loading to false after first snapshot received
+          if (!this.profileLoadedOnce) {
+            this.profileLoadedOnce = true;
+            this.loading.set(false);
+            console.debug('[Auth] Owner profile loaded from Firestore', { role: o?.role, status: o?.status });
+          }
+        },
+        (error: any) => {
+          console.error('[Auth] Error loading owner profile:', error);
+          if (!this.profileLoadedOnce) {
+            this.profileLoadedOnce = true;
+            this.loading.set(false);
+          }
         }
-      });
+      );
     });
   }
 
@@ -437,6 +509,10 @@ export class AuthService {
       this.permissionService.setOwnerFeatures(ownerFeatures);
       this.permissionService.setWorkerPermissions(worker.permissions as any);
       this.loading.set(false);
+      
+      // Persist worker profile to localStorage for session survival
+      saveWorkerProfile(worker);
+      
       console.debug('[Auth] Worker login complete with permissions:', Object.keys(worker.permissions));
       console.debug('[Auth] Worker features:', ownerFeatures);
 
@@ -466,6 +542,7 @@ export class AuthService {
       this.workerProfile.set(null);
       this.permissionService.setRole('owner');
       this.permissionService.setWorkerPermissions(undefined);
+      clearWorkerProfile();
       this.loading.set(false);
       return;
     }
