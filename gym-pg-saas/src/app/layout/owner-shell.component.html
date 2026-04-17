@@ -163,6 +163,15 @@
             </span>
           }
         </button>
+        <button
+          type="button"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          (click)="toggleUserMenu($event)"
+          aria-label="Settings"
+          title="Settings"
+        >
+          <span class="material-icons-outlined">settings</span>
+        </button>
         <div class="relative shrink-0" data-user-menu-root>
           <button
             type="button"
@@ -280,15 +289,28 @@
                 {{ 'nav.rooms' | t }}
               </a>
             }
-            <a
-              routerLink="/monthly-earnings"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-              (click)="closeMobileMenu()"
-            >
-              <span class="material-icons-outlined">bar_chart</span>
-              Monthly Earnings
-            </a>
+            @if (permissionService.hasAccess('monthly_view')) {
+              <a
+                routerLink="/monthly-earnings"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">bar_chart</span>
+                Monthly Earnings
+              </a>
+            }
+            @if (permissionService.hasAccess('worker_management')) {
+              <a
+                routerLink="/workers"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">engineering</span>
+                Workers
+              </a>
+            }
             <!-- Complaints nav disabled — restore when feature fixed
             <a
               routerLink="/complaints"
