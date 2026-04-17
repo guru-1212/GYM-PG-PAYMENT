@@ -14,5 +14,5 @@ seat issue and memebr add issue fixed
 admin dashboard , pgt logo changes
 added pwa app popup 
 pwa app 111134
-removed otp verification , added member edit split option123456
+removed otp verification , added member edit split option1234567
 <!-- seat map changse -->
