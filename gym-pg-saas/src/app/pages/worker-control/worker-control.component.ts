@@ -173,7 +173,7 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
         label: 'View Payments',
         description: 'Can view payment history',
         feature: 'payment_edit',
-        enabled: !!features.payment_edit,
+        enabled: false,
       },
       {
         key: 'payments_collect',
@@ -194,7 +194,7 @@ export class WorkerControlComponent implements OnInit, OnDestroy {
         label: 'Monthly Earnings',
         description: 'Can view monthly earnings report',
         feature: 'monthly_view',
-        enabled: !!features.monthly_view,
+        enabled: false,
       },
       {
         key: 'rooms_view',

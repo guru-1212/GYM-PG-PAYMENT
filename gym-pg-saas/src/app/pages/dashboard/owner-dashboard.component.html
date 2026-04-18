@@ -78,37 +78,39 @@
         <p class="text-sm font-medium text-slate-500">{{ 'dashboard.totalMembers' | t }}</p>
         <p class="mt-2 text-3xl font-bold text-slate-900">{{ totalMembers() }}</p>
       </div>
-      <div class="saas-card p-5">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-sm font-medium text-slate-500">{{ 'dashboard.monthEarnings' | t }}</p>
-          <div class="flex gap-1">
-            <button
-              type="button"
-              class="rounded-lg p-1.5 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-700"
-              (click)="showMonthlyEarningsModal.set(true)"
-              title="View monthly earnings details"
-            >
-              <span class="material-icons-outlined text-lg">history</span>
-            </button>
-            <button
-              type="button"
-              class="rounded-lg p-1.5 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-700"
-              (click)="showMonthEarnings.set(!showMonthEarnings())"
-              [attr.aria-label]="showMonthEarnings() ? ('dashboard.hideEarnings' | t) : ('dashboard.showEarnings' | t)"
-              [attr.title]="showMonthEarnings() ? ('dashboard.hideEarnings' | t) : ('dashboard.showEarnings' | t)"
-            >
-              <span class="material-icons-outlined text-lg">{{
-                showMonthEarnings() ? 'visibility_off' : 'visibility'
-              }}</span>
-            </button>
+      @if (canSeeMonthlyEarningsCard()) {
+        <div class="saas-card p-5">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm font-medium text-slate-500">{{ 'dashboard.monthEarnings' | t }}</p>
+            <div class="flex gap-1">
+              <button
+                type="button"
+                class="rounded-lg p-1.5 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-700"
+                (click)="showMonthlyEarningsModal.set(true)"
+                title="View monthly earnings details"
+              >
+                <span class="material-icons-outlined text-lg">history</span>
+              </button>
+              <button
+                type="button"
+                class="rounded-lg p-1.5 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-700"
+                (click)="showMonthEarnings.set(!showMonthEarnings())"
+                [attr.aria-label]="showMonthEarnings() ? ('dashboard.hideEarnings' | t) : ('dashboard.showEarnings' | t)"
+                [attr.title]="showMonthEarnings() ? ('dashboard.hideEarnings' | t) : ('dashboard.showEarnings' | t)"
+              >
+                <span class="material-icons-outlined text-lg">{{
+                  showMonthEarnings() ? 'visibility_off' : 'visibility'
+                }}</span>
+              </button>
+            </div>
           </div>
+          @if (showMonthEarnings()) {
+            <p class="mt-2 text-3xl font-bold text-emerald-700">₹{{ monthEarnings() | number: '1.0-0' }}</p>
+          } @else {
+            <p class="mt-2 text-3xl font-bold text-emerald-700 tracking-wider">₹ ••••••</p>
+          }
         </div>
-        @if (showMonthEarnings()) {
-          <p class="mt-2 text-3xl font-bold text-emerald-700">₹{{ monthEarnings() | number: '1.0-0' }}</p>
-        } @else {
-          <p class="mt-2 text-3xl font-bold text-emerald-700 tracking-wider">₹ ••••••</p>
-        }
-      </div>
+      }
       <a
         routerLink="/members"
         [queryParams]="{ pay: 'pending', due: 'dueToday' }"

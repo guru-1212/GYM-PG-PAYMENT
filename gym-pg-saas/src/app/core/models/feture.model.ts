@@ -9,5 +9,5 @@ export const DEFAULT_OWNER_FEATURES: OwnerFeatures = {
   whatsapp_automation: false,
   monthly_view: true,
   worker_management: true,
-  payment_edit: false
+  payment_edit: false,
 };

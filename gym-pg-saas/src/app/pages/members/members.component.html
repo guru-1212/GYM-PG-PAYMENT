@@ -197,14 +197,16 @@
                         <span class="material-icons-outlined text-base">campaign</span>
                       </a>
                     }
-                    <button
-                      type="button"
-                      title="Edit Member"
-                      class="flex h-9 w-9 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
-                      (click)="openEdit(m)"
-                    >
-                      <span class="material-icons-outlined text-base">edit</span>
-                    </button>
+                    @if (canEditMembers()) {
+                      <button
+                        type="button"
+                        title="Edit Member"
+                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                        (click)="openEdit(m)"
+                      >
+                        <span class="material-icons-outlined text-base">edit</span>
+                      </button>
+                    }
                   </div>
                 </td>
               </tr>
@@ -279,7 +281,9 @@
             @if (whatsappLink(m); as wa) {
               <a [href]="wa" target="_blank" rel="noopener noreferrer" class="saas-btn-secondary px-3 py-2 text-xs">Reminder</a>
             }
-            <button type="button" class="saas-btn-secondary px-3 py-2 text-xs" (click)="openEdit(m)">Edit</button>
+            @if (canEditMembers()) {
+              <button type="button" class="saas-btn-secondary px-3 py-2 text-xs" (click)="openEdit(m)">Edit</button>
+            }
           </div>
         </article>
       }

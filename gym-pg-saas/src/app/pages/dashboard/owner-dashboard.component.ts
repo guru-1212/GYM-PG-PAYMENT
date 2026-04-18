@@ -12,6 +12,7 @@ import { MemberService } from '../../core/services/member.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { PermissionService } from '../../core/services/permission.service';
 // Complaints disabled — restore when feature fixed
 // import { ComplaintService } from '../../core/services/complaint.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -58,6 +59,7 @@ import { parsePgImportSeat, pgSheetSubscriptionError } from '../../core/utils/pg
 })
 export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly auth = inject(AuthService);
+  readonly permission = inject(PermissionService);
   private readonly cache = inject(DataCacheService);
   private readonly membersApi = inject(MemberService);
   private readonly paymentsApi = inject(PaymentService);
@@ -100,6 +102,9 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly itemsPerPage = 10;
   readonly isPg = computed(() => this.auth.currentBusinessType() === 'pg');
   readonly isGym = computed(() => this.auth.currentBusinessType() === 'gym');
+  readonly canSeeMonthlyEarningsCard = computed(
+    () => !this.auth.isWorker() || this.permission.hasModuleAccess('monthly-earnings'),
+  );
   readonly hasPgLayout = computed(() => {
     if ((this.pgLayout()?.floors?.length ?? 0) > 0) return true;
     return this.formToLayoutFloors().some((f) => f.rooms.length > 0);

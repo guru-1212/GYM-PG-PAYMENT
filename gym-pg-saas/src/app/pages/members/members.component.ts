@@ -13,6 +13,7 @@ import { TranslationService } from '../../core/services/translation.service';
 import { MemberService } from '../../core/services/member.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { ToastService } from '../../core/services/toast.service';
 import {
   calendarDaysBetween,
@@ -30,7 +31,12 @@ import { formatPgRoomLabel, sharingLabelForBeds } from '../../core/utils/pg-layo
 import { memberImportSampleAoA, memberImportSampleCsv } from '../../core/utils/member-import-sample.util';
 import { MEMBER_IMPORT_PROGRESS_MESSAGES } from '../../core/utils/member-import-progress.messages';
 import { parsePgImportSeat, pgSheetSubscriptionError } from '../../core/utils/pg-sheet-import.utils';
-import { applyDigitsOnlyFromInput, optionalDigitsLen, positiveAmount, dueDateAfterJoinDate } from '../../core/utils/validators';
+import {
+  applyDigitsOnlyFromInput,
+  dueDateAfterJoinDate,
+  optionalDigitsLen,
+  positiveAmount,
+} from '../../core/utils/validators';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
@@ -75,6 +81,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   private readonly pgLayoutApi = inject(PgLayoutService);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
+  private readonly permission = inject(PermissionService);
 
   readonly members = signal<Member[]>([]);
   readonly search = signal('');
@@ -130,6 +137,11 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   readonly isGym = computed(() => this.auth.currentBusinessType() === 'gym');
   readonly isPg = computed(() => this.auth.currentBusinessType() === 'pg');
+
+  /** Workers: editing is disabled until owner explicitly allows it. */
+  readonly canEditMembers = computed(
+    () => !this.auth.isWorker() || this.permission.workerHasPermission('members_edit'),
+  );
   readonly hasSeatLayout = computed(
     () => this.isPg() && (this.pgLayout()?.floors?.length ?? 0) > 0,
   );
@@ -386,6 +398,31 @@ export class MembersComponent implements OnInit, OnDestroy {
       this.pgLayout.set(this.cache.layout());
     });
 
+    // Reset pagination when filters change
+    effect(() => {
+      this.search(); // Trigger on search change
+      this.currentPage.set(1);
+      this.pageGroupStart.set(1);
+    });
+
+    effect(() => {
+      this.statusFilter(); // Trigger on statusFilter change
+      this.currentPage.set(1);
+      this.pageGroupStart.set(1);
+    });
+
+    effect(() => {
+      this.listMode(); // Trigger on listMode change
+      this.currentPage.set(1);
+      this.pageGroupStart.set(1);
+    });
+
+    effect(() => {
+      this.dueSectionFilter(); // Trigger on dueSectionFilter change
+      this.currentPage.set(1);
+      this.pageGroupStart.set(1);
+    });
+
     // Update dueDate validation when joinDate changes
     this.memberForm.get('joinDate')?.valueChanges.subscribe(() => {
       this.memberForm.get('dueDate')?.updateValueAndValidity();
@@ -421,6 +458,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       }
       paidAmountControl.updateValueAndValidity();
     });
+
   }
 
   async ngOnInit(): Promise<void> {
@@ -592,6 +630,10 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   openEdit(m: Member): void {
+    if (!this.canEditMembers()) {
+      this.toast.error('Edit access is disabled for this worker.');
+      return;
+    }
     this.editingId.set(m.memberId);
     this.moreOpen.set(!!(m.gender || m.aadhaarLast4 || m.notes));
     const jd = timestampToDate(m.joinDate);

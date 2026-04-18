@@ -21,12 +21,17 @@ export class PermissionService {
     this.workerPermissions = permissions || {};
   }
 
+  workerHasPermission(...keys: Array<keyof WorkerPermissions>): boolean {
+    return keys.some((key) => !!this.workerPermissions?.[key]);
+  }
+
   hasAccess(feature: keyof OwnerFeatures): boolean {
 
     if (this.role === 'admin') return true;
 
     if (this.role === 'owner') {
-      return !!this.ownerFeatures?.[feature];
+      // Owners always have full access; feature flags are used for worker gating.
+      return true;
     }
 
     if (this.role === 'worker') return this.workerHasFeatureAccess(feature);
@@ -74,48 +79,31 @@ export class PermissionService {
   }
 
   private ownerHasModuleAccess(module: WorkerModule): boolean {
-    // Backward compatibility: older owner docs may not have `features` set.
-    // In that case owners should retain full module access instead of being blocked.
-    if (!this.hasExplicitOwnerFeatureConfig()) return true;
-
-    switch (module) {
-      case 'dashboard':
-      case 'members':
-      case 'monthly-earnings':
-        return !!this.ownerFeatures?.monthly_view;
-      case 'payments':
-        return !!this.ownerFeatures?.payment_edit;
-      case 'rooms':
-      case 'workers':
-        return !!this.ownerFeatures?.worker_management;
-      default:
-        return false;
-    }
-  }
-
-  private hasExplicitOwnerFeatureConfig(): boolean {
-    const f = this.ownerFeatures || {};
-    return (
-      typeof f.monthly_view === 'boolean' ||
-      typeof f.payment_edit === 'boolean' ||
-      typeof f.worker_management === 'boolean'
-    );
+    // Owners should never be blocked by worker-facing feature toggles.
+    return true;
   }
 
   private workerHasModuleAccess(module: WorkerModule): boolean {
     switch (module) {
       case 'dashboard':
-        return !!this.ownerFeatures?.monthly_view && this.hasWorkerPermission('dashboard_view_basic');
+        // Dashboard should always be available to workers.
+        // Sensitive earnings visibility is controlled separately.
+        return true;
       case 'members':
-        return !!this.ownerFeatures?.monthly_view && this.hasWorkerPermission('members_view_list', 'view_members');
+        // Workers should always be able to open Members tab.
+        // Edit/add/delete actions are controlled by worker permissions.
+        return true;
       case 'payments':
-        return !!this.ownerFeatures?.payment_edit && this.hasWorkerPermission('payments_view', 'view_payments');
+        // Hidden by default; owner must allow.
+        return !!this.ownerFeatures?.payment_edit && this.workerHasPermission('payments_view', 'view_payments');
       case 'rooms':
-        return !!this.ownerFeatures?.worker_management && this.hasWorkerPermission('rooms_view', 'view_rooms');
+        return !!this.ownerFeatures?.worker_management;
       case 'monthly-earnings':
-        return !!this.ownerFeatures?.monthly_view && this.hasWorkerPermission('monthly_earnings_view', 'view_monthly_earnings');
+        // Hidden by default; owner must allow.
+        return !!this.ownerFeatures?.monthly_view && this.workerHasPermission('monthly_earnings_view', 'view_monthly_earnings');
       case 'workers':
-        return !!this.ownerFeatures?.worker_management && this.hasWorkerPermission('workers_view');
+        // Workers should never access worker management UI.
+        return false;
       default:
         return false;
     }
@@ -125,7 +113,7 @@ export class PermissionService {
     if (!this.ownerFeatures?.[feature]) return false;
     switch (feature) {
       case 'monthly_view':
-        return this.hasWorkerPermission(
+        return this.workerHasPermission(
           'dashboard_view_basic',
           'dashboard_view_member_count',
           'dashboard_view_earnings',
@@ -138,9 +126,9 @@ export class PermissionService {
           'view_dashboard_earnings',
         );
       case 'payment_edit':
-        return this.hasWorkerPermission('payments_view', 'payments_collect', 'payments_export_pdf', 'view_payments', 'collect_payment');
+        return this.workerHasPermission('payments_view', 'payments_collect', 'payments_export_pdf', 'view_payments', 'collect_payment');
       case 'worker_management':
-        return this.hasWorkerPermission(
+        return this.workerHasPermission(
           'members_add',
           'members_edit',
           'members_activate_deactivate',
@@ -157,10 +145,6 @@ export class PermissionService {
       default:
         return false;
     }
-  }
-
-  private hasWorkerPermission(...keys: Array<keyof WorkerPermissions>): boolean {
-    return keys.some((key) => !!this.workerPermissions?.[key]);
   }
 }
 

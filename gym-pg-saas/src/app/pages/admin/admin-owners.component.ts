@@ -341,10 +341,11 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
       this.busyId.set(null);
     }
   }
+  // mklm
 
   openFeaturesModal(owner: Owner): void {
     this.selectedOwnerForFeatures.set(owner);
-    this.featureToggles.set({ ...(owner.features || DEFAULT_OWNER_FEATURES) });
+    this.featureToggles.set({ ...DEFAULT_OWNER_FEATURES, ...(owner.features || {}) });
     this.showFeaturesModal.set(true);
   }
 
