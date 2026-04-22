@@ -25,7 +25,7 @@ export class NotificationTestComponent {
   constructor(private notificationService: NotificationService) {}
 
   testNotification() {
-    console.log('Testing basic notification...');
+    // console.log('Testing basic notification...');
     this.notificationService.showNotification(
       'Test Notification',
       'This is a test notification from the gym app'
@@ -33,12 +33,12 @@ export class NotificationTestComponent {
   }
 
   testApprovalNotification() {
-    console.log('Testing approval notification...');
+    // console.log('Testing approval notification...');
     this.notificationService.triggerApprovalRequest('Test Member', 'test-member-123');
   }
 
   testDueNotification() {
-    console.log('Testing due notification...');
+    // console.log('Testing due notification...');
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1);
     this.notificationService.triggerDueReminder('Test Member', dueDate, 'test-member-123');

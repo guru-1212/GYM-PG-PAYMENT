@@ -49,7 +49,7 @@ exports.onMemberCreated = functions.firestore
     
     try {
       const response = await admin.messaging().sendMulticast(message);
-      console.log('Successfully sent approval notification:', response);
+      // console.log('Successfully sent approval notification:', response);
       
       // Update notification count in adminNotifications
       await admin.firestore()
@@ -140,7 +140,7 @@ exports.checkPaymentDues = functions.pubsub
       
       try {
         const response = await admin.messaging().sendMulticast(message);
-        console.log(`Successfully sent due notification to owner ${ownerId}:`, response);
+        // console.log(`Successfully sent due notification to owner ${ownerId}:`, response);
         
         // Update urgent notifications
         await admin.firestore()
@@ -204,7 +204,7 @@ exports.onPaymentReceived = functions.firestore
     
     try {
       const response = await admin.messaging().sendMulticast(message);
-      console.log('Successfully sent payment notification:', response);
+      // console.log('Successfully sent payment notification:', response);
       return response;
     } catch (error) {
       console.error('Error sending payment notification:', error);

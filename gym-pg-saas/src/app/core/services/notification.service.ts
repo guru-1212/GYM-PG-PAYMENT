@@ -62,7 +62,7 @@ export class NotificationService {
       // Setup token refresh
       this.setupTokenRefresh();
       
-      console.log('Push notifications initialized for admin/owner');
+      // console.log('Push notifications initialized for admin/owner');
     } catch (error) {
       console.error('Failed to initialize notifications:', error);
     }
@@ -72,7 +72,7 @@ export class NotificationService {
     if ('Notification' in window) {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
-        console.log('Notification permission granted');
+        // console.log('Notification permission granted');
       }
       return permission;
     }
@@ -84,7 +84,7 @@ export class NotificationService {
       // Check if service worker is registered
       if ('serviceWorker' in navigator) {
         const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        console.log('Service Worker registered for messaging:', registration);
+        // console.log('Service Worker registered for messaging:', registration);
       }
 
       const token = await getToken(this.messaging, {
@@ -94,7 +94,7 @@ export class NotificationService {
       if (token && token !== this.fcmToken) {
         this.fcmToken = token;
         await this.saveTokenToFirestore(token);
-        console.log('FCM Token obtained:', token);
+        // console.log('FCM Token obtained:', token);
       }
     } catch (error) {
       console.error('Failed to get FCM token:', error);
@@ -122,7 +122,7 @@ export class NotificationService {
 
   private setupMessageListener(): void {
     onMessage(this.messaging, (payload) => {
-      console.log('Received push message:', payload);
+      // console.log('Received push message:', payload);
       
       // Show system notification even when app is in foreground
       this.showSystemNotification({
@@ -161,7 +161,7 @@ export class NotificationService {
     // Remove FCM token on logout
     if (this.fcmToken) {
       deleteToken(this.messaging).then(() => {
-        console.log('FCM token deleted on logout');
+        // console.log('FCM token deleted on logout');
       });
     }
   }
@@ -207,12 +207,12 @@ export class NotificationService {
   }
 
   private showSystemNotification(notificationData: NotificationData): void {
-    console.log('showSystemNotification called:', notificationData);
-    console.log('Notification.permission:', Notification.permission);
-    console.log('Notification supported:', typeof Notification !== 'undefined');
+    // console.log('showSystemNotification called:', notificationData);
+    // console.log('Notification.permission:', Notification.permission);
+    // console.log('Notification supported:', typeof Notification !== 'undefined');
     
     if ('Notification' in window && Notification.permission === 'granted') {
-      console.log('Creating system notification...');
+      // console.log('Creating system notification...');
       const notification = new Notification(notificationData.title, {
         body: notificationData.body,
         icon: notificationData.icon || '/icons/icon-192.png',
@@ -222,7 +222,7 @@ export class NotificationService {
         badge: '/icons/icon-192.png',
         silent: false
       });
-      console.log('System notification created:', notification);
+      // console.log('System notification created:', notification);
 
       // Handle notification click - navigate to relevant page
       notification.onclick = (event) => {
@@ -245,7 +245,7 @@ export class NotificationService {
         }, 8000);
       }
     } else {
-      console.log('showSystemNotification failed - permission not granted or not supported');
+      // console.log('showSystemNotification failed - permission not granted or not supported');
     }
   }
 
@@ -284,26 +284,26 @@ export class NotificationService {
   }
 
   showNotification(title: string, body: string, dedupKey?: string): void {
-    console.log('showNotification called:', { title, body, dedupKey });
-    console.log('Notification.permission:', Notification.permission);
-    console.log('Notification supported:', typeof Notification !== 'undefined');
+    // console.log('showNotification called:', { title, body, dedupKey });
+    // console.log('Notification.permission:', Notification.permission);
+    // console.log('Notification supported:', typeof Notification !== 'undefined');
     
     if (typeof window === 'undefined' || typeof Notification === 'undefined') {
-      console.log('Notification not supported');
+      // console.log('Notification not supported');
       return;
     }
     if (Notification.permission !== 'granted') {
-      console.log('Permission not granted:', Notification.permission);
+      // console.log('Permission not granted:', Notification.permission);
       return;
     }
     if (dedupKey && this.wasShown(dedupKey)) {
-      console.log('Dedup key already shown:', dedupKey);
+      // console.log('Dedup key already shown:', dedupKey);
       return;
     }
 
-    console.log('Creating notification...');
+    // console.log('Creating notification...');
     const notification = new Notification(title, { body, icon: '/favicon.ico' });
-    console.log('Notification created:', notification);
+    // console.log('Notification created:', notification);
     
     if (dedupKey) this.markShown(dedupKey);
   }
@@ -311,7 +311,7 @@ export class NotificationService {
   // Public methods for manual notification triggering
   async triggerDueReminder(memberName: string, dueDate: Date, memberId: string): Promise<void> {
     try {
-      console.log('triggerDueReminder called:', { memberName, dueDate, memberId });
+      // console.log('triggerDueReminder called:', { memberName, dueDate, memberId });
       this.showSystemNotification({
         title: 'Payment Due Soon',
         body: `${memberName} has payment due on ${dueDate.toLocaleDateString()}`,
@@ -320,7 +320,7 @@ export class NotificationService {
         data: { type: 'payment-due', memberId },
         requireInteraction: true
       });
-      console.log('triggerDueReminder completed successfully');
+      // console.log('triggerDueReminder completed successfully');
     } catch (error) {
       console.error('Error in triggerDueReminder:', error);
     }
@@ -328,7 +328,7 @@ export class NotificationService {
 
   async triggerApprovalRequest(memberName: string, memberId: string): Promise<void> {
     try {
-      console.log('triggerApprovalRequest called:', { memberName, memberId });
+      // console.log('triggerApprovalRequest called:', { memberName, memberId });
       this.showSystemNotification({
         title: 'New Approval Request',
         body: `${memberName} is requesting approval`,
@@ -337,7 +337,7 @@ export class NotificationService {
         data: { type: 'member-approval', memberId },
         requireInteraction: true
       });
-      console.log('triggerApprovalRequest completed successfully');
+      // console.log('triggerApprovalRequest completed successfully');
     } catch (error) {
       console.error('Error in triggerApprovalRequest:', error);
     }
@@ -345,7 +345,7 @@ export class NotificationService {
 
   async triggerPaymentReceived(memberName: string, amount: number): Promise<void> {
     try {
-      console.log('triggerPaymentReceived called:', { memberName, amount });
+      // console.log('triggerPaymentReceived called:', { memberName, amount });
       this.showSystemNotification({
         title: 'Payment Received',
         body: `${memberName} paid ${amount}`,
@@ -354,7 +354,7 @@ export class NotificationService {
         data: { type: 'payment-received' },
         requireInteraction: false
       });
-      console.log('triggerPaymentReceived completed successfully');
+      // console.log('triggerPaymentReceived completed successfully');
     } catch (error) {
       console.error('Error in triggerPaymentReceived:', error);
     }
