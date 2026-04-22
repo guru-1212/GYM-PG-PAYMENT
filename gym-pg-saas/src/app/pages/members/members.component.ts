@@ -1617,6 +1617,112 @@ export class MembersComponent implements OnInit, OnDestroy {
   private identityLocationParts(floor: string, room: string, bed: string): { floorNumber: string; roomNumber: string; bedNumber: string } {
     return { floorNumber: floor, roomNumber: room, bedNumber: bed };
   }
+
+  async exportToCSV(): Promise<void> {
+    try {
+      // Get ALL members from database, not just filtered display members
+      const allMembers = this.members();
+      const membersToExport = this.listMode() === 'active' 
+        ? allMembers.filter(m => m.status === 'active')
+        : allMembers.filter(m => m.status === 'inactive');
+      
+      if (membersToExport.length === 0) {
+        this.toast.success('No members to export');
+        return;
+      }
+
+      const XLSX = await import('xlsx');
+      
+      // Prepare CSV headers based on business type
+      const headers = [
+        'Member ID',
+        'First Name',
+        'Last Name',
+        'Mobile',
+        'Email',
+        'Gender',
+        'Aadhaar Last 4',
+        'Address',
+        'Join Date',
+        'Due Date',
+        'Amount',
+        'Pending Amount',
+        'Advance Paid',
+        'Payment Status',
+        'Status',
+        'Subscription Type',
+        'Created At'
+      ];
+
+      // Add PG-specific headers if it's a PG business
+      if (this.isPg()) {
+        headers.splice(8, 0, 'Floor Number', 'Room Number', 'Bed Number');
+      }
+
+      // Transform member data for CSV
+      const csvData = membersToExport.map(member => {
+        const row: any[] = [
+          member.memberId,
+          member.firstName,
+          member.lastName || '',
+          member.mobile || '',
+          member.email || '',
+          member.gender || '',
+          member.aadhaarLast4 || '',
+          member.address || '',
+          this.formatDate(member.joinDate),
+          this.formatDate(member.dueDate),
+          member.amount || 0,
+          member.pendingAmount || 0,
+          member.advancePaid || 0,
+          this.getPaymentStatus(member),
+          member.status,
+          member.subscriptionType || 'monthly',
+          this.formatDate(member.createdAt)
+        ];
+
+        // Add PG-specific data if it's a PG business
+        if (this.isPg()) {
+          row.splice(8, 0, 
+            member.floorNumber || '',
+            member.roomNumber || '',
+            member.bedNumber || ''
+          );
+        }
+
+        return row;
+      });
+
+      // Combine headers and data
+      const finalData = [headers, ...csvData];
+
+      // Create and download CSV file
+      const ws = XLSX.utils.aoa_to_sheet(finalData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Members');
+      
+      const fileName = `members-${this.listMode()}-${new Date().toISOString().split('T')[0]}.csv`;
+      XLSX.writeFile(wb, fileName);
+      
+      this.toast.success(`Exported ${membersToExport.length} members to ${fileName}`);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      this.toast.error('Failed to export CSV. Please try again.');
+    }
+  }
+
+  private formatDate(timestamp: any): string {
+    if (!timestamp) return '';
+    const date = timestampToDate(timestamp);
+    return date ? date.toISOString().split('T')[0] : '';
+  }
+
+  private getPaymentStatus(member: Member): string {
+    const pending = Number(member.pendingAmount) || 0;
+    if (pending > 0) return 'Partial Payment';
+    if (pending < 0) return 'Overpaid';
+    return 'Paid';
+  }
 }
 
 interface ImportPreviewRow {
