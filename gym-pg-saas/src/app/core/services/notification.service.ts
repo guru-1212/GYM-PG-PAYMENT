@@ -1,11 +1,41 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject, effect } from '@angular/core';
 import { Member } from '../models/member.model';
 import { calendarDaysBetween, startOfDay, startOfToday, timestampToDate } from '../utils/date.utils';
+import { AuthService } from './auth.service';
+import { FirebaseAppService } from './firebase-app.service';
+import { getMessaging, getToken, onMessage, deleteToken } from 'firebase/messaging';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+
+export interface NotificationData {
+  title: string;
+  body: string;
+  icon?: string;
+  tag?: string;
+  data?: Record<string, any>;
+  requireInteraction?: boolean;
+}
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
   private readonly permissionAskedKey = 'notify.permission.asked.v1';
   private readonly shownPrefix = 'notify.shown.v1';
+  private readonly auth = inject(AuthService);
+  private readonly fb = inject(FirebaseAppService);
+  private messaging = getMessaging(this.fb.app);
+  private fcmToken: string | null = null;
+  private tokenRefreshInterval: any = null;
+
+  constructor() {
+    // Initialize notifications for admin/owner only
+    effect(() => {
+      const user = this.auth.user();
+      if (user && (this.auth.isAdmin() || this.auth.isApprovedOwner())) {
+        this.initializeNotifications();
+      } else {
+        this.cleanupPushNotifications();
+      }
+    });
+  }
 
   requestPermissionOnce(): void {
     if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
@@ -13,6 +43,202 @@ export class NotificationService {
     if (localStorage.getItem(this.permissionAskedKey) === '1') return;
     localStorage.setItem(this.permissionAskedKey, '1');
     void Notification.requestPermission();
+  }
+
+  private async initializeNotifications(): Promise<void> {
+    try {
+      // Request notification permission first
+      await this.requestNotificationPermission();
+      
+      // Get FCM token for push notifications
+      await this.getFCMToken();
+      
+      // Setup message listeners
+      this.setupMessageListener();
+      
+      // Setup admin event listeners
+      this.setupAdminEventListeners();
+      
+      // Setup token refresh
+      this.setupTokenRefresh();
+      
+      console.log('Push notifications initialized for admin/owner');
+    } catch (error) {
+      console.error('Failed to initialize notifications:', error);
+    }
+  }
+
+  private async requestNotificationPermission(): Promise<NotificationPermission> {
+    if ('Notification' in window) {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        console.log('Notification permission granted');
+      }
+      return permission;
+    }
+    return 'denied';
+  }
+
+  private async getFCMToken(): Promise<void> {
+    try {
+      // Check if service worker is registered
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('Service Worker registered for messaging:', registration);
+      }
+
+      const token = await getToken(this.messaging, {
+        vapidKey: 'BFkkFZ9oqkFC3vc9xySqcLMyftK6nXePgeBj0tXAMqPcJ2-3dv07aYsCuaqwwREKKNtZbyaDIXNbxDC9EMKQwhk'
+      });
+
+      if (token && token !== this.fcmToken) {
+        this.fcmToken = token;
+        await this.saveTokenToFirestore(token);
+        console.log('FCM Token obtained:', token);
+      }
+    } catch (error) {
+      console.error('Failed to get FCM token:', error);
+    }
+  }
+
+  private async saveTokenToFirestore(token: string): Promise<void> {
+    const user = this.auth.user();
+    if (!user) return;
+
+    try {
+      const tokenDoc = doc(this.fb.db, 'fcmTokens', user.uid);
+      await setDoc(tokenDoc, {
+        token,
+        uid: user.uid,
+        role: this.auth.isAdmin() ? 'admin' : 'owner',
+        createdAt: new Date(),
+        lastUsed: new Date(),
+        deviceInfo: this.getDeviceInfo()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Failed to save FCM token:', error);
+    }
+  }
+
+  private setupMessageListener(): void {
+    onMessage(this.messaging, (payload) => {
+      console.log('Received push message:', payload);
+      
+      // Show system notification even when app is in foreground
+      this.showSystemNotification({
+        title: payload.notification?.title || 'New Notification',
+        body: payload.notification?.body || '',
+        icon: payload.notification?.icon || '/icons/icon-192.png',
+        tag: (payload as any).tag,
+        data: payload.data,
+        requireInteraction: true
+      });
+    });
+  }
+
+  private setupTokenRefresh(): void {
+    // Refresh token every hour
+    this.tokenRefreshInterval = setInterval(() => {
+      this.getFCMToken();
+    }, 60 * 60 * 1000);
+  }
+
+  private getDeviceInfo(): Record<string, string> {
+    return {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      language: navigator.language,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  private cleanupPushNotifications(): void {
+    if (this.tokenRefreshInterval) {
+      clearInterval(this.tokenRefreshInterval);
+      this.tokenRefreshInterval = null;
+    }
+
+    // Remove FCM token on logout
+    if (this.fcmToken) {
+      deleteToken(this.messaging).then(() => {
+        console.log('FCM token deleted on logout');
+      });
+    }
+  }
+
+  private setupAdminEventListeners(): void {
+    const user = this.auth.user();
+    if (!user) return;
+
+    // Listen for new member approval requests
+    const approvalRef = doc(this.fb.db, 'adminNotifications', user.uid);
+    onSnapshot(approvalRef, (snapshot) => {
+      const data = snapshot.data();
+      if (data && data['pendingApprovals'] > 0) {
+        this.showSystemNotification({
+          title: '👤 New Member Approval Request',
+          body: `${data['pendingApprovals']} member(s) waiting for your approval`,
+          icon: '/icons/icon-192.png',
+          tag: 'member-approval',
+          data: { type: 'member-approval', count: data['pendingApprovals'] },
+          requireInteraction: true
+        });
+      }
+    });
+
+    // Listen for urgent payment dues
+    const duesRef = doc(this.fb.db, 'urgentNotifications', user.uid);
+    onSnapshot(duesRef, (snapshot) => {
+      const data = snapshot.data();
+      if (data && data['urgentDues']?.length > 0) {
+        const dues = data['urgentDues'] as any[];
+        dues.forEach(due => {
+          this.showSystemNotification({
+            title: '💳 Payment Due Alert',
+            body: `${due.memberName} - Due today (${new Date(due.dueDate).toLocaleDateString()})`,
+            icon: '/icons/icon-192.png',
+            tag: `due-${due.memberId}`,
+            data: { type: 'payment-due', memberId: due.memberId },
+            requireInteraction: true
+          });
+        });
+      }
+    });
+  }
+
+  private showSystemNotification(notificationData: NotificationData): void {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const notification = new Notification(notificationData.title, {
+        body: notificationData.body,
+        icon: notificationData.icon || '/icons/icon-192.png',
+        tag: notificationData.tag,
+        data: notificationData.data,
+        requireInteraction: notificationData.requireInteraction || false,
+        badge: '/icons/icon-192.png',
+        silent: false
+      });
+
+      // Handle notification click - navigate to relevant page
+      notification.onclick = (event) => {
+        event.preventDefault();
+        window.focus();
+        notification.close();
+        
+        // Navigate based on notification type
+        if (notificationData.data && notificationData.data['type'] === 'member-approval') {
+          window.location.href = '/members?filter=pending';
+        } else if (notificationData.data && notificationData.data['type'] === 'payment-due') {
+          window.location.href = `/members/${notificationData.data['memberId']}`;
+        }
+      };
+
+      // Auto-close after 8 seconds if not important
+      if (!notificationData.requireInteraction) {
+        setTimeout(() => {
+          notification.close();
+        }, 8000);
+      }
+    }
   }
 
   checkDueMembers(members: Member[]): void {
@@ -56,6 +282,40 @@ export class NotificationService {
 
     new Notification(title, { body, icon: '/favicon.ico' });
     if (dedupKey) this.markShown(dedupKey);
+  }
+
+  // Public methods for manual notification triggering
+  async triggerDueReminder(memberName: string, dueDate: Date, memberId: string): Promise<void> {
+    this.showSystemNotification({
+      title: 'Payment Due Soon',
+      body: `${memberName} has payment due on ${dueDate.toLocaleDateString()}`,
+      icon: '/icons/icon-192.png',
+      tag: `due-${memberId}`,
+      data: { type: 'payment-due', memberId },
+      requireInteraction: true
+    });
+  }
+
+  async triggerApprovalRequest(memberName: string, memberId: string): Promise<void> {
+    this.showSystemNotification({
+      title: 'New Approval Request',
+      body: `${memberName} is requesting approval`,
+      icon: '/icons/icon-192.png',
+      tag: `approval-${memberId}`,
+      data: { type: 'member-approval', memberId },
+      requireInteraction: true
+    });
+  }
+
+  async triggerPaymentReceived(memberName: string, amount: number): Promise<void> {
+    this.showSystemNotification({
+      title: 'Payment Received',
+      body: `${memberName} paid ₹${amount}`,
+      icon: '/icons/icon-192.png',
+      tag: 'payment-received',
+      data: { type: 'payment-received' },
+      requireInteraction: false
+    });
   }
 
   private buildDedupKey(type: 'overdue' | 'duesoon', members: Member[]): string {
