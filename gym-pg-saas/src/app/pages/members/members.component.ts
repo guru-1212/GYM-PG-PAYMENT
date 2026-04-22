@@ -1356,20 +1356,45 @@ export class MembersComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const headers = this.parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
+    const rawHeaders = this.parseCsvLine(lines[0]);
+    const headers = rawHeaders.map((h) => h.trim().toLowerCase());
+    
+    // Flexible header matching - support both original and exported CSV formats
     const idx = {
-      name: headers.indexOf('name'),
-      mobile: headers.indexOf('mobile'),
-      plan: headers.indexOf('plan'),
-      dueDate: headers.indexOf('duedate'),
-      subscriptionType: headers.indexOf('subscriptiontype'),
-      floor: headers.indexOf('floor'),
-      room: headers.indexOf('room'),
-      bed: headers.indexOf('bed'),
+      name: this.findHeaderIndex(headers, ['name', 'first name']),
+      lastName: this.findHeaderIndex(headers, ['last name']),
+      mobile: this.findHeaderIndex(headers, ['mobile', 'phone']),
+      plan: this.findHeaderIndex(headers, ['plan', 'amount']),
+      dueDate: this.findHeaderIndex(headers, ['duedate', 'due date']),
+      subscriptionType: this.findHeaderIndex(headers, ['subscriptiontype', 'subscription type']),
+      floor: this.findHeaderIndex(headers, ['floor', 'floor number']),
+      room: this.findHeaderIndex(headers, ['room', 'room number']),
+      bed: this.findHeaderIndex(headers, ['bed', 'bed number']),
+      // Optional fields from export
+      email: this.findHeaderIndex(headers, ['email']),
+      gender: this.findHeaderIndex(headers, ['gender']),
+      aadhaar: this.findHeaderIndex(headers, ['aadhaar last 4', 'aadhaar']),
+      address: this.findHeaderIndex(headers, ['address']),
+      joinDate: this.findHeaderIndex(headers, ['join date', 'joindate']),
+      pendingAmount: this.findHeaderIndex(headers, ['pending amount', 'pending']),
+      advancePaid: this.findHeaderIndex(headers, ['advance paid', 'advance']),
+      status: this.findHeaderIndex(headers, ['status']),
     };
-    if (idx.name < 0 || idx.plan < 0 || idx.dueDate < 0 || idx.subscriptionType < 0) {
+    
+    // Check for required fields - be more flexible for exported CSV
+    if (idx.name < 0) {
       this.importRows.set([]);
-      this.toast.error('CSV headers missing. Use sample format.');
+      this.toast.error('CSV missing name column. Expected: "name" or "First Name"');
+      return;
+    }
+    if (idx.plan < 0) {
+      this.importRows.set([]);
+      this.toast.error('CSV missing plan/amount column. Expected: "plan" or "Amount"');
+      return;
+    }
+    if (idx.dueDate < 0) {
+      this.importRows.set([]);
+      this.toast.error('CSV missing due date column. Expected: "duedate" or "Due Date"');
       return;
     }
 
@@ -1383,13 +1408,26 @@ export class MembersComponent implements OnInit, OnDestroy {
 
     for (let i = 1; i < lines.length; i += 1) {
       const cols = this.parseCsvLine(lines[i]);
-      const rawName = this.readCol(cols, idx.name);
-      const [firstName, ...lastParts] = rawName.trim().split(/\s+/);
-      const lastName = lastParts.join(' ');
+      
+      // Handle name parsing - support both combined "name" and separate "first name"/"last name"
+      let firstName = '';
+      let lastName = '';
+      if (idx.lastName >= 0) {
+        // Exported CSV format with separate first/last name columns
+        firstName = this.readCol(cols, idx.name).trim();
+        lastName = this.readCol(cols, idx.lastName).trim();
+      } else {
+        // Original format with combined name column
+        const rawName = this.readCol(cols, idx.name);
+        const [first, ...lastParts] = rawName.trim().split(/\s+/);
+        firstName = first;
+        lastName = lastParts.join(' ');
+      }
+      
       const mobile = this.readCol(cols, idx.mobile).replace(/\D/g, '');
       const planText = this.readCol(cols, idx.plan);
       const dueDateText = this.readCol(cols, idx.dueDate);
-      const subRaw = this.readCol(cols, idx.subscriptionType);
+      const subRaw = idx.subscriptionType >= 0 ? this.readCol(cols, idx.subscriptionType) : 'monthly'; // Default to monthly if not present
       const subText = subRaw.toLowerCase();
       const floor = this.readCol(cols, idx.floor);
       const room = this.readCol(cols, idx.room);
@@ -1722,6 +1760,15 @@ export class MembersComponent implements OnInit, OnDestroy {
     if (pending > 0) return 'Partial Payment';
     if (pending < 0) return 'Overpaid';
     return 'Paid';
+  }
+
+  /** Helper to find header index with multiple possible names (for flexible CSV import) */
+  private findHeaderIndex(headers: string[], possibleNames: string[]): number {
+    for (const name of possibleNames) {
+      const index = headers.indexOf(name.toLowerCase());
+      if (index >= 0) return index;
+    }
+    return -1;
   }
 }
 
