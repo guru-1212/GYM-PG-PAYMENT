@@ -207,7 +207,12 @@ export class NotificationService {
   }
 
   private showSystemNotification(notificationData: NotificationData): void {
+    console.log('showSystemNotification called:', notificationData);
+    console.log('Notification.permission:', Notification.permission);
+    console.log('Notification supported:', typeof Notification !== 'undefined');
+    
     if ('Notification' in window && Notification.permission === 'granted') {
+      console.log('Creating system notification...');
       const notification = new Notification(notificationData.title, {
         body: notificationData.body,
         icon: notificationData.icon || '/icons/icon-192.png',
@@ -217,6 +222,7 @@ export class NotificationService {
         badge: '/icons/icon-192.png',
         silent: false
       });
+      console.log('System notification created:', notification);
 
       // Handle notification click - navigate to relevant page
       notification.onclick = (event) => {
@@ -238,6 +244,8 @@ export class NotificationService {
           notification.close();
         }, 8000);
       }
+    } else {
+      console.log('showSystemNotification failed - permission not granted or not supported');
     }
   }
 
@@ -276,46 +284,80 @@ export class NotificationService {
   }
 
   showNotification(title: string, body: string, dedupKey?: string): void {
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
-    if (Notification.permission !== 'granted') return;
-    if (dedupKey && this.wasShown(dedupKey)) return;
+    console.log('showNotification called:', { title, body, dedupKey });
+    console.log('Notification.permission:', Notification.permission);
+    console.log('Notification supported:', typeof Notification !== 'undefined');
+    
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+      console.log('Notification not supported');
+      return;
+    }
+    if (Notification.permission !== 'granted') {
+      console.log('Permission not granted:', Notification.permission);
+      return;
+    }
+    if (dedupKey && this.wasShown(dedupKey)) {
+      console.log('Dedup key already shown:', dedupKey);
+      return;
+    }
 
-    new Notification(title, { body, icon: '/favicon.ico' });
+    console.log('Creating notification...');
+    const notification = new Notification(title, { body, icon: '/favicon.ico' });
+    console.log('Notification created:', notification);
+    
     if (dedupKey) this.markShown(dedupKey);
   }
 
   // Public methods for manual notification triggering
   async triggerDueReminder(memberName: string, dueDate: Date, memberId: string): Promise<void> {
-    this.showSystemNotification({
-      title: 'Payment Due Soon',
-      body: `${memberName} has payment due on ${dueDate.toLocaleDateString()}`,
-      icon: '/icons/icon-192.png',
-      tag: `due-${memberId}`,
-      data: { type: 'payment-due', memberId },
-      requireInteraction: true
-    });
+    try {
+      console.log('triggerDueReminder called:', { memberName, dueDate, memberId });
+      this.showSystemNotification({
+        title: 'Payment Due Soon',
+        body: `${memberName} has payment due on ${dueDate.toLocaleDateString()}`,
+        icon: '/icons/icon-192.png',
+        tag: `due-${memberId}`,
+        data: { type: 'payment-due', memberId },
+        requireInteraction: true
+      });
+      console.log('triggerDueReminder completed successfully');
+    } catch (error) {
+      console.error('Error in triggerDueReminder:', error);
+    }
   }
 
   async triggerApprovalRequest(memberName: string, memberId: string): Promise<void> {
-    this.showSystemNotification({
-      title: 'New Approval Request',
-      body: `${memberName} is requesting approval`,
-      icon: '/icons/icon-192.png',
-      tag: `approval-${memberId}`,
-      data: { type: 'member-approval', memberId },
-      requireInteraction: true
-    });
+    try {
+      console.log('triggerApprovalRequest called:', { memberName, memberId });
+      this.showSystemNotification({
+        title: 'New Approval Request',
+        body: `${memberName} is requesting approval`,
+        icon: '/icons/icon-192.png',
+        tag: `approval-${memberId}`,
+        data: { type: 'member-approval', memberId },
+        requireInteraction: true
+      });
+      console.log('triggerApprovalRequest completed successfully');
+    } catch (error) {
+      console.error('Error in triggerApprovalRequest:', error);
+    }
   }
 
   async triggerPaymentReceived(memberName: string, amount: number): Promise<void> {
-    this.showSystemNotification({
-      title: 'Payment Received',
-      body: `${memberName} paid ₹${amount}`,
-      icon: '/icons/icon-192.png',
-      tag: 'payment-received',
-      data: { type: 'payment-received' },
-      requireInteraction: false
-    });
+    try {
+      console.log('triggerPaymentReceived called:', { memberName, amount });
+      this.showSystemNotification({
+        title: 'Payment Received',
+        body: `${memberName} paid ${amount}`,
+        icon: '/icons/icon-192.png',
+        tag: 'payment-received',
+        data: { type: 'payment-received' },
+        requireInteraction: false
+      });
+      console.log('triggerPaymentReceived completed successfully');
+    } catch (error) {
+      console.error('Error in triggerPaymentReceived:', error);
+    }
   }
 
   private buildDedupKey(type: 'overdue' | 'duesoon', members: Member[]): string {

@@ -2,10 +2,11 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ThemeService } from './core/services/theme.service';
 import { ToastContainerComponent } from './shared/toast-container.component';
+import { NotificationTestComponent } from './core/components/notification-test.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, ToastContainerComponent],
+  imports: [RouterOutlet, ToastContainerComponent, NotificationTestComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })
