@@ -101,6 +101,14 @@ export const routes: Routes = [
             (m) => m.SupervisorsPageComponent,
           ),
       },
+      {
+        path: 'analytics',
+        canActivate: [noSupervisorGuard],
+        loadComponent: () =>
+          import('./pages/analytics/analytics-page.component').then(
+            (m) => m.AnalyticsPageComponent,
+          ),
+      },
       /* Complaints disabled: was ComplaintsPageComponent */
       { path: 'complaints', redirectTo: 'dashboard', pathMatch: 'full' },
     ],

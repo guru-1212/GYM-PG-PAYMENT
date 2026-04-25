@@ -28,6 +28,9 @@ export class MemberOnboardingComponent implements OnInit {
   readonly stage = signal<Stage>('loading');
   readonly errorMessage = signal<string>('');
   readonly busy = signal<boolean>(false);
+  /** While submitting: 0–100. */
+  readonly submitProgress = signal(0);
+  readonly submitStatus = signal('');
   readonly token = signal<string>('');
   readonly link = signal<MemberOnboardingLink | null>(null);
 
@@ -178,6 +181,14 @@ export class MemberOnboardingComponent implements OnInit {
     if (!link) return;
     const v = this.detailsForm.getRawValue();
     this.busy.set(true);
+    this.submitProgress.set(0);
+    this.submitStatus.set('Starting…');
+
+    const bumpProgress = (pct: number, msg: string) => {
+      this.submitProgress.set(Math.min(100, Math.max(0, Math.round(pct))));
+      this.submitStatus.set(msg);
+    };
+
     try {
       const profileFile = this.profilePhotoFile();
       const aadhaarFront = this.aadhaarFrontFile();
@@ -187,7 +198,7 @@ export class MemberOnboardingComponent implements OnInit {
       const hasFront = Boolean(aadhaarFront || link.prefill?.aadhaarFrontUrl);
       const hasBack = Boolean(aadhaarBack || link.prefill?.aadhaarBackUrl);
       if (!hasProfile || !hasFront || !hasBack) {
-        this.toast.error("Please add your profile photo and both sides of your Aadhaar card.");
+        this.toast.error('Please add your profile photo and both sides of your Aadhaar card.');
         return;
       }
 
@@ -195,27 +206,46 @@ export class MemberOnboardingComponent implements OnInit {
       let aadhaarFrontUrl = link.prefill?.aadhaarFrontUrl || '';
       let aadhaarBackUrl = link.prefill?.aadhaarBackUrl || '';
 
-      const [profileReady, frontReady, backReady] = await Promise.all([
-        profileFile ? compressImageForUpload(profileFile) : Promise.resolve<File | null>(null),
-        aadhaarFront ? compressImageForUpload(aadhaarFront) : Promise.resolve<File | null>(null),
-        aadhaarBack ? compressImageForUpload(aadhaarBack) : Promise.resolve<File | null>(null),
-      ]);
+      await new Promise<void>((r) => setTimeout(r, 0));
+
+      bumpProgress(6, 'Resizing profile photo (faster upload)…');
+      const profileReady = profileFile ? await compressImageForUpload(profileFile) : null;
+      await new Promise<void>((r) => setTimeout(r, 0));
+      bumpProgress(14, 'Resizing Aadhaar front…');
+      const frontReady = aadhaarFront ? await compressImageForUpload(aadhaarFront) : null;
+      await new Promise<void>((r) => setTimeout(r, 0));
+      bumpProgress(22, 'Resizing Aadhaar back…');
+      const backReady = aadhaarBack ? await compressImageForUpload(aadhaarBack) : null;
+      await new Promise<void>((r) => setTimeout(r, 0));
+      bumpProgress(30, 'Uploading photos…');
+
+      const weights = [0, 0, 0];
+      if (!profileReady) weights[0] = 1;
+      if (!frontReady) weights[1] = 1;
+      if (!backReady) weights[2] = 1;
+
+      const onSlot = (slot: number) => (p: number) => {
+        weights[slot] = p;
+        const avg = (weights[0] + weights[1] + weights[2]) / 3;
+        bumpProgress(30 + avg * 58, 'Uploading photos to secure storage…');
+      };
 
       const [pUrl, fUrl, bUrl] = await Promise.all([
         profileReady
-          ? this.api.uploadPublicPhoto(this.token(), 'profile', profileReady)
+          ? this.api.uploadPublicPhoto(this.token(), 'profile', profileReady, onSlot(0))
           : Promise.resolve(profilePhotoUrl),
         frontReady
-          ? this.api.uploadPublicPhoto(this.token(), 'aadhaarFront', frontReady)
+          ? this.api.uploadPublicPhoto(this.token(), 'aadhaarFront', frontReady, onSlot(1))
           : Promise.resolve(aadhaarFrontUrl),
         backReady
-          ? this.api.uploadPublicPhoto(this.token(), 'aadhaarBack', backReady)
+          ? this.api.uploadPublicPhoto(this.token(), 'aadhaarBack', backReady, onSlot(2))
           : Promise.resolve(aadhaarBackUrl),
       ]);
       profilePhotoUrl = pUrl;
       aadhaarFrontUrl = fUrl;
       aadhaarBackUrl = bUrl;
 
+      bumpProgress(92, 'Saving your details…');
       await this.api.submitOnboarding(this.token(), link.memberId, {
         email: v.email || '',
         lastName: v.lastName || '',
@@ -227,17 +257,22 @@ export class MemberOnboardingComponent implements OnInit {
         aadhaarBackUrl,
       });
 
+      bumpProgress(100, 'Done');
       this.stage.set('done');
     } catch (e) {
       const msg =
-        e instanceof Error && e.message === 'MISSING_PHOTOS'
-          ? 'Profile photo and both Aadhaar images are required.'
-          : e instanceof Error
-            ? e.message
-            : 'Could not submit. Please try again.';
+        e instanceof Error && e.message === 'COMPRESS_TIMEOUT'
+          ? 'Photo processing is taking too long. Try smaller photos, use Wi-Fi, or take new pictures from the camera app.'
+          : e instanceof Error && e.message === 'MISSING_PHOTOS'
+            ? 'Profile photo and both Aadhaar images are required.'
+            : e instanceof Error
+              ? e.message
+              : 'Could not submit. Please try again.';
       this.toast.error(msg);
     } finally {
       this.busy.set(false);
+      this.submitProgress.set(0);
+      this.submitStatus.set('');
     }
   }
 

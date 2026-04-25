@@ -193,12 +193,27 @@
           </div>
         </div>
 
+        @if (busy()) {
+          <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/95 p-4 shadow-sm dark:border-emerald-800/60 dark:bg-emerald-950/40">
+            <p class="text-sm font-semibold text-emerald-900 dark:text-emerald-100">{{ submitStatus() }}</p>
+            <div class="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-emerald-200/80 dark:bg-emerald-900/60">
+              <div
+                class="h-full rounded-full bg-emerald-600 transition-[width] duration-200 ease-out dark:bg-emerald-400"
+                [style.width.%]="submitProgress()"
+              ></div>
+            </div>
+            <p class="mt-2 text-xs leading-relaxed text-emerald-800/90 dark:text-emerald-200/80">
+              Photos are resized on your phone first (less data), then uploaded. Wi-Fi is faster than mobile data; very poor signal can take several minutes for three images.
+            </p>
+          </div>
+        }
+
         <button
           type="submit"
           [disabled]="busy()"
           class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {{ busy() ? 'Submitting...' : 'Submit details' }}
+          {{ busy() ? (submitProgress() > 0 ? 'Submitting… ' + submitProgress() + '%' : 'Submitting…') : 'Submit details' }}
         </button>
       </form>
     }

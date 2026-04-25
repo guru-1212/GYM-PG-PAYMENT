@@ -9,7 +9,7 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
+import { getDownloadURL, ref as storageRef, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import type {
   MemberOnboardingLink,
   MemberOnboardingLinkStatus,
@@ -294,12 +294,26 @@ export class MemberOnboardingService {
     token: string,
     kind: OnboardingPhotoKind,
     file: File,
+    onProgress?: (fraction01: number) => void,
   ): Promise<string> {
     this.validateImageFile(file);
     const path = `memberOnboardingPublic/${token}/${kind}.${this.extOf(file)}`;
     const ref = storageRef(this.fb.storage, path);
-    await uploadBytes(ref, file, { contentType: file.type });
-    return getDownloadURL(ref);
+    const task = uploadBytesResumable(ref, file, { contentType: file.type });
+    return await new Promise<string>((resolve, reject) => {
+      task.on(
+        'state_changed',
+        (snap) => {
+          const total = snap.totalBytes || file.size || 1;
+          onProgress?.(Math.min(1, snap.bytesTransferred / total));
+        },
+        reject,
+        () => {
+          onProgress?.(1);
+          void getDownloadURL(task.snapshot.ref).then(resolve).catch(reject);
+        },
+      );
+    });
   }
 
   /**

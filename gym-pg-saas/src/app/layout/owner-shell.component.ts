@@ -47,6 +47,8 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   );
   /** Monthly earnings is hard-blocked for supervisors regardless of perms. */
   readonly canViewMonthlyEarnings = computed(() => !this.isSupervisor());
+  /** Analytics dashboard — owner-only (financial + member data). */
+  readonly canViewAnalytics = computed(() => !this.isSupervisor());
 
   readonly mobileMenuOpen = signal(false);
   readonly userMenuOpen = signal(false);

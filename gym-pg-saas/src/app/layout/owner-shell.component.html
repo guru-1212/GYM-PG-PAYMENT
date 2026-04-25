@@ -103,15 +103,18 @@
           {{ 'nav.supervisors' | t }}
         </a>
       }
+      @if (canViewAnalytics()) {
+        <a
+          routerLink="/analytics"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">analytics</span>
+          Analytics
+        </a>
+      }
       <!-- Complaints disabled — restore when feature fixed
-      <a
-        routerLink="/complaints"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-      >
-        <span class="material-icons-outlined">report_problem</span>
-        Complaints
-      </a>
+      <a routerLink="/complaints" ...>Complaints</a>
       -->
     </nav>
     <div class="border-t border-slate-100 p-3 dark:border-slate-800">
@@ -314,6 +317,17 @@
               >
                 <span class="material-icons-outlined">supervisor_account</span>
                 {{ 'nav.supervisors' | t }}
+              </a>
+            }
+            @if (canViewAnalytics()) {
+              <a
+                routerLink="/analytics"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">analytics</span>
+                Analytics
               </a>
             }
             <!-- Complaints nav disabled — restore when feature fixed
