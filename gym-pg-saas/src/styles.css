@@ -446,6 +446,8 @@ html.dark .hover\:bg-emerald-50:hover {
   @apply bg-emerald-950/35;
 }
 
+
+
 @keyframes fadeIn {
   from {
     opacity: 0;

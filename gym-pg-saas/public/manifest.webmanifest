@@ -19,5 +19,10 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "gcm_sender_id": "445355373149",
+  "permissions": [
+    "notifications",
+    "push"
   ]
 }

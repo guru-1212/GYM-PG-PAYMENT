@@ -180,12 +180,15 @@ export class MembersComponent implements OnInit, OnDestroy {
     const sf = this.statusFilter();
     if (sf !== 'all') list = list.filter((m) => m.status === sf);
     const pf = this.payFilter();
+    const dueFilter = this.dueSectionFilter();
+    
+    // Apply payment filters exclusively (only one at a time)
     if (pf === 'paid') {
       list = list.filter((m) => this.rowTone(m) === 'green');
     } else if (pf === 'overdue') {
       list = list.filter((m) => this.rowTone(m) === 'red');
     } else if (pf === 'dueSoon') {
-      list = list.filter((m) => this.isDueSoonWithinFiveDays(m));
+      list = list.filter((m) => this.rowTone(m) === 'orange');
     } else if (pf === 'partial') {
       list = list.filter((m) => this.rowTone(m) === 'blue');
     } else if (pf === 'pending') {
@@ -194,27 +197,27 @@ export class MembersComponent implements OnInit, OnDestroy {
         const tone = this.rowTone(m);
         return tone === 'red' || tone === 'orange' || tone === 'blue';
       });
-    }
-
-    const dueFilter = this.dueSectionFilter();
-    if (dueFilter === 'dueToday') {
-      list = list.filter((m) => {
-        const d = timestampToDate(m.dueDate);
-        return d ? dueUiStatus(d) === 'dueToday' : false;
-      });
-    } else if (dueFilter === 'overdue') {
-      list = list.filter((m) => {
-        const d = timestampToDate(m.dueDate);
-        return d ? dueUiStatus(d) === 'overdue' : false;
-      });
-    } else if (dueFilter === 'dueSoon') {
-      const today = startOfToday();
-      list = list.filter((m) => {
-        const due = coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
-        if (!due || m.status !== 'active') return false;
-        const daysLeft = calendarDaysBetween(today, startOfDay(due));
-        return daysLeft >= 0 && daysLeft <= 5;
-      });
+    } else if (pf === 'all') {
+      // Only apply due section filter when payment filter is 'all'
+      if (dueFilter === 'dueToday') {
+        list = list.filter((m) => {
+          const d = timestampToDate(m.dueDate);
+          return d ? dueUiStatus(d) === 'dueToday' : false;
+        });
+      } else if (dueFilter === 'overdue') {
+        list = list.filter((m) => {
+          const d = timestampToDate(m.dueDate);
+          return d ? dueUiStatus(d) === 'overdue' : false;
+        });
+      } else if (dueFilter === 'dueSoon') {
+        const today = startOfToday();
+        list = list.filter((m) => {
+          const due = coerceFirestoreDate(m.dueDate as unknown) ?? timestampToDate(m.dueDate);
+          if (!due || m.status !== 'active') return false;
+          const daysLeft = calendarDaysBetween(today, startOfDay(due));
+          return daysLeft >= 0 && daysLeft <= 5;
+        });
+      }
     }
 
     const sk = this.sortKey();

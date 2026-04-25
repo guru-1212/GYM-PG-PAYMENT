@@ -12,7 +12,8 @@
           "/*.js",
           "/manifest.webmanifest",
           "/favicon.png",
-          "/icons/*.png"
+          "/icons/*.png",
+          "/firebase-messaging-sw.js"
         ]
       }
     },
@@ -31,6 +32,21 @@
           "/**/*.woff",
           "/**/*.woff2"
         ]
+      }
+    }
+  ],
+  "dataGroups": [
+    {
+      "name": "firebase-api",
+      "urls": [
+        "https://firestore.googleapis.com/**",
+        "https://fcm.googleapis.com/**"
+      ],
+      "cacheConfig": {
+        "maxSize": 100,
+        "maxAge": "1h",
+        "timeout": "10s",
+        "strategy": "freshness"
       }
     }
   ]
