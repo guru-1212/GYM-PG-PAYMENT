@@ -154,6 +154,8 @@ export const TE: Record<string, unknown> = {
     dueSoonSubtitle: 'తదుపరి పండ్లు 5 రోజులలో గడవబోతున్నాయి',
     viewSoonMembers: 'గడువు దగ్గరలో ఉన్న సభ్యులను చూడండి',
     noDueSoon: 'తదుపరి 5 రోజుల్లో గడువు ఉన్న సభ్యులు లేరు.',
+    reviewPendingTitle: 'ప్రొఫైల్ రివ్యూ పెండింగ్',
+    reviewPendingSubtitle: 'షేర్ లింక్ ద్వారా సమర్పించినవి మీ ఆమోదం కోసం వేచి ఉన్నాయి',
   },
   members: {
     title: 'సభ్యులు',
@@ -168,6 +170,8 @@ export const TE: Record<string, unknown> = {
     payment: 'చెల్లింపు',
     paid: 'చెల్లించారు',
     pending: 'అతిరిక్తం / గడువు',
+    onboardingReviewHint: 'షేర్ లింక్ ద్వారా ప్రొఫైల్ సమర్పించి మీ ఆమోదం కోసం వేచి ఉన్న సభ్యులు మాత్రమే చూపుతున్నాం.',
+    onboardingReviewShowAll: 'అందరు సభ్యులను చూపించు',
     sort: 'క్రమం',
     dueUrgent: '{label} (త్వరితం ముందు)',
     nameSort: 'పేరు',

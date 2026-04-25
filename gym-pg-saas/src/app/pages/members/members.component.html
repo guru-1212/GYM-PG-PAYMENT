@@ -26,8 +26,19 @@
       </div>
     }
   </div>
-<!-- yuggyu -->
-<!-- yuggyu -->
+
+  @if (onboardingReviewFilter() === 'review') {
+    <div
+      class="flex flex-col gap-2 rounded-xl border border-indigo-200 bg-indigo-50/90 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+      role="status"
+    >
+      <p class="text-sm text-indigo-900">{{ 'members.onboardingReviewHint' | t }}</p>
+      <button type="button" class="saas-btn-secondary shrink-0 px-4 py-2 text-sm" (click)="clearOnboardingReviewDeepLink()">
+        {{ 'members.onboardingReviewShowAll' | t }}
+      </button>
+    </div>
+  }
+
   <div class="saas-card grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
     <div class="md:col-span-2 xl:col-span-2">
       <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.search' | t }}</label>

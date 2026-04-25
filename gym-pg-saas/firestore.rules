@@ -229,6 +229,21 @@ service cloud.firestore {
           && request.resource.data.usedAt is timestamp;
       }
 
+      /** Owner/supervisor may only revoke — NOT arbitrary edits (otherwise a logged-in
+       *  owner testing the public link could set verifiedAt without matching mobile). */
+      function isOwnerOrSupervisorRevokeLink() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && resource.data.status == 'active'
+          && request.resource.data.status == 'revoked'
+          && (
+            (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+            || (
+              isActiveSupervisorOf(resource.data.ownerId)
+              && supervisorPerm('canShareOnboardingLink')
+            )
+          );
+      }
+
       // Public read is OK — only safe metadata + prefill are stored here. The mobile
       // hash itself lives on the private secrets doc.
       allow read: if true;
@@ -248,13 +263,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId))
         && get(/databases/$(database)/documents/members/$(request.resource.data.memberId)).data.ownerId == request.resource.data.ownerId;
 
-      // Owner / supervisor can revoke / amend their own tokens at will; public is
-      // restricted to the three transitions above.
-      allow update: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
-        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canShareOnboardingLink'))
-        || isWrongAttemptIncrement()
+      // Public: wrong-mobile counter, hash-gated verify, or post-submit used.
+      // Authenticated owner/supervisor: revoke only (no blanket updates — see above).
+      allow update: if isWrongAttemptIncrement()
         || isMobileVerifyTransition()
-        || isUsedTransition();
+        || isUsedTransition()
+        || isOwnerOrSupervisorRevokeLink();
 
       allow delete: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
         || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canShareOnboardingLink'));

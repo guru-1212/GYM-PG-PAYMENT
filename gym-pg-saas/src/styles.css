@@ -789,9 +789,7 @@ html:not(.dark)[data-brand-theme='sunset'] .hover\:file\:bg-indigo-100:hover::fi
  *    preserving the familiar layout / spacing.
  * ===================================================================*/
 
-/* The desktop sidebar in both shells uses `aside.md\:sticky.md\:top-0`.
-   Scoping selectors to that combination avoids touching modals or other
-   asides while remaining template-agnostic. */
+/* Desktop Pro panel: glass + halo (md+ only — mobile drawer is opaque; see mobile block below). */
 html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 {
   background:
     linear-gradient(
@@ -809,7 +807,6 @@ html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 {
   isolation: isolate;
 }
 
-/* Soft accent halo at the top of the sidebar for extra polish. */
 html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0::before {
   content: '';
   position: absolute;
@@ -847,23 +844,23 @@ html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0::before {
 }
 
 /* Header divider gets a faint accent line. */
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 > div:first-child {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) > div:first-child {
   border-bottom-color: color-mix(in srgb, var(--saas-primary-from) 18%, rgba(241, 245, 249, 0.8));
 }
-html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 > div:first-child {
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) > div:first-child {
   border-bottom-color: color-mix(in srgb, var(--saas-primary-from) 30%, rgba(30, 41, 59, 0.9));
 }
 
 /* Footer (theme picker + sign out) divider also gets the accent treatment. */
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 > div:last-child {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) > div:last-child {
   border-top-color: color-mix(in srgb, var(--saas-primary-from) 18%, rgba(241, 245, 249, 0.8));
 }
-html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 > div:last-child {
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) > div:last-child {
   border-top-color: color-mix(in srgb, var(--saas-primary-from) 30%, rgba(30, 41, 59, 0.9));
 }
 
 /* Nav links — softer idle, animated leading bar on hover, gradient pill when active. */
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a {
   position: relative;
   overflow: hidden;
   border: 1px solid transparent;
@@ -876,7 +873,7 @@ html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a {
 }
 
 /* Animated leading vertical bar — appears on hover & active. */
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a::before {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a::before {
   content: '';
   position: absolute;
   left: 6px;
@@ -890,18 +887,18 @@ html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a::before {
   opacity: 0;
 }
 
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a:hover::before {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a:hover::before {
   height: 60%;
   opacity: 0.6;
 }
 
 /* Hover state — translucent theme tint. */
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a:hover {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a:hover {
   background-color: color-mix(in srgb, var(--saas-primary-from) 10%, rgba(255, 255, 255, 0.7));
   border-color: color-mix(in srgb, var(--saas-primary-from) 18%, transparent);
   box-shadow: 0 8px 22px -12px color-mix(in srgb, var(--saas-glow) 60%, transparent);
 }
-html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a:hover {
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a:hover {
   background-color: color-mix(in srgb, var(--saas-primary-from) 18%, rgba(15, 23, 42, 0.9));
   border-color: color-mix(in srgb, var(--saas-primary-from) 28%, transparent);
 }
@@ -909,9 +906,9 @@ html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a:hover {
 /* Active route — gradient pill, white text, small glow. The router applies
    `bg-indigo-50 text-indigo-800 ...` (or its themed equivalent) — we override
    those background/text rules on the active link only. */
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a.bg-indigo-50,
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a[class*='bg-emerald-50'],
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a[class*='bg-rose-50'] {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a.bg-indigo-50,
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-emerald-50'],
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-rose-50'] {
   background: linear-gradient(135deg, var(--saas-primary-from), var(--saas-primary-to));
   color: #ffffff !important;
   border-color: transparent;
@@ -920,25 +917,25 @@ html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a[class*='bg-ros
     0 0 0 1px color-mix(in srgb, var(--saas-primary-from) 40%, transparent) inset;
 }
 
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a.bg-indigo-50::before,
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a[class*='bg-emerald-50']::before,
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a[class*='bg-rose-50']::before {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a.bg-indigo-50::before,
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-emerald-50']::before,
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-rose-50']::before {
   height: 60%;
   opacity: 1;
   background: rgba(255, 255, 255, 0.95);
 }
 
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a.bg-indigo-50 .material-icons-outlined,
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a[class*='bg-emerald-50'] .material-icons-outlined,
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a[class*='bg-rose-50'] .material-icons-outlined {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a.bg-indigo-50 .material-icons-outlined,
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-emerald-50'] .material-icons-outlined,
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-rose-50'] .material-icons-outlined {
   color: #ffffff;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.18));
 }
 
 /* Dark-mode active link tweaks — keep the gradient, ensure contrast. */
-html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a.bg-indigo-950\/70,
-html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a[class*='bg-emerald-950'],
-html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a[class*='bg-rose-950'] {
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a.bg-indigo-950\/70,
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-emerald-950'],
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-rose-950'] {
   background: linear-gradient(135deg, var(--saas-primary-from), var(--saas-primary-to));
   color: #ffffff !important;
   box-shadow:
@@ -947,43 +944,75 @@ html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a[class*='b
 }
 
 /* Sign-out button — give it a subtle accent border in pro mode. */
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 .saas-btn-secondary {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) .saas-btn-secondary {
   border-color: color-mix(in srgb, var(--saas-primary-from) 22%, rgba(226, 232, 240, 0.9));
 }
-html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 .saas-btn-secondary:hover {
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) .saas-btn-secondary:hover {
   border-color: color-mix(in srgb, var(--saas-primary-from) 40%, transparent);
   background-color: color-mix(in srgb, var(--saas-primary-from) 6%, #ffffff);
 }
-html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 .saas-btn-secondary:hover {
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) .saas-btn-secondary:hover {
   background-color: color-mix(in srgb, var(--saas-primary-from) 18%, rgba(15, 23, 42, 0.85));
 }
 
-/* Mobile drawer — share the same pro treatment on the slide-out panel. */
-html[data-sidebar-style='pro'] aside.fixed.left-0.top-0 {
-  background:
-    linear-gradient(
+/* Mobile slide-out: fully opaque panel (no glass / transparency) — classic & pro. */
+@media (max-width: 767.98px) {
+  aside.saas-mobile-nav-drawer {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    border-right-color: rgb(226 232 240) !important; /* slate-200 */
+    box-shadow:
+      1px 0 0 0 rgb(241 245 249) inset,
+      8px 0 28px -12px rgb(15 23 42 / 0.12) !important;
+  }
+
+  html.dark aside.saas-mobile-nav-drawer {
+    border-right-color: rgb(51 65 85) !important; /* slate-700 */
+    box-shadow:
+      1px 0 0 0 rgb(30 41 59 / 0.5) inset,
+      8px 0 28px -12px rgb(0 0 0 / 0.35) !important;
+  }
+
+  /* Classic sidebar on mobile: solid white / slate-950 */
+  html:not([data-sidebar-style='pro']) aside.saas-mobile-nav-drawer {
+    background: #ffffff !important;
+  }
+
+  html.dark:not([data-sidebar-style='pro']) aside.saas-mobile-nav-drawer {
+    background: rgb(2 6 23) !important; /* slate-950 */
+  }
+
+  /* Pro on mobile: opaque theme tint (no transparent stops, no blur) */
+  html[data-sidebar-style='pro'] aside.saas-mobile-nav-drawer {
+    background: linear-gradient(
       180deg,
-      color-mix(in srgb, var(--saas-primary-from) 14%, transparent) 0%,
-      color-mix(in srgb, var(--saas-primary-to) 6%, transparent) 35%,
-      rgba(255, 255, 255, 0.92) 100%
-    );
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-}
-html.dark[data-sidebar-style='pro'] aside.fixed.left-0.top-0 {
-  background:
-    linear-gradient(
+      color-mix(in srgb, var(--saas-primary-from) 14%, #ffffff) 0%,
+      #ffffff 32%,
+      #f1f5f9 100%
+    ) !important;
+    border-right-color: color-mix(in srgb, var(--saas-primary-from) 35%, rgb(226 232 240)) !important;
+  }
+
+  html.dark[data-sidebar-style='pro'] aside.saas-mobile-nav-drawer {
+    background: linear-gradient(
       180deg,
-      color-mix(in srgb, var(--saas-primary-from) 18%, rgba(2, 6, 23, 0.95)) 0%,
-      rgba(2, 6, 23, 0.95) 60%,
-      rgba(2, 6, 23, 0.97) 100%
-    );
+      color-mix(in srgb, var(--saas-primary-from) 22%, rgb(15 23 42)) 0%,
+      rgb(15 23 42) 40%,
+      rgb(2 6 23) 100%
+    ) !important;
+    border-right-color: color-mix(in srgb, var(--saas-primary-from) 40%, rgb(51 65 85)) !important;
+  }
+
+  /* Halo uses transparent radial stops — hide on mobile so the panel stays solid */
+  html[data-sidebar-style='pro'] aside.saas-mobile-nav-drawer::before {
+    display: none !important;
+  }
 }
 
 /* Reduced motion — disable hover translate/transition for users who prefer it. */
 @media (prefers-reduced-motion: reduce) {
-  html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a,
-  html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 nav > a::before {
+  html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a,
+  html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a::before {
     transition: none;
   }
 }

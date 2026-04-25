@@ -284,6 +284,11 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     this.members().filter((m) => m.status === 'active' && (Number(m.pendingAmount) || 0) > 0),
   );
 
+  /** Active members with a submitted self-onboarding profile awaiting owner approval. */
+  readonly reviewPendingCount = computed(
+    () => this.members().filter((m) => m.status === 'active' && Boolean(m.pendingSelfOnboarding)).length,
+  );
+
   dueStatusLabel(m: Member): string {
     const due = timestampToDate(m.dueDate);
     return dueRemainingOrOverdueLabel(due, m.status === 'active');

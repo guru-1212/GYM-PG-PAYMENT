@@ -1,7 +1,7 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, OnDestroy, OnInit, signal, effect } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { jsPDF } from 'jspdf';
 import { Subscription } from 'rxjs';
 import { Member, SubscriptionType } from '../../core/models/member.model';
@@ -70,6 +70,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 export class MembersComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly cache = inject(DataCacheService);
   private readonly membersApi = inject(MemberService);
   private readonly onboardingApi = inject(MemberOnboardingService);
@@ -86,6 +87,8 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly sortKey = signal<'due' | 'name'>('due');
   readonly sortDir = signal<'asc' | 'desc'>('asc');
   readonly dueSectionFilter = signal<'all' | 'dueToday' | 'overdue' | 'dueSoon'>('all');
+  /** Deep link from dashboard: `?onboarding=review` shows only share-link submissions pending approval. */
+  readonly onboardingReviewFilter = signal<'all' | 'review'>('all');
 
   readonly modalOpen = signal(false);
   readonly editingId = signal<string | null>(null);
@@ -218,6 +221,10 @@ export class MembersComponent implements OnInit, OnDestroy {
           return daysLeft >= 0 && daysLeft <= 5;
         });
       }
+    }
+
+    if (this.onboardingReviewFilter() === 'review') {
+      list = list.filter((m) => this.hasPendingSelfOnboardingReview(m));
     }
 
     const sk = this.sortKey();
@@ -469,6 +476,9 @@ export class MembersComponent implements OnInit, OnDestroy {
       } else {
         this.dueSectionFilter.set('all');
       }
+
+      const onboarding = params.get('onboarding');
+      this.onboardingReviewFilter.set(onboarding === 'review' ? 'review' : 'all');
     });
     const routePath = this.route.snapshot.routeConfig?.path;
     this.listMode.set(routePath === 'inactive-members' ? 'inactive' : 'active');
@@ -541,8 +551,30 @@ export class MembersComponent implements OnInit, OnDestroy {
       this.payFilter.set(value);
       // When user changes payment filter manually, clear dashboard deep-link due filter.
       this.dueSectionFilter.set('all');
+      this.exitOnboardingReviewFilterMode();
       this.currentPage.set(1);
       this.pageGroupStart.set(1);
+    }
+  }
+
+  /** Clears profile-review-only list mode and drops `onboarding` from the URL when it was set via deep link. */
+  clearOnboardingReviewDeepLink(): void {
+    this.exitOnboardingReviewFilterMode();
+  }
+
+  /** Used when the user changes payment filter manually so URL and list stay in sync. */
+  private exitOnboardingReviewFilterMode(): void {
+    const urlHad = this.route.snapshot.queryParamMap.get('onboarding') === 'review';
+    const signalHad = this.onboardingReviewFilter() === 'review';
+    if (!urlHad && !signalHad) return;
+    this.onboardingReviewFilter.set('all');
+    if (urlHad) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { onboarding: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
     }
   }
 

@@ -154,6 +154,8 @@ export const EN: Record<string, unknown> = {
     dueSoonSubtitle: 'Next payments due within five days',
     viewSoonMembers: 'View due-soon members',
     noDueSoon: 'No members have a payment due in the next 5 days.',
+    reviewPendingTitle: 'Profile review pending',
+    reviewPendingSubtitle: 'Share-link submissions awaiting your approval',
   },
   members: {
     title: 'Members',
@@ -168,6 +170,8 @@ export const EN: Record<string, unknown> = {
     payment: 'Payment',
     paid: 'Paid',
     pending: 'Overdue / Due',
+    onboardingReviewHint: 'Showing only members who submitted a profile via share link and need your approval.',
+    onboardingReviewShowAll: 'Show all members',
     sort: 'Sort',
     dueUrgent: '{label} (urgent first)',
     nameSort: 'Name',
