@@ -328,6 +328,13 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
     this.resetPaymentsPagination();
   }
 
+  /** Quick setter used by the method filter pill buttons. */
+  setMethodFilter(value: string): void {
+    if (this.methodFilter() === value) return;
+    this.methodFilter.set(value);
+    this.resetPaymentsPagination();
+  }
+
   onFromDateChange(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.fromDate.set(target.value);

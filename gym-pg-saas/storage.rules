@@ -1,0 +1,37 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ---------- Owner-side member uploads ----------
+    // Path: memberOnboarding/{memberId}/{filename}
+    // Only the member's owner (signed-in, approved) can write here.
+    match /memberOnboarding/{memberId}/{filename} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/members/$(memberId))
+        && firestore.get(/databases/(default)/documents/members/$(memberId)).data.ownerId == request.auth.uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ---------- Public uploads via a verified onboarding token ----------
+    // Path: memberOnboardingPublic/{token}/{filename}
+    // No auth required, but the token must currently be active+verified+unexpired.
+    match /memberOnboardingPublic/{token}/{filename} {
+      allow read: if true;
+
+      allow write: if firestore.exists(/databases/(default)/documents/memberOnboardingLinks/$(token))
+        && firestore.get(/databases/(default)/documents/memberOnboardingLinks/$(token)).data.status == 'active'
+        && firestore.get(/databases/(default)/documents/memberOnboardingLinks/$(token)).data.verifiedAt is timestamp
+        && firestore.get(/databases/(default)/documents/memberOnboardingLinks/$(token)).data.expiresAt > request.time
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Default: deny everything else.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

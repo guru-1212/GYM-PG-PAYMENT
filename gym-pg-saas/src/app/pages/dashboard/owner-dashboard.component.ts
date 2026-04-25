@@ -126,6 +126,17 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       : this.i18n.t('fees.planExpiry');
   });
 
+  /**
+   * Dashboard heading: prepends the owner's business / PG / gym name.
+   * Example: "Aurora Mens PG Dashboard" (or "Dashboard" if no name set).
+   */
+  readonly dashboardTitle = computed(() => {
+    this.i18n.lang();
+    const base = this.i18n.t('dashboard.title');
+    const name = this.auth.profile()?.businessName?.trim();
+    return name ? `${name} ${base}` : base;
+  });
+
   readonly subscriptionDaysRemaining = computed(() => {
     const profile = this.auth.profile();
     if (!profile?.planEndDate) return null;

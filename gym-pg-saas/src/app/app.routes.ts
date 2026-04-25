@@ -14,6 +14,7 @@ import { AdminOwnersComponent } from './pages/admin/admin-owners.component';
 import { HomeComponent } from './pages/home/home.component';
 import { OwnerDashboardComponent } from './pages/dashboard/owner-dashboard.component';
 import { LoginComponent } from './pages/login/login.component';
+import { MemberOnboardingComponent } from './pages/member-onboarding/member-onboarding.component';
 import { MembersComponent } from './pages/members/members.component';
 import { PaymentsPageComponent } from './pages/payments/payments-page.component';
 import { PendingApprovalComponent } from './pages/pending-approval/pending-approval.component';
@@ -44,6 +45,8 @@ export const routes: Routes = [
   },
   /* Complaints disabled: was PublicComplaintPageComponent */
   { path: 'complaint/:ownerId', component: HomeComponent },
+  /** Public onboarding link a member receives to fill in their own details. */
+  { path: 'member-onboarding/:token', component: MemberOnboardingComponent },
   {
     path: 'admin',
     canActivate: [authGuard, adminGuard],

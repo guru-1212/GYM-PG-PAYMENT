@@ -25,7 +25,10 @@ export interface MemberInput {
   mobile?: string;
   email?: string;
   gender?: Member['gender'];
+  /** Legacy 4-digit Aadhaar tail. Kept for backward compat but new flow uses aadhaarNumber. */
   aadhaarLast4?: string;
+  /** Full 12-digit Aadhaar number (optional, owner or member can fill). */
+  aadhaarNumber?: string;
   address?: string;
   floorNumber: string;
   roomNumber: string;
@@ -49,6 +52,10 @@ export interface MemberInput {
   dueDate?: Date;
   /** Gym only; PG uses monthly billing. */
   subscriptionType?: SubscriptionType;
+  /* ---- Optional self-onboarding fields (uploaded by owner now or by member later via link) ---- */
+  profilePhotoUrl?: string;
+  aadhaarFrontUrl?: string;
+  aadhaarBackUrl?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -107,7 +114,7 @@ export class MemberService {
     });
   }
 
-  async addMember(input: MemberInput): Promise<void> {
+  async addMember(input: MemberInput): Promise<string> {
     const owner = this.auth.profile();
     if (!owner || owner.role !== 'owner') throw new Error('Not an owner');
     if (owner.status !== 'approved') {
@@ -123,6 +130,13 @@ export class MemberService {
     const advancePaid = Math.max(0, Number(input.advancePaid) || 0);
     const isPartialPayment = pendingAmount > 0;
 
+    const profilePhotoUrl = (input.profilePhotoUrl || '').trim();
+    const aadhaarFrontUrl = (input.aadhaarFrontUrl || '').trim();
+    const aadhaarBackUrl = (input.aadhaarBackUrl || '').trim();
+    const aadhaarNumber = (input.aadhaarNumber || '').trim();
+    const allSelfFieldsFilled =
+      Boolean(profilePhotoUrl) && Boolean(aadhaarFrontUrl) && Boolean(aadhaarBackUrl);
+
     // Create member document
     const memberRef = await addDoc(collection(this.fb.db, 'members'), {
       ownerId: owner.ownerId,
@@ -133,6 +147,7 @@ export class MemberService {
       email: input.email?.trim() || '',
       gender: input.gender || null,
       aadhaarLast4: input.aadhaarLast4?.trim() || '',
+      aadhaarNumber,
       address: input.address?.trim() || '',
       floorNumber: input.floorNumber.trim(),
       roomNumber: input.roomNumber.trim(),
@@ -146,6 +161,10 @@ export class MemberService {
       pendingAmount,
       advancePaid,
       advanceStatus: 'held',
+      profilePhotoUrl,
+      aadhaarFrontUrl,
+      aadhaarBackUrl,
+      selfOnboardingStatus: allSelfFieldsFilled ? 'completed' : 'pending',
       createdAt: serverTimestamp(),
     });
 
@@ -169,6 +188,8 @@ export class MemberService {
     } catch (e) {
     }
     */
+
+    return memberRef.id;
   }
 
   async updateMember(memberId: string, input: MemberInput): Promise<void> {
@@ -191,6 +212,7 @@ export class MemberService {
       email: input.email?.trim() || '',
       gender: input.gender || null,
       aadhaarLast4: input.aadhaarLast4?.trim() || '',
+      aadhaarNumber: (input.aadhaarNumber || '').trim(),
       address: input.address?.trim() || '',
       floorNumber: input.floorNumber.trim(),
       roomNumber: input.roomNumber.trim(),
@@ -204,6 +226,15 @@ export class MemberService {
       pendingAmount,
       advancePaid: Math.max(0, Number(input.advancePaid) || 0),
     };
+    if (typeof input.profilePhotoUrl === 'string') {
+      payload['profilePhotoUrl'] = input.profilePhotoUrl.trim();
+    }
+    if (typeof input.aadhaarFrontUrl === 'string') {
+      payload['aadhaarFrontUrl'] = input.aadhaarFrontUrl.trim();
+    }
+    if (typeof input.aadhaarBackUrl === 'string') {
+      payload['aadhaarBackUrl'] = input.aadhaarBackUrl.trim();
+    }
     if (input.status === 'inactive') {
       payload['advanceStatus'] = 'returned';
     }

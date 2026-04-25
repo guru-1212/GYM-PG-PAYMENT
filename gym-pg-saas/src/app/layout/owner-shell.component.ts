@@ -10,11 +10,12 @@ import { ModalComponent } from '../shared/modal.component';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../shared/brand-logo.component';
 import { ThemeToggleComponent } from '../shared/theme-toggle.component';
+import { ThemePickerComponent } from '../shared/theme-picker.component';
 
 @Component({
   selector: 'app-owner-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, BrandLogoComponent, ModalComponent, ThemeToggleComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, BrandLogoComponent, ModalComponent, ThemeToggleComponent, ThemePickerComponent],
   templateUrl: './owner-shell.component.html',
 })
 export class OwnerShellComponent implements OnInit, OnDestroy {

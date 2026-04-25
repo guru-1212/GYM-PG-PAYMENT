@@ -32,6 +32,12 @@ service cloud.firestore {
         && get(myOwnerPath()).data.status == 'approved';
     }
 
+    function isOwnerOrAdmin() {
+      return signedIn()
+        && myOwnerExists()
+        && get(myOwnerPath()).data.role in ['owner', 'admin'];
+    }
+
     /**
      * Optional: maps contact email doc id → Auth login email (legacy). Matches deployed rule:
      * create allowed when document includes uid matching the signed-in user.
@@ -84,18 +90,152 @@ service cloud.firestore {
     }
 
     match /members/{memberId} {
-      allow read: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
+      // Allow-list of fields a public client (a member opening their share link) may
+      // change on their own member doc. NOTHING financial or status-related is here.
+      function publicAllowedMemberFieldsOnly() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'profilePhotoUrl', 'aadhaarFrontUrl', 'aadhaarBackUrl', 'aadhaarNumber',
+          'gender', 'address', 'email', 'lastName',
+          'selfOnboardingStatus', 'selfOnboardingCompletedAt', 'selfOnboardingTokenUsed'
+        ]);
+      }
+
+      function tokenIsValidForMember(token, mid) {
+        return exists(/databases/$(database)/documents/memberOnboardingLinks/$(token))
+          && get(/databases/$(database)/documents/memberOnboardingLinks/$(token)).data.memberId == mid
+          && get(/databases/$(database)/documents/memberOnboardingLinks/$(token)).data.status == 'active'
+          && get(/databases/$(database)/documents/memberOnboardingLinks/$(token)).data.verifiedAt is timestamp
+          && get(/databases/$(database)/documents/memberOnboardingLinks/$(token)).data.expiresAt > request.time
+          && get(/databases/$(database)/documents/memberOnboardingLinks/$(token)).data.ownerId == resource.data.ownerId;
+      }
+
+      allow read: if isAdmin() || (isApprovedOwner() && resource.data.ownerId == request.auth.uid);
       allow create: if isApprovedOwner()
         && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isApprovedOwner()
+      allow update: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || (
+          // Public, no-auth update via a verified onboarding link.
+          publicAllowedMemberFieldsOnly()
+          && request.resource.data.selfOnboardingTokenUsed is string
+          && request.resource.data.selfOnboardingStatus == 'completed'
+          && tokenIsValidForMember(request.resource.data.selfOnboardingTokenUsed, memberId)
+        );
+      allow delete: if isApprovedOwner()
         && resource.data.ownerId == request.auth.uid;
     }
 
-    match /payments/{paymentId} {
+    /**
+     * Member self-onboarding share links (1-day expiry, mobile-match second factor).
+     *
+     * Security model — no Cloud Functions:
+     *  - The doc id is the unguessable random token from the URL.
+     *  - The mobileHash sits on a SIBLING `memberOnboardingLinkSecrets/{token}` doc
+     *    that the public CANNOT read. Rules use get() on that doc to verify a
+     *    candidate hash submitted by the public client.
+     *  - Public can perform exactly three constrained transitions:
+     *      (1) increment `attempts`           — for wrong-mobile retries
+     *      (2) set `verifiedAt`               — only if mobile-hash matches
+     *      (3) set status='used' + usedAt     — after a verified submission
+     */
+    match /memberOnboardingLinks/{token} {
+      function tokenAlive() {
+        return resource.data.status == 'active'
+          && resource.data.expiresAt > request.time
+          && resource.data.attempts < 5;
+      }
+
+      function isWrongAttemptIncrement() {
+        return tokenAlive()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attempts'])
+          && request.resource.data.attempts == resource.data.attempts + 1;
+      }
+
+      function isMobileVerifyTransition() {
+        return tokenAlive()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verifiedAt', 'verifyHashCheck'])
+          && request.resource.data.verifiedAt is timestamp
+          && exists(/databases/$(database)/documents/memberOnboardingLinkSecrets/$(token))
+          && request.resource.data.verifyHashCheck ==
+              get(/databases/$(database)/documents/memberOnboardingLinkSecrets/$(token)).data.mobileHash;
+      }
+
+      function isUsedTransition() {
+        return resource.data.status == 'active'
+          && resource.data.verifiedAt is timestamp
+          && resource.data.expiresAt > request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'usedAt'])
+          && request.resource.data.status == 'used'
+          && request.resource.data.usedAt is timestamp;
+      }
+
+      // Public read is OK — only safe metadata + prefill are stored here. The mobile
+      // hash itself lives on the private secrets doc.
+      allow read: if true;
+
+      // Owner creates the link for their own member.
+      allow create: if isApprovedOwner()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.status == 'active'
+        && request.resource.data.attempts == 0
+        && request.resource.data.expiresAt is timestamp
+        && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId))
+        && get(/databases/$(database)/documents/members/$(request.resource.data.memberId)).data.ownerId == request.auth.uid;
+
+      // Owner can revoke / amend their own tokens at will; public is restricted to the
+      // three transitions above.
+      allow update: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || isWrongAttemptIncrement()
+        || isMobileVerifyTransition()
+        || isUsedTransition();
+
+      allow delete: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /memberOnboardingLinkSecrets/{token} {
+      // NEVER publicly readable. Rules elsewhere can still call get() on it because
+      // rules-side gets bypass the read-permission check.
       allow read: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
       allow create: if isApprovedOwner()
         && request.resource.data.ownerId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || (isApprovedOwner() && resource.data.ownerId == request.auth.uid);
+      allow create: if isApprovedOwner()
+        && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if false;
+    }
+
+    /**
+     * PG Layout (Bed/Room Management) - Essential for bed availability setup
+     * Owners can only manage their own layouts
+     * Admins have full access
+     * Nested roomTypes collection for room configurations
+     */
+    match /pgLayouts/{ownerId} {
+      allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
+      allow create: if isApprovedOwner() && request.auth.uid == ownerId;
+      allow update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+
+      /**
+       * Room type configurations (beds, sharing options, pricing)
+       * Nested under owner's layout document
+       */
+      match /roomTypes/{roomTypeId} {
+        allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
+        allow create, update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+      }
+
+      /**
+       * Individual rooms with bed availability tracking
+       * Nested under owner's layout document
+       */
+      match /rooms/{roomId} {
+        allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
+        allow create, update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+      }
     }
 
     match /adminPayments/{paymentId} {
@@ -164,6 +304,33 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/owners/$(request.resource.data.ownerId)/complaintMemberMobiles/$(request.resource.data.memberMobile));
 
       allow update, delete: if false;
+    }
+
+    /**
+     * Collection group rule for admin to query all messages across chat threads.
+     * Admins can read all messages; chat participants can only read their own.
+     */
+    match /{path=**}/messages/{messageId} {
+      allow read: if isAdmin()
+        || (isApprovedOwner() && exists(/databases/$(database)/documents/chats/$(request.auth.uid)) && get(/databases/$(database)/documents/chats/$(request.auth.uid)).data.chatId == request.auth.uid);
+    }
+
+    /**
+     * Workers collection: sub-accounts created by owners
+     * Workers authenticate via Firestore (email/password), not Firebase Auth
+     */
+    match /workers/{workerId} {
+      allow read, create, update, delete: if isAdmin();
+
+      // Worker sign-in uses Firestore email/password before Firebase Auth exists.
+      // This allows the login query to read worker docs.
+      allow read: if true;
+
+      allow read, update, delete: if isOwnerOrAdmin()
+        && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isOwnerOrAdmin()
+        && request.resource.data.ownerId == request.auth.uid;
     }
   }
 }

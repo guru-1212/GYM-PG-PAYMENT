@@ -104,7 +104,25 @@
                 (click)="openDetails(m)"
               >
                 <td class="px-4 py-3.5">
-                  <div class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</div>
+                  <div class="flex items-center gap-2">
+                    @if (m.profilePhotoUrl) {
+                      <img
+                        [src]="m.profilePhotoUrl"
+                        alt="Profile"
+                        class="h-8 w-8 flex-shrink-0 rounded-full border border-slate-200 object-cover"
+                      />
+                    }
+                    <div>
+                      <div class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</div>
+                      @if (needsSelfOnboarding(m)) {
+                        <div class="mt-0.5">
+                          <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                            Profile incomplete
+                          </span>
+                        </div>
+                      }
+                    </div>
+                  </div>
                   @if (isPartialPaymentPending(m)) {
                     <div class="mt-1.5 flex flex-wrap items-center gap-2">
                       <span
@@ -206,6 +224,17 @@
                         <span class="material-icons-outlined text-base">campaign</span>
                       </a>
                     }
+                    @if (needsSelfOnboarding(m)) {
+                      <button
+                        type="button"
+                        [disabled]="!canShareOnboardingLink(m)"
+                        [title]="canShareOnboardingLink(m) ? 'Share onboarding link' : 'Add a 10-digit mobile number to share'"
+                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-purple-200 bg-purple-50 text-purple-700 transition-all hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
+                        (click)="openShareLink(m)"
+                      >
+                        <span class="material-icons-outlined text-base">share</span>
+                      </button>
+                    }
                     <button
                       type="button"
                       title="Edit Member"
@@ -288,6 +317,16 @@
             @if (whatsappLink(m); as wa) {
               <a [href]="wa" target="_blank" rel="noopener noreferrer" class="saas-btn-secondary px-3 py-2 text-xs">Reminder</a>
             }
+            @if (needsSelfOnboarding(m)) {
+              <button
+                type="button"
+                class="saas-btn-secondary px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                [disabled]="!canShareOnboardingLink(m)"
+                (click)="openShareLink(m)"
+              >
+                Share link
+              </button>
+            }
             <button type="button" class="saas-btn-secondary px-3 py-2 text-xs" (click)="openEdit(m)">Edit</button>
           </div>
         </article>
@@ -367,7 +406,9 @@
       }
     </div>
     <div>
-      <label class="mb-1 block text-sm font-medium text-slate-700">Mobile</label>
+      <label class="mb-1 block text-sm font-medium text-slate-700">
+        Mobile <span class="text-red-500">*</span>
+      </label>
       <input
         formControlName="mobile"
         class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
@@ -377,12 +418,15 @@
         (input)="onMemberMobileInput($event)"
       />
       @if (memberForm.controls.mobile.touched && memberForm.controls.mobile.invalid) {
-        @if (memberForm.controls.mobile.hasError('digitsOnly')) {
-          <p class="mt-1 text-sm text-red-600">Mobile must be numbers only (no spaces or symbols)</p>
-        } @else if (memberForm.controls.mobile.hasError('digitsLen')) {
-          <p class="mt-1 text-sm text-red-600">Enter 10 digits or leave blank</p>
+        @if (memberForm.controls.mobile.hasError('required')) {
+          <p class="mt-1 text-sm text-red-600">Mobile number is required</p>
+        } @else if (memberForm.controls.mobile.hasError('pattern')) {
+          <p class="mt-1 text-sm text-red-600">Enter a valid 10-digit mobile number</p>
         }
       }
+      <p class="mt-1 text-xs text-slate-500">
+        Used to verify the member when they open their profile-completion link.
+      </p>
     </div>
     <div>
       <label class="mb-1 block text-sm font-medium text-slate-700">Email</label>
@@ -601,8 +645,12 @@
       
     </div>
     <details class="rounded-xl border border-slate-200 bg-slate-50" [open]="moreOpen()" (toggle)="moreOpen.set($any($event.target).open)">
-      <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">More details</summary>
+      <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">More details (optional)</summary>
       <div class="space-y-4 border-t border-slate-200 bg-white px-4 py-4">
+        <p class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+          These fields are optional. Skip any of them and the member can fill them in
+          themselves later via a share link from the members list.
+        </p>
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">Gender</label>
           <select formControlName="gender" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base">
@@ -625,10 +673,80 @@
             @if (memberForm.controls.aadhaarLast4.hasError('digitsOnly')) {
               <p class="mt-1 text-sm text-red-600">Aadhaar must be numbers only (no spaces or symbols)</p>
             } @else if (memberForm.controls.aadhaarLast4.hasError('digitsLen')) {
-              <p class="mt-1 text-sm text-red-600">Exactly 12 digits or leave blank</p>
+              <p class="mt-1 text-sm text-red-600">Enter the full 12-digit Aadhaar or leave blank</p>
             }
           }
         </div>
+
+        <div class="grid gap-3 sm:grid-cols-3">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Profile photo</label>
+            @if (profilePhotoPreview()) {
+              <div class="relative mb-2 h-28 w-28 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                <img [src]="profilePhotoPreview()" alt="Profile preview" class="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
+                  (click)="removeMemberPhoto('profile')"
+                  aria-label="Remove profile photo"
+                >
+                  <span class="material-icons-outlined text-base">delete</span>
+                </button>
+              </div>
+            }
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+              (change)="onMemberPhotoSelected('profile', $event)"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Front</label>
+            @if (aadhaarFrontPreview()) {
+              <div class="relative mb-2 h-28 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                <img [src]="aadhaarFrontPreview()" alt="Aadhaar front preview" class="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
+                  (click)="removeMemberPhoto('aadhaarFront')"
+                  aria-label="Remove Aadhaar front"
+                >
+                  <span class="material-icons-outlined text-base">delete</span>
+                </button>
+              </div>
+            }
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+              (change)="onMemberPhotoSelected('aadhaarFront', $event)"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Back</label>
+            @if (aadhaarBackPreview()) {
+              <div class="relative mb-2 h-28 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                <img [src]="aadhaarBackPreview()" alt="Aadhaar back preview" class="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
+                  (click)="removeMemberPhoto('aadhaarBack')"
+                  aria-label="Remove Aadhaar back"
+                >
+                  <span class="material-icons-outlined text-base">delete</span>
+                </button>
+              </div>
+            }
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+              (change)="onMemberPhotoSelected('aadhaarBack', $event)"
+            />
+          </div>
+        </div>
+
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">Notes</label>
           <textarea
@@ -654,9 +772,27 @@
 <app-modal [open]="detailsModalOpen()" title="Member Details" (closed)="closeDetails()">
   @if (detailsMember(); as m) {
     <div class="space-y-4">
-      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <p class="text-base font-semibold text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
-        <p class="mt-1 text-xs text-slate-500">ID: {{ m.memberId }}</p>
+      <div class="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        @if (m.profilePhotoUrl) {
+          <img
+            [src]="m.profilePhotoUrl"
+            alt="Profile photo"
+            class="h-16 w-16 flex-shrink-0 rounded-full border border-slate-200 object-cover"
+          />
+        }
+        <div class="min-w-0 flex-1">
+          <p class="text-base font-semibold text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
+          <p class="mt-1 text-xs text-slate-500">ID: {{ m.memberId }}</p>
+          @if (needsSelfOnboarding(m)) {
+            <span class="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-900">
+              Profile incomplete
+            </span>
+          } @else if (m.selfOnboardingStatus === 'completed') {
+            <span class="mt-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-900">
+              Profile complete
+            </span>
+          }
+        </div>
       </div>
 
       <div class="grid gap-2 sm:grid-cols-2">
@@ -717,13 +853,43 @@
         </div>
         <div class="rounded-lg border border-slate-200 p-3">
           <p class="text-xs text-slate-500">Aadhaar</p>
-          <p class="text-sm font-semibold text-slate-800">{{ m.aadhaarLast4 || 'N/A' }}</p>
+          <p class="text-sm font-semibold text-slate-800">{{ m.aadhaarNumber || m.aadhaarLast4 || 'N/A' }}</p>
         </div>
         <div class="rounded-lg border border-slate-200 p-3 sm:col-span-2">
           <p class="text-xs text-slate-500">Notes</p>
           <p class="text-sm font-semibold text-slate-800">{{ m.notes || 'N/A' }}</p>
         </div>
       </div>
+
+      @if (m.aadhaarFrontUrl || m.aadhaarBackUrl) {
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Aadhaar card images
+          </p>
+          <div class="grid gap-2 sm:grid-cols-2">
+            @if (m.aadhaarFrontUrl) {
+              <a [href]="m.aadhaarFrontUrl" target="_blank" rel="noopener noreferrer" class="block">
+                <img
+                  [src]="m.aadhaarFrontUrl"
+                  alt="Aadhaar front"
+                  class="h-40 w-full rounded-lg border border-slate-200 bg-white object-cover hover:opacity-90"
+                />
+                <p class="mt-1 text-[11px] text-slate-500">Front</p>
+              </a>
+            }
+            @if (m.aadhaarBackUrl) {
+              <a [href]="m.aadhaarBackUrl" target="_blank" rel="noopener noreferrer" class="block">
+                <img
+                  [src]="m.aadhaarBackUrl"
+                  alt="Aadhaar back"
+                  class="h-40 w-full rounded-lg border border-slate-200 bg-white object-cover hover:opacity-90"
+                />
+                <p class="mt-1 text-[11px] text-slate-500">Back</p>
+              </a>
+            }
+          </div>
+        </div>
+      }
 
       @if (canSendWhatsAppReminder(m)) {
         <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
@@ -1114,4 +1280,80 @@
       </button>
     </div>
   </div>
+</app-modal>
+
+<app-modal [open]="shareLinkOpen()" title="Share onboarding link" (closed)="closeShareLink()">
+  @if (shareLinkMember(); as m) {
+    <div class="space-y-4">
+      <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+        <p class="text-sm text-slate-700">
+          Send this link to <span class="font-semibold">{{ m.firstName }} {{ m.lastName }}</span>
+          so they can upload their photo and Aadhaar themselves. The link is valid for
+          <span class="font-semibold">24 hours</span>.
+        </p>
+        <p class="mt-1 text-xs text-slate-600">
+          When they open the link they will be asked to enter their mobile number
+          (<span class="font-semibold">{{ m.mobile }}</span>) to verify their identity.
+        </p>
+      </div>
+
+      @if (shareLinkBusy()) {
+        <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <span class="material-icons-outlined animate-spin text-slate-500">progress_activity</span>
+          <p class="text-sm text-slate-600">Generating link...</p>
+        </div>
+      } @else if (shareLinkUrl()) {
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+            Share link
+          </label>
+          <div class="flex gap-2">
+            <input
+              type="text"
+              readonly
+              [value]="shareLinkUrl()"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+            />
+            <button
+              type="button"
+              class="flex items-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+              (click)="copyShareLink()"
+            >
+              <span class="material-icons-outlined text-base">
+                {{ shareLinkCopied() ? 'check' : 'content_copy' }}
+              </span>
+              {{ shareLinkCopied() ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+          @if (shareLinkExpiresAt(); as exp) {
+            <p class="mt-2 text-xs text-slate-500">
+              Expires: <span class="font-semibold text-slate-700">{{ exp | date: 'medium' }}</span>
+            </p>
+          }
+        </div>
+
+        @if (whatsappShareLink(); as wa) {
+          <a
+            [href]="wa"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+          >
+            <span class="material-icons-outlined text-base">campaign</span>
+            Send via WhatsApp
+          </a>
+        }
+      }
+
+      <div class="flex justify-end pt-2">
+        <button
+          type="button"
+          class="rounded-xl border border-slate-200 px-5 py-2 text-sm font-semibold"
+          (click)="closeShareLink()"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  }
 </app-modal>
