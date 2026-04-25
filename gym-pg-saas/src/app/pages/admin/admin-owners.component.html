@@ -243,6 +243,43 @@
                       Update Date
                     </button>
                   </div>
+                  <div class="mt-2 flex flex-wrap items-center justify-end gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                    <span class="font-semibold uppercase tracking-wide text-slate-500">Features</span>
+                    <label class="flex items-center gap-1.5 text-slate-700">
+                      <input
+                        type="checkbox"
+                        class="h-4 w-4 accent-indigo-600"
+                        [checked]="isSupervisorEnabled(o)"
+                        [disabled]="busyId() === o.ownerId"
+                        (change)="toggleSupervisorEnabled(o, $any($event.target).checked)"
+                      />
+                      Supervisors
+                    </label>
+                    <label class="flex items-center gap-1.5 text-slate-700">
+                      <input
+                        type="checkbox"
+                        class="h-4 w-4 accent-emerald-600"
+                        [checked]="isWhatsappEnabled(o)"
+                        [disabled]="busyId() === o.ownerId"
+                        (change)="toggleWhatsappEnabled(o, $any($event.target).checked)"
+                      />
+                      WhatsApp
+                    </label>
+                    @if (isSupervisorEnabled(o)) {
+                      <label class="flex items-center gap-1.5 text-slate-700">
+                        Cap
+                        <input
+                          type="number"
+                          min="0"
+                          max="20"
+                          class="w-14 rounded-md border border-slate-200 px-1.5 py-0.5 text-xs"
+                          [value]="supervisorQuotaValue(o)"
+                          [disabled]="busyId() === o.ownerId"
+                          (change)="setSupervisorQuota(o, $any($event.target).value)"
+                        />
+                      </label>
+                    }
+                  </div>
                 } @else if (o.status === 'inactive') {
                   <div class="flex flex-wrap justify-end gap-2">
                     <button
@@ -381,6 +418,48 @@
               </button>
             }
           </div>
+
+          @if (o.status === 'approved') {
+            <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Features</p>
+              <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                <label class="flex items-center gap-1.5 text-slate-700">
+                  <input
+                    type="checkbox"
+                    class="h-4 w-4 accent-indigo-600"
+                    [checked]="isSupervisorEnabled(o)"
+                    [disabled]="busyId() === o.ownerId"
+                    (change)="toggleSupervisorEnabled(o, $any($event.target).checked)"
+                  />
+                  Supervisors
+                </label>
+                <label class="flex items-center gap-1.5 text-slate-700">
+                  <input
+                    type="checkbox"
+                    class="h-4 w-4 accent-emerald-600"
+                    [checked]="isWhatsappEnabled(o)"
+                    [disabled]="busyId() === o.ownerId"
+                    (change)="toggleWhatsappEnabled(o, $any($event.target).checked)"
+                  />
+                  WhatsApp
+                </label>
+                @if (isSupervisorEnabled(o)) {
+                  <label class="flex items-center gap-1.5 text-slate-700">
+                    Cap
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      class="w-14 rounded-md border border-slate-200 px-1.5 py-0.5 text-xs"
+                      [value]="supervisorQuotaValue(o)"
+                      [disabled]="busyId() === o.ownerId"
+                      (change)="setSupervisorQuota(o, $any($event.target).value)"
+                    />
+                  </label>
+                }
+              </div>
+            </div>
+          }
         </article>
       }
     </div>

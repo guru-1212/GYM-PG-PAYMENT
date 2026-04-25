@@ -5,6 +5,11 @@ import { authGuard } from './core/guards/auth.guard';
 import { loginGuard } from './core/guards/login.guard';
 import { ownerGuard } from './core/guards/owner.guard';
 import { pendingApprovalGuard } from './core/guards/pending-approval.guard';
+import {
+  noSupervisorGuard,
+  permissionGuard,
+  supervisorFeatureGuard,
+} from './core/guards/permission.guard';
 import { subscriptionGuard } from './core/guards/subscription.guard';
 import { AdminShellComponent } from './layout/admin-shell.component';
 import { OwnerShellComponent } from './layout/owner-shell.component';
@@ -63,11 +68,39 @@ export const routes: Routes = [
     component: OwnerShellComponent,
     children: [
       { path: 'dashboard', component: OwnerDashboardComponent },
-      { path: 'members', component: MembersComponent },
-      { path: 'inactive-members', component: MembersComponent },
-      { path: 'payments', component: PaymentsPageComponent },
-      { path: 'rooms', component: RoomsPageComponent },
-      { path: 'monthly-earnings', component: MonthlyEarningsPageComponent },
+      {
+        path: 'members',
+        canActivate: [permissionGuard('canViewMembers')],
+        component: MembersComponent,
+      },
+      {
+        path: 'inactive-members',
+        canActivate: [permissionGuard('canViewInactiveMembers')],
+        component: MembersComponent,
+      },
+      {
+        path: 'payments',
+        canActivate: [permissionGuard('canViewPayments')],
+        component: PaymentsPageComponent,
+      },
+      {
+        path: 'rooms',
+        canActivate: [permissionGuard('canViewRooms')],
+        component: RoomsPageComponent,
+      },
+      {
+        path: 'monthly-earnings',
+        canActivate: [noSupervisorGuard],
+        component: MonthlyEarningsPageComponent,
+      },
+      {
+        path: 'supervisors',
+        canActivate: [supervisorFeatureGuard],
+        loadComponent: () =>
+          import('./pages/supervisors/supervisors-page.component').then(
+            (m) => m.SupervisorsPageComponent,
+          ),
+      },
       /* Complaints disabled: was ComplaintsPageComponent */
       { path: 'complaints', redirectTo: 'dashboard', pathMatch: 'full' },
     ],

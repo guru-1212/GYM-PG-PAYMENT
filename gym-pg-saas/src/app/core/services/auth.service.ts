@@ -18,6 +18,13 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { Owner, OwnerRole, OwnerStatus } from '../models/owner.model';
+import {
+  Supervisor,
+  SupervisorPermissions,
+  SUPERVISOR_LOGIN_ALIASES_COLLECTION,
+  SUPERVISORS_COLLECTION,
+  sanitizeSupervisorUserId,
+} from '../utils/supervisor.util';
 import { FirebaseAppService } from './firebase-app.service';
 import {
   digitsOnly,
@@ -31,7 +38,7 @@ function normalizeRole(v: unknown): OwnerRole | '' {
   const s = String(v ?? '')
     .toLowerCase()
     .trim();
-  if (s === 'admin' || s === 'owner') return s;
+  if (s === 'admin' || s === 'owner' || s === 'supervisor') return s;
   return s as OwnerRole;
 }
 
@@ -52,6 +59,38 @@ function ownerFromSnapshot(snap: DocumentSnapshot): Owner | null {
     role: normalizeRole(raw['role']) as Owner['role'],
     status: normalizeStatus(raw['status']) as Owner['status'],
   };
+}
+
+/**
+ * Project a `supervisors/{uid}` doc into the same `Owner` shape consumed by
+ * the rest of the app.
+ *
+ * IMPORTANT: We deliberately set `ownerId` on the projected Owner to the
+ * **parent owner's** id (not the supervisor's UID). All downstream services
+ * use `auth.profile()?.ownerId` as a data-scope key, and supervisors must
+ * see their parent owner's members / payments. The supervisor's actual
+ * Firebase Auth UID remains available via `auth.user()?.uid`. We also
+ * expose `parentOwnerId` for callers that want the explicit semantics.
+ *
+ * `businessName`, `businessType` etc. are filled in lazily later when the
+ * parent owner doc snapshot arrives.
+ */
+function ownerFromSupervisorSnapshot(snap: DocumentSnapshot): Owner | null {
+  if (!snap.exists()) return null;
+  const raw = snap.data() as Partial<Supervisor> & Record<string, unknown>;
+  const status = (raw['status'] === 'disabled' ? 'inactive' : 'approved') as OwnerStatus;
+  const parentOwnerId =
+    typeof raw['ownerId'] === 'string' && raw['ownerId'] ? (raw['ownerId'] as string) : snap.id;
+  return {
+    ownerId: parentOwnerId,
+    name: String(raw['name'] ?? ''),
+    email: '',
+    role: 'supervisor',
+    status,
+    businessType: 'gym', // overridden when parent owner profile is merged in
+    createdAt: raw['createdAt'] as never,
+    parentOwnerId,
+  } satisfies Owner;
 }
 
 /** Auth email stored on alias docs: field name must match Firestore rules (`email` on phone aliases). */
@@ -75,10 +114,23 @@ export class AuthService {
   readonly profile = signal<Owner | null>(null);
   readonly loading = signal(true);
 
+  /** Permissions live on the supervisor doc; null for owners/admins. */
+  readonly supervisorPermissions = signal<SupervisorPermissions | null>(null);
+
   readonly isAdmin = computed(() => this.profile()?.role === 'admin');
   readonly isApprovedOwner = computed(
     () => this.profile()?.role === 'owner' && this.profile()?.status === 'approved',
   );
+  readonly isSupervisor = computed(() => this.profile()?.role === 'supervisor');
+  /**
+   * For owners/admins this returns their own ownerId (so scoped reads "just work"
+   * for the existing call-sites). For supervisors this returns their parent owner.
+   */
+  readonly effectiveOwnerId = computed(() => {
+    const p = this.profile();
+    if (!p) return null;
+    return p.role === 'supervisor' ? p.parentOwnerId ?? null : p.ownerId;
+  });
   readonly isSubscriptionValid = computed(() => {
     const profile = this.profile();
     if (!profile || !profile.planEndDate) return false;
@@ -86,18 +138,30 @@ export class AuthService {
     return new Date() <= planEndDate;
   });
 
+  /**
+   * Helper used by the permission guard / templates: returns true if the
+   * current user is allowed to perform the named supervisor action.
+   * Owners/admins always pass; for supervisors we read the per-account flag.
+   */
+  hasPermission(key: keyof SupervisorPermissions): boolean {
+    const role = this.profile()?.role;
+    if (role !== 'supervisor') return true;
+    const perms = this.supervisorPermissions();
+    return perms ? perms[key] === true : false;
+  }
+
   private profileUnsub: Unsubscribe | null = null;
   private profileListenerUid: string | null = null;
+  private supervisorParentUnsub: Unsubscribe | null = null;
 
   constructor() {
     onAuthStateChanged(this.fb.auth, (u) => {
       this.user.set(u);
 
       if (!u) {
-        this.profileUnsub?.();
-        this.profileUnsub = null;
-        this.profileListenerUid = null;
+        this.tearDownProfileListeners();
         this.profile.set(null);
+        this.supervisorPermissions.set(null);
         this.loading.set(false);
         return;
       }
@@ -107,30 +171,140 @@ export class AuthService {
         return;
       }
 
-      this.profileUnsub?.();
-      this.profileUnsub = null;
+      this.tearDownProfileListeners();
       this.profileListenerUid = u.uid;
 
-      const ref = doc(this.fb.db, 'owners', u.uid);
+      const ownerRef = doc(this.fb.db, 'owners', u.uid);
       this.profileUnsub = onSnapshot(
-        ref,
+        ownerRef,
         (snap) => {
-          const o = ownerFromSnapshot(snap);
-          this.profile.set(o);
-          this.loading.set(false);
+          if (snap.exists()) {
+            // Standard owner / admin path — unchanged behaviour.
+            const o = ownerFromSnapshot(snap);
+            this.profile.set(o);
+            this.supervisorPermissions.set(null);
+            this.tearDownSupervisorParentListener();
+            this.loading.set(false);
+            return;
+          }
+          // Fallback: this UID might belong to a supervisor sub-account.
+          this.subscribeAsSupervisor(u.uid);
         },
         () => {
           this.profile.set(null);
+          this.supervisorPermissions.set(null);
           this.loading.set(false);
         },
       );
     });
   }
 
+  private tearDownProfileListeners(): void {
+    this.profileUnsub?.();
+    this.profileUnsub = null;
+    this.profileListenerUid = null;
+    this.tearDownSupervisorParentListener();
+  }
+
+  private tearDownSupervisorParentListener(): void {
+    this.supervisorParentUnsub?.();
+    this.supervisorParentUnsub = null;
+  }
+
+  /**
+   * Subscribe to `supervisors/{uid}`; when found, project to Owner shape and
+   * additionally subscribe to the parent owner doc so we inherit subscription
+   * status, businessType, businessName, featureFlags etc. without the
+   * supervisor needing direct read access (rules grant read on parent for
+   * supervisors via `isActiveSupervisorOf`).
+   *
+   * IMPORTANT: We do NOT flip `loading()` to false until the parent owner doc
+   * has been fetched at least once. Otherwise the subscription guard runs
+   * against a half-hydrated profile (no `planEndDate`) and bounces the
+   * supervisor to `/subscription-expired`.
+   */
+  private subscribeAsSupervisor(uid: string): void {
+    const supRef = doc(this.fb.db, SUPERVISORS_COLLECTION, uid);
+    let parentBootstrapped = false;
+    this.profileUnsub = onSnapshot(
+      supRef,
+      async (snap) => {
+        if (!snap.exists()) {
+          this.profile.set(null);
+          this.supervisorPermissions.set(null);
+          this.loading.set(false);
+          return;
+        }
+        const projected = ownerFromSupervisorSnapshot(snap);
+        this.profile.set(projected);
+        const raw = snap.data() as Partial<Supervisor> | undefined;
+        this.supervisorPermissions.set(
+          (raw?.permissions as SupervisorPermissions | undefined) ?? null,
+        );
+
+        const parentId = projected?.parentOwnerId;
+        if (!parentId) {
+          this.tearDownSupervisorParentListener();
+          this.loading.set(false);
+          return;
+        }
+
+        // Bootstrap once with a synchronous getDoc so the rest of the app
+        // (route guards, dashboard) sees a fully-hydrated profile by the time
+        // `loading()` flips to false. Re-runs of this snapshot handler don't
+        // need to bootstrap again.
+        if (!parentBootstrapped) {
+          parentBootstrapped = true;
+          try {
+            const parentSnap = await getDoc(doc(this.fb.db, 'owners', parentId));
+            if (parentSnap.exists()) {
+              this.mergeParentOwnerIntoSupervisorProfile(parentSnap.data() as Partial<Owner>);
+            }
+          } catch {
+            /* ignore — listener below will retry */
+          }
+          this.loading.set(false);
+        }
+
+        // Live updates for plan changes / feature flag toggles by admin.
+        this.tearDownSupervisorParentListener();
+        this.supervisorParentUnsub = onSnapshot(
+          doc(this.fb.db, 'owners', parentId),
+          (parentSnap) => {
+            if (!parentSnap.exists()) return;
+            this.mergeParentOwnerIntoSupervisorProfile(parentSnap.data() as Partial<Owner>);
+          },
+          () => {
+            /* ignore — supervisor still has its own profile */
+          },
+        );
+      },
+      () => {
+        this.profile.set(null);
+        this.supervisorPermissions.set(null);
+        this.loading.set(false);
+      },
+    );
+  }
+
+  private mergeParentOwnerIntoSupervisorProfile(parent: Partial<Owner>): void {
+    const current = this.profile();
+    if (!current || current.role !== 'supervisor') return;
+    this.profile.set({
+      ...current,
+      businessType: (parent.businessType as Owner['businessType']) ?? current.businessType,
+      businessName: parent.businessName ?? current.businessName,
+      planStartDate: parent.planStartDate ?? current.planStartDate,
+      planEndDate: parent.planEndDate ?? current.planEndDate,
+      featureFlags: parent.featureFlags ?? current.featureFlags,
+    });
+  }
+
   /**
    * Email: Firebase email/password, with optional `ownerLoginAliases` retry for legacy mapped emails.
    * Mobile: digits-only key → `ownerPhoneLoginAliases/{digits}` → `email` field → signInWithEmailAndPassword.
-   * No Firebase Phone Auth / OTP / synthetic Auth emails.
+   * Supervisor: non-email, non-phone identifier → `supervisorLoginAliases/{userId}*` → email → password sign-in.
+   * No Firebase Phone Auth / OTP.
    */
   async signIn(identifier: string, password: string): Promise<void> {
     const id = identifier.trim();
@@ -144,27 +318,67 @@ export class AuthService {
         await signInWithEmailAndPassword(this.fb.auth, resolved, password);
       }
     } else {
-      const n = normalizeOwnerPhone(id);
-      if (!n) {
-        const err = new Error('Invalid mobile number');
-        (err as { code?: string }).code = 'auth/invalid-phone-number';
-        throw err;
+      const phoneNorm = normalizeOwnerPhone(id);
+      const phoneDigits = phoneNorm ? digitsOnly(phoneNorm) : '';
+      const looksLikePhone = phoneDigits.length >= 10;
+      if (looksLikePhone) {
+        const loginEmail = await this.getLoginEmailFromPhoneAliasDoc(phoneDigits);
+        if (loginEmail) {
+          await signInWithEmailAndPassword(this.fb.auth, loginEmail, password);
+        } else {
+          const err = new Error('Phone not registered. Sign up first or sign in with your email.');
+          (err as { code?: string }).code = 'auth/phone-not-registered';
+          throw err;
+        }
+      } else {
+        // Treat as a supervisor userId. We don't know the parent ownerId yet,
+        // so the alias collection is queried by userId-prefixed doc id; the
+        // most reliable resolution is via getDoc on candidate keys. Owners
+        // create supervisors with `<userId>__<ownerId>` so we list a tiny
+        // query prefix using getDocs ordered/range query.
+        const loginEmail = await this.getLoginEmailFromSupervisorUserId(id);
+        if (!loginEmail) {
+          const err = new Error('User not found.');
+          (err as { code?: string }).code = 'auth/user-not-found';
+          throw err;
+        }
+        await signInWithEmailAndPassword(this.fb.auth, loginEmail, password);
       }
-      const phoneDigits = digitsOnly(n);
-      if (phoneDigits.length < 10) {
-        const err = new Error('Invalid mobile number');
-        (err as { code?: string }).code = 'auth/invalid-phone-number';
-        throw err;
-      }
-      const loginEmail = await this.getLoginEmailFromPhoneAliasDoc(phoneDigits);
-      if (!loginEmail) {
-        const err = new Error('Phone not registered. Sign up first or sign in with your email.');
-        (err as { code?: string }).code = 'auth/phone-not-registered';
-        throw err;
-      }
-      await signInWithEmailAndPassword(this.fb.auth, loginEmail, password);
     }
     await this.fb.auth.authStateReady();
+  }
+
+  /**
+   * Supervisor login: doc id is `<userId>__<ownerId>`. Since we don't know
+   * ownerId, we look up via a Firestore range query on the doc id prefix.
+   * This stays inside Firestore rules (collection allows public read).
+   */
+  private async getLoginEmailFromSupervisorUserId(rawUserId: string): Promise<string | null> {
+    const u = sanitizeSupervisorUserId(rawUserId);
+    if (!u) return null;
+    try {
+      // Lazy-load query helpers to keep tree-shake-friendly.
+      const { collection, query, where, orderBy, limit, getDocs } = await import('firebase/firestore');
+      const ref = collection(this.fb.db, SUPERVISOR_LOGIN_ALIASES_COLLECTION);
+      // Doc ids look like `<userId>__<ownerId>`. We range-scan that prefix.
+      const start = `${u}__`;
+      const end = `${u}__\uf8ff`;
+      const q = query(
+        ref,
+        where('__name__', '>=', start),
+        where('__name__', '<', end),
+        orderBy('__name__'),
+        limit(2),
+      );
+      const snaps = await getDocs(q);
+      if (snaps.empty) return null;
+      // Prefer an exact match if multiple owners ever picked the same userId.
+      const data = snaps.docs[0].data() as Record<string, unknown> | undefined;
+      const email = data?.['email'];
+      return typeof email === 'string' && email.includes('@') ? email : null;
+    } catch {
+      return null;
+    }
   }
 
   private isAuthRetryableForAlias(e: unknown): boolean {
@@ -320,16 +534,39 @@ export class AuthService {
 
     try {
       const snap = await getDoc(doc(this.fb.db, 'owners', uid));
-      if (!snap.exists()) {
-        this.profile.set(null);
-        return { owner: null, uid, problem: 'no-firestore-document' };
+      if (snap.exists()) {
+        const o = ownerFromSnapshot(snap);
+        if (o) this.profile.set(o);
+        return { owner: o, uid };
       }
-
-      const o = ownerFromSnapshot(snap);
-      if (o) {
-        this.profile.set(o);
+      // Fallback: this UID could be a supervisor sub-account.
+      const supSnap = await getDoc(doc(this.fb.db, SUPERVISORS_COLLECTION, uid));
+      if (supSnap.exists()) {
+        const projected = ownerFromSupervisorSnapshot(supSnap);
+        if (projected) this.profile.set(projected);
+        const raw = supSnap.data() as Partial<Supervisor> | undefined;
+        this.supervisorPermissions.set(
+          (raw?.permissions as SupervisorPermissions | undefined) ?? null,
+        );
+        // Eagerly merge the parent owner's plan / business fields so the
+        // caller (login redirect, subscription guard) sees a fully-hydrated
+        // profile. Without this the supervisor lands on /subscription-expired
+        // because planEndDate is undefined.
+        const parentId = projected?.parentOwnerId;
+        if (parentId) {
+          try {
+            const parentSnap = await getDoc(doc(this.fb.db, 'owners', parentId));
+            if (parentSnap.exists()) {
+              this.mergeParentOwnerIntoSupervisorProfile(parentSnap.data() as Partial<Owner>);
+            }
+          } catch {
+            /* ignore — live listener will pick this up later */
+          }
+        }
+        return { owner: this.profile(), uid };
       }
-      return { owner: o, uid };
+      this.profile.set(null);
+      return { owner: null, uid, problem: 'no-firestore-document' };
     } catch (e: unknown) {
       const code =
         e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';

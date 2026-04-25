@@ -882,11 +882,63 @@ export class MembersComponent implements OnInit, OnDestroy {
    *                    MEMBER SELF-ONBOARDING (SHARE LINK)
    * ======================================================================== */
 
+  /** Member submitted via share link; owner must approve before it becomes the live profile. */
+  hasPendingSelfOnboardingReview(m: Member): boolean {
+    return Boolean(m.pendingSelfOnboarding);
+  }
+
   /** True when this member still needs to fill missing self-onboarding info. */
   needsSelfOnboarding(m: Member): boolean {
     if (m.selfOnboardingStatus === 'completed') return false;
+    if (m.pendingSelfOnboarding) return false;
     return !m.profilePhotoUrl || !m.aadhaarFrontUrl || !m.aadhaarBackUrl;
   }
+
+  readonly onboardingReviewBusyId = signal<string | null>(null);
+
+  async approvePendingOnboarding(m: Member): Promise<void> {
+    if (!this.canEditMembersAction()) return;
+    this.onboardingReviewBusyId.set(m.memberId);
+    try {
+      await this.membersApi.approvePendingSelfOnboarding(m.memberId);
+      this.toast.success('Submission approved and saved to the member profile.');
+      this.closeDetails();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not approve';
+      this.toast.error(msg);
+    } finally {
+      this.onboardingReviewBusyId.set(null);
+    }
+  }
+
+  async rejectPendingOnboarding(m: Member): Promise<void> {
+    if (!this.canEditMembersAction()) return;
+    if (!confirm('Reject this submission? The member will need a new share link to try again.')) return;
+    this.onboardingReviewBusyId.set(m.memberId);
+    try {
+      await this.membersApi.rejectPendingSelfOnboarding(m.memberId);
+      this.toast.success('Submission rejected. You can share a new link.');
+      this.closeDetails();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not reject';
+      this.toast.error(msg);
+    } finally {
+      this.onboardingReviewBusyId.set(null);
+    }
+  }
+
+  /**
+   * Whether the current account is allowed to edit members (Add / Edit /
+   * Delete buttons, member modal save). Owners/admins always pass; supervisors
+   * are gated on `canEditMembers`.
+   */
+  readonly canEditMembersAction = computed(() => this.auth.hasPermission('canEditMembers'));
+  /** Whether the current account can share onboarding links. */
+  readonly canShareOnboardingLinkAction = computed(() =>
+    this.auth.hasPermission('canShareOnboardingLink'),
+  );
+  /** Whether the current account can record payments ("Mark Paid"). */
+  readonly canRecordPaymentsAction = computed(() => this.auth.hasPermission('canRecordPayments'));
 
   /** True when an onboarding share link can be issued (mobile is the second factor). */
   canShareOnboardingLink(m: Member): boolean {

@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import {
   doc,
   getDoc,
+  increment,
   serverTimestamp,
   setDoc,
   Timestamp,
@@ -194,6 +195,10 @@ export class MemberOnboardingService {
     });
     await batch.commit();
 
+    await updateDoc(doc(this.fb.db, 'members', member.memberId), {
+      onboardingLinkShareCount: increment(1),
+    });
+
     return { token, url: this.buildShareUrl(token), expiresAt };
   }
 
@@ -306,30 +311,34 @@ export class MemberOnboardingService {
     memberId: string,
     payload: OnboardingSubmitInput,
   ): Promise<void> {
-    // Sanitise payload: only forward fields the public is allowed to write.
-    const allowed: Record<string, any> = {};
-    const setIfString = (key: keyof OnboardingSubmitInput, target = key as string) => {
-      const v = payload[key];
-      if (typeof v === 'string') allowed[target] = v.trim();
-    };
-    setIfString('email');
-    setIfString('lastName');
-    setIfString('address');
-    setIfString('aadhaarNumber');
-    setIfString('profilePhotoUrl');
-    setIfString('aadhaarFrontUrl');
-    setIfString('aadhaarBackUrl');
-    if (payload.gender === 'male' || payload.gender === 'female' || payload.gender === 'other') {
-      allowed['gender'] = payload.gender;
+    const profilePhotoUrl = (payload.profilePhotoUrl || '').trim();
+    const aadhaarFrontUrl = (payload.aadhaarFrontUrl || '').trim();
+    const aadhaarBackUrl = (payload.aadhaarBackUrl || '').trim();
+    if (!profilePhotoUrl || !aadhaarFrontUrl || !aadhaarBackUrl) {
+      throw new Error('MISSING_PHOTOS');
     }
 
-    allowed['selfOnboardingStatus'] = 'completed';
-    allowed['selfOnboardingCompletedAt'] = serverTimestamp();
-    allowed['selfOnboardingTokenUsed'] = token;
+    const pending: Record<string, unknown> = {
+      profilePhotoUrl,
+      aadhaarFrontUrl,
+      aadhaarBackUrl,
+      email: (payload.email || '').trim(),
+      lastName: (payload.lastName || '').trim(),
+      address: (payload.address || '').trim(),
+      aadhaarNumber: (payload.aadhaarNumber || '').trim(),
+      submittedAt: serverTimestamp(),
+      selfOnboardingTokenUsed: token,
+    };
+    if (payload.gender === 'male' || payload.gender === 'female' || payload.gender === 'other') {
+      pending['gender'] = payload.gender;
+    }
 
-    await updateDoc(doc(this.fb.db, 'members', memberId), allowed);
+    await updateDoc(doc(this.fb.db, 'members', memberId), {
+      pendingSelfOnboarding: pending,
+      selfOnboardingStatus: 'pending_review',
+      selfOnboardingTokenUsed: token,
+    });
 
-    // Mark the token consumed so the link can't be reused.
     await updateDoc(this.tokenDocRef(token), {
       status: 'used' satisfies MemberOnboardingLinkStatus,
       usedAt: serverTimestamp(),

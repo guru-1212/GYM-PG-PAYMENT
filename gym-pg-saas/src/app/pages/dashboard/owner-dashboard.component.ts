@@ -100,6 +100,13 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly itemsPerPage = 10;
   readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
   readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
+  /** Used to hide monthly-earnings (and other owner-only widgets) from supervisors. */
+  readonly isSupervisor = computed(() => this.auth.profile()?.role === 'supervisor');
+  /** True only when admin enabled WhatsApp for this owner; supervisors never see it. */
+  readonly whatsappEnabled = computed(() => {
+    const p = this.auth.profile();
+    return !!p && p.role !== 'supervisor' && p.featureFlags?.whatsappEnabled === true;
+  });
   readonly hasPgLayout = computed(() => {
     if ((this.pgLayout()?.floors?.length ?? 0) > 0) return true;
     return this.formToLayoutFloors().some((f) => f.rooms.length > 0);

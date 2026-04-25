@@ -38,6 +38,39 @@ service cloud.firestore {
         && get(myOwnerPath()).data.role in ['owner', 'admin'];
     }
 
+    // ------------------- Supervisor sub-accounts -------------------
+    // Supervisors are stored at /supervisors/{firebaseAuthUid}. They share
+    // the owner shell but operate against the parent owner's data, gated by
+    // per-account permission flags. All checks are additive (`||` on top of
+    // existing owner/admin rules) so the existing flow is untouched.
+
+    function mySupervisorPath() {
+      return /databases/$(database)/documents/supervisors/$(request.auth.uid);
+    }
+
+    function mySupervisorExists() {
+      return signedIn() && exists(mySupervisorPath());
+    }
+
+    function isActiveSupervisor() {
+      return mySupervisorExists()
+        && get(mySupervisorPath()).data.status == 'active';
+    }
+
+    function mySupervisorOwnerId() {
+      return get(mySupervisorPath()).data.ownerId;
+    }
+
+    function supervisorPerm(perm) {
+      return isActiveSupervisor()
+        && get(mySupervisorPath()).data.permissions[perm] == true;
+    }
+
+    /** Active supervisor scoped to a specific parent owner. */
+    function isActiveSupervisorOf(ownerId) {
+      return isActiveSupervisor() && mySupervisorOwnerId() == ownerId;
+    }
+
     /**
      * Optional: maps contact email doc id → Auth login email (legacy). Matches deployed rule:
      * create allowed when document includes uid matching the signed-in user.
@@ -60,7 +93,13 @@ service cloud.firestore {
     }
 
     match /owners/{ownerId} {
-      allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
+      // Supervisors need read access to their parent owner doc so the auth
+      // service can hydrate businessName / planEndDate / featureFlags etc.
+      allow read: if signedIn() && (
+        request.auth.uid == ownerId
+        || isAdmin()
+        || isActiveSupervisorOf(ownerId)
+      );
       allow create: if signedIn()
         && request.auth.uid == ownerId
         && request.resource.data.role == 'owner'
@@ -94,10 +133,26 @@ service cloud.firestore {
       // change on their own member doc. NOTHING financial or status-related is here.
       function publicAllowedMemberFieldsOnly() {
         return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'profilePhotoUrl', 'aadhaarFrontUrl', 'aadhaarBackUrl', 'aadhaarNumber',
-          'gender', 'address', 'email', 'lastName',
-          'selfOnboardingStatus', 'selfOnboardingCompletedAt', 'selfOnboardingTokenUsed'
+          'pendingSelfOnboarding',
+          'selfOnboardingStatus',
+          'selfOnboardingTokenUsed',
         ]);
+      }
+
+      /** Public submission stores photos + text under pendingSelfOnboarding until owner approves. */
+      function pendingSelfOnboardingPayloadOk() {
+        let p = request.resource.data.pendingSelfOnboarding;
+        return p is map
+          && p.keys().hasAll([
+            'profilePhotoUrl', 'aadhaarFrontUrl', 'aadhaarBackUrl',
+            'submittedAt', 'selfOnboardingTokenUsed',
+          ])
+          && p.profilePhotoUrl is string && p.profilePhotoUrl.size() > 20
+          && p.aadhaarFrontUrl is string && p.aadhaarFrontUrl.size() > 20
+          && p.aadhaarBackUrl is string && p.aadhaarBackUrl.size() > 20
+          && p.submittedAt is timestamp
+          && p.selfOnboardingTokenUsed is string
+          && p.selfOnboardingTokenUsed == request.resource.data.selfOnboardingTokenUsed;
       }
 
       function tokenIsValidForMember(token, mid) {
@@ -109,19 +164,25 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/memberOnboardingLinks/$(token)).data.ownerId == resource.data.ownerId;
       }
 
-      allow read: if isAdmin() || (isApprovedOwner() && resource.data.ownerId == request.auth.uid);
-      allow create: if isApprovedOwner()
-        && request.resource.data.ownerId == request.auth.uid;
+      allow read: if isAdmin()
+        || (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canViewMembers'));
+      allow create: if (isApprovedOwner()
+          && request.resource.data.ownerId == request.auth.uid)
+        || (isActiveSupervisorOf(request.resource.data.ownerId)
+          && supervisorPerm('canEditMembers'));
       allow update: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canEditMembers'))
         || (
-          // Public, no-auth update via a verified onboarding link.
+          // Public, no-auth update via a verified onboarding link (pending owner review).
           publicAllowedMemberFieldsOnly()
           && request.resource.data.selfOnboardingTokenUsed is string
-          && request.resource.data.selfOnboardingStatus == 'completed'
+          && request.resource.data.selfOnboardingStatus == 'pending_review'
           && tokenIsValidForMember(request.resource.data.selfOnboardingTokenUsed, memberId)
+          && pendingSelfOnboardingPayloadOk()
         );
-      allow delete: if isApprovedOwner()
-        && resource.data.ownerId == request.auth.uid;
+      allow delete: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canEditMembers'));
     }
 
     /**
@@ -172,39 +233,59 @@ service cloud.firestore {
       // hash itself lives on the private secrets doc.
       allow read: if true;
 
-      // Owner creates the link for their own member.
-      allow create: if isApprovedOwner()
-        && request.resource.data.ownerId == request.auth.uid
+      // Owner creates the link for their own member; supervisors with
+      // canShareOnboardingLink can do the same for their parent owner's members.
+      allow create: if (
+          (isApprovedOwner() && request.resource.data.ownerId == request.auth.uid)
+          || (
+            isActiveSupervisorOf(request.resource.data.ownerId)
+            && supervisorPerm('canShareOnboardingLink')
+          )
+        )
         && request.resource.data.status == 'active'
         && request.resource.data.attempts == 0
         && request.resource.data.expiresAt is timestamp
         && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId))
-        && get(/databases/$(database)/documents/members/$(request.resource.data.memberId)).data.ownerId == request.auth.uid;
+        && get(/databases/$(database)/documents/members/$(request.resource.data.memberId)).data.ownerId == request.resource.data.ownerId;
 
-      // Owner can revoke / amend their own tokens at will; public is restricted to the
-      // three transitions above.
+      // Owner / supervisor can revoke / amend their own tokens at will; public is
+      // restricted to the three transitions above.
       allow update: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canShareOnboardingLink'))
         || isWrongAttemptIncrement()
         || isMobileVerifyTransition()
         || isUsedTransition();
 
-      allow delete: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
+      allow delete: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canShareOnboardingLink'));
     }
 
     match /memberOnboardingLinkSecrets/{token} {
       // NEVER publicly readable. Rules elsewhere can still call get() on it because
       // rules-side gets bypass the read-permission check.
-      allow read: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
-      allow create: if isApprovedOwner()
-        && request.resource.data.ownerId == request.auth.uid;
+      allow read: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canShareOnboardingLink'));
+      allow create: if (isApprovedOwner()
+          && request.resource.data.ownerId == request.auth.uid)
+        || (
+          isActiveSupervisorOf(request.resource.data.ownerId)
+          && supervisorPerm('canShareOnboardingLink')
+        );
       allow update: if false;
-      allow delete: if isApprovedOwner() && resource.data.ownerId == request.auth.uid;
+      allow delete: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canShareOnboardingLink'));
     }
 
     match /payments/{paymentId} {
-      allow read: if isAdmin() || (isApprovedOwner() && resource.data.ownerId == request.auth.uid);
-      allow create: if isApprovedOwner()
-        && request.resource.data.ownerId == request.auth.uid;
+      allow read: if isAdmin()
+        || (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canViewPayments'));
+      allow create: if (isApprovedOwner()
+          && request.resource.data.ownerId == request.auth.uid)
+        || (
+          isActiveSupervisorOf(request.resource.data.ownerId)
+          && supervisorPerm('canRecordPayments')
+        );
       allow update, delete: if false;
     }
 
@@ -215,17 +296,30 @@ service cloud.firestore {
      * Nested roomTypes collection for room configurations
      */
     match /pgLayouts/{ownerId} {
-      allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
-      allow create: if isApprovedOwner() && request.auth.uid == ownerId;
-      allow update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+      allow read: if signedIn() && (
+        request.auth.uid == ownerId
+        || isAdmin()
+        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canViewRooms'))
+      );
+      allow create: if (isApprovedOwner() && request.auth.uid == ownerId)
+        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canEditRooms'));
+      allow update, delete: if (isApprovedOwner() && request.auth.uid == ownerId)
+        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canEditRooms'))
+        || isAdmin();
 
       /**
        * Room type configurations (beds, sharing options, pricing)
        * Nested under owner's layout document
        */
       match /roomTypes/{roomTypeId} {
-        allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
-        allow create, update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+        allow read: if signedIn() && (
+          request.auth.uid == ownerId
+          || isAdmin()
+          || (isActiveSupervisorOf(ownerId) && supervisorPerm('canViewRooms'))
+        );
+        allow create, update, delete: if (isApprovedOwner() && request.auth.uid == ownerId)
+          || (isActiveSupervisorOf(ownerId) && supervisorPerm('canEditRooms'))
+          || isAdmin();
       }
 
       /**
@@ -233,8 +327,14 @@ service cloud.firestore {
        * Nested under owner's layout document
        */
       match /rooms/{roomId} {
-        allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
-        allow create, update, delete: if (isApprovedOwner() && request.auth.uid == ownerId) || isAdmin();
+        allow read: if signedIn() && (
+          request.auth.uid == ownerId
+          || isAdmin()
+          || (isActiveSupervisorOf(ownerId) && supervisorPerm('canViewRooms'))
+        );
+        allow create, update, delete: if (isApprovedOwner() && request.auth.uid == ownerId)
+          || (isActiveSupervisorOf(ownerId) && supervisorPerm('canEditRooms'))
+          || isAdmin();
       }
     }
 
@@ -331,6 +431,93 @@ service cloud.firestore {
 
       allow create: if isOwnerOrAdmin()
         && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    function ownerHasSupervisorEnabled() {
+      return isApprovedOwner()
+        && 'featureFlags' in get(myOwnerPath()).data
+        && get(myOwnerPath()).data.featureFlags.get('supervisorEnabled', false) == true;
+    }
+
+    function ownerSupervisorQuota(ownerId) {
+      return get(/databases/$(database)/documents/owners/$(ownerId)).data.get('supervisorQuota', 2);
+    }
+
+    /**
+     * Supervisor sub-accounts. Doc id = Firebase Auth UID of the supervisor.
+     *  - Read: the supervisor themselves, their parent owner, or admin.
+     *  - Create / update / delete: only the parent owner. The owner doc must be
+     *    approved AND have `featureFlags.supervisorEnabled == true`. The
+     *    supervisor count cap is enforced via `supervisorCounters/{ownerId}`
+     *    (rules can't `list`, so we keep a counter doc the client batches with
+     *    the create / delete).
+     */
+    match /supervisors/{supervisorUid} {
+      allow read: if signedIn() && (
+        request.auth.uid == supervisorUid
+        || isAdmin()
+        || (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+      );
+
+      allow create: if ownerHasSupervisorEnabled()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.role == 'supervisor'
+        && request.resource.data.status in ['active', 'disabled']
+        && request.resource.data.userId is string
+        && request.resource.data.permissions is map;
+
+      allow update: if isApprovedOwner()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.role == 'supervisor';
+
+      allow delete: if isApprovedOwner()
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    /**
+     * Public alias mapping: `<sanitizedUserId>__<ownerId>` -> synthetic Auth email.
+     * The /login page reads this WITHOUT being authenticated to resolve a
+     * supervisor `userId` to the email used by Firebase Auth password sign-in.
+     */
+    match /supervisorLoginAliases/{aliasKey} {
+      allow read: if true;
+
+      allow create: if ownerHasSupervisorEnabled()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.email is string;
+
+      allow update: if isApprovedOwner()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId;
+
+      allow delete: if isApprovedOwner()
+        && resource.data.ownerId == request.auth.uid;
+    }
+
+    /**
+     * Per-owner counter doc used to enforce the supervisor cap from rules
+     * (Firestore rules cannot `list` collections). The client creates /
+     * updates this in the same batch that creates / deletes a supervisor.
+     */
+    match /supervisorCounters/{ownerId} {
+      allow read: if signedIn() && (request.auth.uid == ownerId || isAdmin());
+
+      allow create: if ownerHasSupervisorEnabled()
+        && request.auth.uid == ownerId
+        && request.resource.data.ownerId == ownerId
+        && request.resource.data.count is int
+        && request.resource.data.count >= 0
+        && request.resource.data.count <= ownerSupervisorQuota(ownerId);
+
+      allow update: if isApprovedOwner()
+        && request.auth.uid == ownerId
+        && request.resource.data.ownerId == ownerId
+        && request.resource.data.count is int
+        && request.resource.data.count >= 0
+        && request.resource.data.count <= ownerSupervisorQuota(ownerId);
+
+      allow delete: if false;
     }
   }
 }

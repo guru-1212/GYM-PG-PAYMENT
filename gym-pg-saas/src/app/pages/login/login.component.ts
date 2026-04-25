@@ -59,12 +59,14 @@ export class LoginComponent implements OnInit, OnDestroy {
   private readonly installHintStorageKey = 'pgt.install.completed';
 
   readonly signInForm = this.fb.nonNullable.group({
+    // Free-text identifier: email, mobile, or supervisor user ID. Only the
+    // forgot-password flow needs a strict email/phone (it sends a real email).
     identifier: ['', [Validators.required, signInIdentifierValidator]],
     password: ['', [Validators.required, Validators.minLength(6)]],
   });
 
   readonly forgotForm = this.fb.nonNullable.group({
-    identifier: ['', [Validators.required, signInIdentifierValidator]],
+    identifier: ['', [Validators.required, emailOrPhoneIdentifierValidator]],
   });
 
   readonly signUpForm = this.fb.nonNullable.group({
@@ -276,6 +278,17 @@ export class LoginComponent implements OnInit, OnDestroy {
         return;
       }
     }
+    if (role === 'supervisor') {
+      // Supervisors share the owner shell. Disabled supervisors land on the
+      // rejected screen so they get a clear "ask your owner" message instead
+      // of being silently signed out.
+      if (status === 'disabled' || status === 'inactive') {
+        await this.router.navigateByUrl('/account-rejected');
+        return;
+      }
+      await this.router.navigateByUrl('/dashboard');
+      return;
+    }
 
     this.toast.error('Profile role or status is invalid. Check Firestore fields role and status.');
     await this.auth.signOut();
@@ -399,7 +412,26 @@ export class LoginComponent implements OnInit, OnDestroy {
   }
 }
 
+/**
+ * Sign-in identifier accepts three shapes:
+ *   1. Email — must look like an email when '@' is present.
+ *   2. Mobile — any string `normalizeOwnerPhone` can parse.
+ *   3. Supervisor user ID — free-text fallback (letters, digits, _, -, .).
+ *
+ * `auth.signIn` decides which lookup to use, so the validator only blocks
+ * obviously broken email shapes and obvious whitespace garbage.
+ */
 function signInIdentifierValidator(control: AbstractControl): ValidationErrors | null {
+  const raw = String(control.value ?? '').trim();
+  if (!raw) return { required: true };
+  if (raw.includes('@')) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) ? null : { email: true };
+  }
+  return null;
+}
+
+/** Strict email-or-mobile validator for the password-reset form. */
+function emailOrPhoneIdentifierValidator(control: AbstractControl): ValidationErrors | null {
   const raw = String(control.value ?? '').trim();
   if (!raw) return { required: true };
   if (raw.includes('@')) {

@@ -142,7 +142,7 @@
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Profile photo</label>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Profile photo <span class="text-red-600">*</span></label>
           @if (profilePhotoPreview()) {
             <img
               [src]="profilePhotoPreview()"
@@ -160,7 +160,7 @@
 
         <div class="grid gap-3 sm:grid-cols-2">
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Front</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Front <span class="text-red-600">*</span></label>
             @if (aadhaarFrontPreview()) {
               <img
                 [src]="aadhaarFrontPreview()"
@@ -176,7 +176,7 @@
             />
           </div>
           <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Back</label>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Back <span class="text-red-600">*</span></label>
             @if (aadhaarBackPreview()) {
               <img
                 [src]="aadhaarBackPreview()"
@@ -206,7 +206,10 @@
     @if (stage() === 'done') {
       <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center shadow-sm">
         <span class="material-icons-outlined text-3xl text-emerald-600">check_circle</span>
-        <p class="mt-2 text-base font-semibold text-emerald-900">All done — thank you!</p>
+        <p class="mt-2 text-base font-semibold text-emerald-900">Submitted for review</p>
+        <p class="mt-1 text-sm text-emerald-800">
+          Your gym owner will check your details and photos. You can close this page.
+        </p>
         <p class="mt-1 text-sm text-emerald-800">
           Your details have been sent to your owner. You can close this page.
         </p>

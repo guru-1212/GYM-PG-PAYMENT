@@ -3,7 +3,9 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
+  getDoc,
   onSnapshot,
   query,
   serverTimestamp,
@@ -287,6 +289,48 @@ export class MemberService {
     const payload: { status: Member['status']; advanceStatus?: 'held' | 'returned' } = { status };
     if (status === 'inactive') payload.advanceStatus = 'returned';
     await updateDoc(doc(this.fb.db, 'members', memberId), payload);
+  }
+
+  /** Apply member-submitted onboarding data after owner approves. */
+  async approvePendingSelfOnboarding(memberId: string): Promise<void> {
+    const ref = doc(this.fb.db, 'members', memberId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error('Member not found');
+    const m = snap.data() as Member;
+    const p = m.pendingSelfOnboarding;
+    if (!p) throw new Error('Nothing to approve');
+
+    const aadhaarNumber = (p.aadhaarNumber || '').trim();
+    const aadhaarLast4 =
+      aadhaarNumber.length >= 4 ? aadhaarNumber.slice(-4) : (m.aadhaarLast4 || '').trim();
+
+    const gender =
+      p.gender === 'male' || p.gender === 'female' || p.gender === 'other' ? p.gender : m.gender ?? null;
+
+    await updateDoc(ref, {
+      profilePhotoUrl: p.profilePhotoUrl,
+      aadhaarFrontUrl: p.aadhaarFrontUrl,
+      aadhaarBackUrl: p.aadhaarBackUrl,
+      email: (p.email || '').trim(),
+      lastName: (p.lastName || '').trim(),
+      gender,
+      address: (p.address || '').trim(),
+      aadhaarNumber,
+      aadhaarLast4: aadhaarNumber ? aadhaarLast4 : (m.aadhaarLast4 || ''),
+      pendingSelfOnboarding: deleteField(),
+      selfOnboardingStatus: 'completed',
+      selfOnboardingCompletedAt: serverTimestamp(),
+      selfOnboardingTokenUsed: p.selfOnboardingTokenUsed,
+    });
+  }
+
+  /** Discard pending submission so the member can be sent a new link. */
+  async rejectPendingSelfOnboarding(memberId: string): Promise<void> {
+    await updateDoc(doc(this.fb.db, 'members', memberId), {
+      pendingSelfOnboarding: deleteField(),
+      selfOnboardingStatus: 'pending',
+      selfOnboardingTokenUsed: deleteField(),
+    });
   }
 
   async deleteMember(memberId: string): Promise<void> {

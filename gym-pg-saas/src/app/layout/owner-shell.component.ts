@@ -33,6 +33,21 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
     return n.charAt(0).toUpperCase();
   });
 
+  /** Role helpers exposed to the template. */
+  readonly isSupervisor = computed(() => this.profile()?.role === 'supervisor');
+  readonly canViewMembers = computed(() => this.auth.hasPermission('canViewMembers'));
+  readonly canViewInactiveMembers = computed(() => this.auth.hasPermission('canViewInactiveMembers'));
+  readonly canViewPayments = computed(() => this.auth.hasPermission('canViewPayments'));
+  readonly canViewRooms = computed(() => this.auth.hasPermission('canViewRooms'));
+  /** Owner-only nav: shown when admin has enabled the supervisor feature flag for this owner. */
+  readonly canSeeSupervisorsLink = computed(
+    () =>
+      this.profile()?.role === 'owner' &&
+      this.profile()?.featureFlags?.supervisorEnabled === true,
+  );
+  /** Monthly earnings is hard-blocked for supervisors regardless of perms. */
+  readonly canViewMonthlyEarnings = computed(() => !this.isSupervisor());
+
   readonly mobileMenuOpen = signal(false);
   readonly userMenuOpen = signal(false);
   readonly nowMs = signal(Date.now());

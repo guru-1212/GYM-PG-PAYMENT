@@ -4,13 +4,29 @@ service firebase.storage {
 
     // ---------- Owner-side member uploads ----------
     // Path: memberOnboarding/{memberId}/{filename}
-    // Only the member's owner (signed-in, approved) can write here.
+    // The member's owner (signed-in, approved) can write here. Supervisors of
+    // that owner with `canEditMembers` may also upload — scoped to their
+    // parent owner's members only.
     match /memberOnboarding/{memberId}/{filename} {
+      function memberOwnerId() {
+        return firestore.get(/databases/(default)/documents/members/$(memberId)).data.ownerId;
+      }
+
+      function isSupervisorOfMemberOwner() {
+        return firestore.exists(/databases/(default)/documents/supervisors/$(request.auth.uid))
+          && firestore.get(/databases/(default)/documents/supervisors/$(request.auth.uid)).data.status == 'active'
+          && firestore.get(/databases/(default)/documents/supervisors/$(request.auth.uid)).data.ownerId == memberOwnerId()
+          && firestore.get(/databases/(default)/documents/supervisors/$(request.auth.uid)).data.permissions.canEditMembers == true;
+      }
+
       allow read: if true;
 
       allow write: if request.auth != null
         && firestore.exists(/databases/(default)/documents/members/$(memberId))
-        && firestore.get(/databases/(default)/documents/members/$(memberId)).data.ownerId == request.auth.uid
+        && (
+          memberOwnerId() == request.auth.uid
+          || isSupervisorOfMemberOwner()
+        )
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }

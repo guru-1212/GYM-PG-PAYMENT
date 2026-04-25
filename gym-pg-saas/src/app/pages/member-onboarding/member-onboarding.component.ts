@@ -7,6 +7,7 @@ import {
   type OnboardingPhotoKind,
 } from '../../core/services/member-onboarding.service';
 import { ToastService } from '../../core/services/toast.service';
+import { compressImageForUpload } from '../../core/utils/image-upload.util';
 import { applyDigitsOnlyFromInput } from '../../core/utils/validators';
 
 type Stage = 'loading' | 'verify' | 'fill' | 'done' | 'error';
@@ -182,19 +183,38 @@ export class MemberOnboardingComponent implements OnInit {
       const aadhaarFront = this.aadhaarFrontFile();
       const aadhaarBack = this.aadhaarBackFile();
 
+      const hasProfile = Boolean(profileFile || link.prefill?.profilePhotoUrl);
+      const hasFront = Boolean(aadhaarFront || link.prefill?.aadhaarFrontUrl);
+      const hasBack = Boolean(aadhaarBack || link.prefill?.aadhaarBackUrl);
+      if (!hasProfile || !hasFront || !hasBack) {
+        this.toast.error("Please add your profile photo and both sides of your Aadhaar card.");
+        return;
+      }
+
       let profilePhotoUrl = link.prefill?.profilePhotoUrl || '';
       let aadhaarFrontUrl = link.prefill?.aadhaarFrontUrl || '';
       let aadhaarBackUrl = link.prefill?.aadhaarBackUrl || '';
 
-      if (profileFile) {
-        profilePhotoUrl = await this.api.uploadPublicPhoto(this.token(), 'profile', profileFile);
-      }
-      if (aadhaarFront) {
-        aadhaarFrontUrl = await this.api.uploadPublicPhoto(this.token(), 'aadhaarFront', aadhaarFront);
-      }
-      if (aadhaarBack) {
-        aadhaarBackUrl = await this.api.uploadPublicPhoto(this.token(), 'aadhaarBack', aadhaarBack);
-      }
+      const [profileReady, frontReady, backReady] = await Promise.all([
+        profileFile ? compressImageForUpload(profileFile) : Promise.resolve<File | null>(null),
+        aadhaarFront ? compressImageForUpload(aadhaarFront) : Promise.resolve<File | null>(null),
+        aadhaarBack ? compressImageForUpload(aadhaarBack) : Promise.resolve<File | null>(null),
+      ]);
+
+      const [pUrl, fUrl, bUrl] = await Promise.all([
+        profileReady
+          ? this.api.uploadPublicPhoto(this.token(), 'profile', profileReady)
+          : Promise.resolve(profilePhotoUrl),
+        frontReady
+          ? this.api.uploadPublicPhoto(this.token(), 'aadhaarFront', frontReady)
+          : Promise.resolve(aadhaarFrontUrl),
+        backReady
+          ? this.api.uploadPublicPhoto(this.token(), 'aadhaarBack', backReady)
+          : Promise.resolve(aadhaarBackUrl),
+      ]);
+      profilePhotoUrl = pUrl;
+      aadhaarFrontUrl = fUrl;
+      aadhaarBackUrl = bUrl;
 
       await this.api.submitOnboarding(this.token(), link.memberId, {
         email: v.email || '',
@@ -209,7 +229,12 @@ export class MemberOnboardingComponent implements OnInit {
 
       this.stage.set('done');
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Could not submit. Please try again.';
+      const msg =
+        e instanceof Error && e.message === 'MISSING_PHOTOS'
+          ? 'Profile photo and both Aadhaar images are required.'
+          : e instanceof Error
+            ? e.message
+            : 'Could not submit. Please try again.';
       this.toast.error(msg);
     } finally {
       this.busy.set(false);
