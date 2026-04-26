@@ -11,6 +11,7 @@ import {
   supervisorFeatureGuard,
 } from './core/guards/permission.guard';
 import { subscriptionGuard } from './core/guards/subscription.guard';
+import { memberAppHomeGuard } from './core/guards/member-app.guard';
 import { AdminShellComponent } from './layout/admin-shell.component';
 import { OwnerShellComponent } from './layout/owner-shell.component';
 import { AccountRejectedComponent } from './pages/account-rejected/account-rejected.component';
@@ -52,6 +53,17 @@ export const routes: Routes = [
   { path: 'complaint/:ownerId', component: HomeComponent },
   /** Public onboarding link a member receives to fill in their own details. */
   { path: 'member-onboarding/:token', component: MemberOnboardingComponent },
+  {
+    path: 'member-app/install/:code',
+    loadComponent: () =>
+      import('./pages/member-app/member-app-install.component').then((m) => m.MemberAppInstallComponent),
+  },
+  {
+    path: 'member-app/home',
+    canActivate: [memberAppHomeGuard],
+    loadComponent: () =>
+      import('./pages/member-app/member-app-home.component').then((m) => m.MemberAppHomeComponent),
+  },
   {
     path: 'admin',
     canActivate: [authGuard, adminGuard],
@@ -107,6 +119,21 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./pages/analytics/analytics-page.component').then(
             (m) => m.AnalyticsPageComponent,
+          ),
+      },
+      {
+        path: 'notify-members',
+        canActivate: [permissionGuard('canViewMembers')],
+        loadComponent: () =>
+          import('./pages/owner-notify-members/owner-notify-members-page.component').then(
+            (m) => m.OwnerNotifyMembersPageComponent,
+          ),
+      },
+      {
+        path: 'notifications',
+        loadComponent: () =>
+          import('./pages/owner-notifications/owner-notifications-page.component').then(
+            (m) => m.OwnerNotificationsPageComponent,
           ),
       },
       /* Complaints disabled: was ComplaintsPageComponent */

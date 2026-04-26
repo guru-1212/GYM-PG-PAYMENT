@@ -1,0 +1,45 @@
+<div class="mai">
+  <div class="mai-card">
+    <h1 class="mai-h1">Member app</h1>
+    <p class="mai-lead">
+      Install this app to your home screen for quick access, then sign in with the mobile number your owner has on file.
+    </p>
+
+    @if (loadError()) {
+      <p class="mai-err">{{ loadError() }}</p>
+      <a routerLink="/" class="mai-link">Back to home</a>
+    } @else if (!ownerId()) {
+      <p class="mai-muted">Loading…</p>
+    } @else {
+      <p class="mai-muted">
+        Tip: use your browser’s <strong>Install app</strong> or <strong>Add to Home screen</strong> so you receive alerts even when the browser is closed (where the OS allows web push).
+      </p>
+
+      <form class="mai-form" [formGroup]="mobileForm" (ngSubmit)="continue()">
+        <label class="mai-label" for="m-mobile">10-digit mobile</label>
+        <input
+          id="m-mobile"
+          class="mai-input"
+          type="tel"
+          inputmode="numeric"
+          maxlength="10"
+          autocomplete="tel"
+          formControlName="mobile"
+          (input)="onMobileInput($event)"
+          placeholder="9876543210"
+        />
+        @if (mobileForm.controls.mobile.touched && mobileForm.controls.mobile.invalid) {
+          <p class="mai-field-err">Enter a valid 10-digit mobile number.</p>
+        }
+
+        @if (errorMessage()) {
+          <p class="mai-err">{{ errorMessage() }}</p>
+        }
+
+        <button type="submit" class="mai-btn" [disabled]="busy()">
+          {{ busy() ? 'Signing in…' : 'Continue' }}
+        </button>
+      </form>
+    }
+  </div>
+</div>

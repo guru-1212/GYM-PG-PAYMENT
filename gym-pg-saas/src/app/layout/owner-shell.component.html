@@ -5,6 +5,9 @@
     <div class="border-b border-slate-100/80 px-5 py-6 dark:border-slate-800/80">
       <div class="mb-3 flex items-center justify-between gap-2">
         <app-brand-logo [logoSize]="'32px'" [showText]="true" brandName="OurPGTracker"></app-brand-logo>
+        @if (profile()?.ownerId) {
+          <app-notification-bell [ownerId]="profile()!.ownerId" />
+        }
         <!-- <button
           type="button"
           class="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
@@ -43,6 +46,21 @@
         <span class="material-icons-outlined">dashboard</span>
         {{ 'nav.dashboard' | t }}
       </a>
+      @if (profile()?.ownerId) {
+        <a
+          routerLink="/notifications"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">notifications</span>
+          <span class="min-w-0 flex-1">{{ 'nav.notifications' | t }}</span>
+          @if (ownerInAppUnread() > 0) {
+            <span
+              class="shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white tabular-nums"
+              >{{ ownerInAppUnread() > 99 ? '99+' : ownerInAppUnread() }}</span>
+          }
+        </a>
+      }
       @if (canViewMembers()) {
         <a
           routerLink="/members"
@@ -113,6 +131,16 @@
           Analytics
         </a>
       }
+      @if (canViewMembers()) {
+        <a
+          routerLink="/notify-members"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">campaign</span>
+          Notify members
+        </a>
+      }
       <!-- Complaints disabled — restore when feature fixed
       <a routerLink="/complaints" ...>Complaints</a>
       -->
@@ -161,19 +189,9 @@
         <span class="material-icons-outlined text-2xl">menu</span>
       </button>
       <div class="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-          (click)="openNotifications()"
-          aria-label="Notifications"
-        >
-          <span class="material-icons-outlined">notifications</span>
-          @if (unreadCount() > 0) {
-            <span class="absolute -right-1 -top-1 min-w-[1rem] rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
-              {{ unreadCount() }}
-            </span>
-          }
-        </button>
+        @if (profile()?.ownerId) {
+          <app-notification-bell class="shrink-0" [ownerId]="profile()!.ownerId" />
+        }
         <div class="relative shrink-0" data-user-menu-root>
           <button
             type="button"
@@ -191,6 +209,18 @@
             >
               <p class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">{{ 'auth.email' | t }}</p>
               <p class="px-3 pb-2 text-sm font-medium text-slate-900 break-all dark:text-slate-100">{{ profile()?.email }}</p>
+              <button
+                type="button"
+                class="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                role="menuitem"
+                (click)="openNotifications(); closeUserMenu()"
+              >
+                <span class="material-icons-outlined text-lg">support_agent</span>
+                Message admin
+                @if (unreadCount() > 0) {
+                  <span class="ml-auto rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">{{ unreadCount() }}</span>
+                }
+              </button>
               <button
                 type="button"
                 class="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40"
@@ -253,6 +283,22 @@
               <span class="material-icons-outlined">dashboard</span>
               {{ 'nav.home' | t }}
             </a>
+            @if (profile()?.ownerId) {
+              <a
+                routerLink="/notifications"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">notifications</span>
+                <span class="min-w-0 flex-1">{{ 'nav.notifications' | t }}</span>
+                @if (ownerInAppUnread() > 0) {
+                  <span
+                    class="shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white tabular-nums"
+                    >{{ ownerInAppUnread() > 99 ? '99+' : ownerInAppUnread() }}</span>
+                }
+              </a>
+            }
             @if (canViewMembers()) {
               <a
                 routerLink="/members"
@@ -328,6 +374,17 @@
               >
                 <span class="material-icons-outlined">analytics</span>
                 Analytics
+              </a>
+            }
+            @if (canViewMembers()) {
+              <a
+                routerLink="/notify-members"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">campaign</span>
+                Notify members
               </a>
             }
             <!-- Complaints nav disabled — restore when feature fixed

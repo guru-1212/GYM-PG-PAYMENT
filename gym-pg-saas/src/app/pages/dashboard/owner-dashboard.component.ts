@@ -12,6 +12,7 @@ import { MemberService } from '../../core/services/member.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { InAppNotificationService } from '../../core/services/in-app-notification.service';
 // Complaints disabled — restore when feature fixed
 // import { ComplaintService } from '../../core/services/complaint.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -63,6 +64,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   private readonly paymentsApi = inject(PaymentService);
   private readonly pgLayoutApi = inject(PgLayoutService);
   private readonly notifications = inject(NotificationService);
+  private readonly inAppNotifications = inject(InAppNotificationService);
   // private readonly complaintApi = inject(ComplaintService);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
@@ -349,6 +351,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   });
 
   private currentOwnerId: string | null = null;
+  private dueAlertDebounce: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     // Sync cache signals to component signals
@@ -370,6 +373,17 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       if (!anyLoading) {
         this.loading.set(false);
       }
+    });
+
+    effect(() => {
+      const oid = this.auth.profile()?.ownerId;
+      const list = this.members();
+      const busy = this.loading();
+      if (!oid || busy || list.length === 0) return;
+      if (this.dueAlertDebounce) clearTimeout(this.dueAlertDebounce);
+      this.dueAlertDebounce = setTimeout(() => {
+        void this.inAppNotifications.syncDueAlertsFromMembers(oid, list);
+      }, 2000);
     });
   }
 

@@ -1,0 +1,35 @@
+<div class="mah">
+  <header class="mah-head">
+    <div class="mah-head-main">
+      <p class="mah-kicker">Member</p>
+      <h1 class="mah-title">{{ welcomeHi() }}</h1>
+      <p class="mah-welcome-text">{{ welcomeBody() }}</p>
+      <p class="mah-welcome-hint">{{ welcomeNote() }}</p>
+    </div>
+    <div class="mah-actions">
+      @if (ownerId(); as oid) {
+        <app-notification-bell mode="member" [ownerId]="oid" />
+      }
+      <button type="button" class="mah-out" (click)="logout()">Sign out</button>
+    </div>
+  </header>
+
+  <section class="mah-section">
+    <h2 class="mah-h2">Recent messages</h2>
+    @if (rows().length === 0) {
+      <p class="mah-empty">No messages yet. When your owner sends an update, it will appear here and as a push notification if you allow notifications.</p>
+    } @else {
+      <ul class="mah-list">
+        @for (b of rows(); track b.id) {
+          <li class="mah-card">
+            <p class="mah-card-title">{{ b.title }}</p>
+            <p class="mah-card-body">{{ b.body }}</p>
+            @if (b.createdAt; as ca) {
+              <p class="mah-card-meta">{{ ca.toDate() | date: 'medium' }}</p>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</div>

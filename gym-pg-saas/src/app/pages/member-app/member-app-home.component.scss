@@ -1,0 +1,127 @@
+.mah {
+  min-height: 100vh;
+  padding: 1rem 1.25rem 2rem;
+  max-width: 40rem;
+  margin: 0 auto;
+  background: #f8fafc;
+}
+
+.mah-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.mah-head-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.mah-welcome-text {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.mah-welcome-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #64748b;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.65rem;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.mah-kicker {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.mah-title {
+  margin: 0.15rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.mah-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mah-out {
+  border: 1px solid #cbd5e1;
+  background: white;
+  border-radius: 0.65rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+}
+
+.mah-section {
+  margin-top: 0.5rem;
+}
+
+.mah-h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.mah-empty {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.mah-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.mah-card {
+  border-radius: 0.85rem;
+  border: 1px solid #e2e8f0;
+  background: white;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.mah-card-title {
+  margin: 0 0 0.35rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.mah-card-body {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: #475569;
+  white-space: pre-wrap;
+}
+
+.mah-card-meta {
+  margin: 0.5rem 0 0;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}

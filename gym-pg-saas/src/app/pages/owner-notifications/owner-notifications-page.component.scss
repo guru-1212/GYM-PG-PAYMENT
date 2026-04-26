@@ -1,0 +1,15 @@
+.onp {
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.onp-muted {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgb(100 116 139);
+}
+
+:host-context(.dark) .onp-muted {
+  color: rgb(148 163 184);
+}

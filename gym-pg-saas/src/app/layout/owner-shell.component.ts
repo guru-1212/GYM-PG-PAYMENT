@@ -2,6 +2,7 @@ import { Component, HostListener, computed, effect, inject, signal, OnInit, OnDe
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { OwnerAdminChatMessage } from '../core/models/owner-admin-chat.model';
 import { AuthService } from '../core/services/auth.service';
+import { InAppNotificationService } from '../core/services/in-app-notification.service';
 import { OwnerAdminChatService } from '../core/services/owner-admin-chat.service';
 // Complaints disabled — restore when feature fixed
 // import { ComplaintService } from '../core/services/complaint.service';
@@ -11,16 +12,28 @@ import { TranslatePipe } from '../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../shared/brand-logo.component';
 import { ThemeToggleComponent } from '../shared/theme-toggle.component';
 import { ThemePickerComponent } from '../shared/theme-picker.component';
+import { NotificationBellComponent } from '../shared/notification-bell/notification-bell.component';
 
 @Component({
   selector: 'app-owner-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, BrandLogoComponent, ModalComponent, ThemeToggleComponent, ThemePickerComponent],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    TranslatePipe,
+    BrandLogoComponent,
+    ModalComponent,
+    ThemeToggleComponent,
+    ThemePickerComponent,
+    NotificationBellComponent,
+  ],
   templateUrl: './owner-shell.component.html',
 })
 export class OwnerShellComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly chat = inject(OwnerAdminChatService);
+  private readonly inApp = inject(InAppNotificationService);
   // private readonly complaintApi = inject(ComplaintService);
   private readonly router = inject(Router);
   readonly i18n = inject(TranslationService);
@@ -49,6 +62,9 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   readonly canViewMonthlyEarnings = computed(() => !this.isSupervisor());
   /** Analytics dashboard — owner-only (financial + member data). */
   readonly canViewAnalytics = computed(() => !this.isSupervisor());
+
+  /** Unread in-app alerts for the signed-in owner scope (sidebar badge). */
+  readonly ownerInAppUnread = signal(0);
 
   readonly mobileMenuOpen = signal(false);
   readonly userMenuOpen = signal(false);
@@ -90,6 +106,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   });
   private unsubThread: (() => void) | null = null;
   private unsubUnread: (() => void) | null = null;
+  private unsubOwnerInApp: (() => void) | null = null;
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
@@ -97,11 +114,16 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
       const ownerId = this.profile()?.ownerId;
       this.unsubThread?.();
       this.unsubUnread?.();
+      this.unsubOwnerInApp?.();
       this.chatMessages.set([]);
       this.unreadCount.set(0);
+      this.ownerInAppUnread.set(0);
       if (!ownerId) return;
       this.unsubThread = this.chat.watchThread(ownerId, (messages) => this.chatMessages.set(messages));
       this.unsubUnread = this.chat.watchOwnerUnreadCount(ownerId, (count) => this.unreadCount.set(count));
+      this.unsubOwnerInApp = this.inApp.watchOwnerNotifications(ownerId, (rows) => {
+        this.ownerInAppUnread.set(rows.filter((r) => !r.read).length);
+      });
       /* Complaints disabled — restore when feature fixed
       const p = this.profile();
       if (p?.role === 'owner') {
@@ -178,6 +200,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.unsubThread?.();
     this.unsubUnread?.();
+    this.unsubOwnerInApp?.();
     if (this.countdownTimer) {
       clearInterval(this.countdownTimer);
       this.countdownTimer = null;

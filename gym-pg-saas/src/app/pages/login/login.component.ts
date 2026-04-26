@@ -14,6 +14,7 @@ import { normalizeOwnerPhone } from '../../core/utils/phone-auth.util';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { InAppNotificationService } from '../../core/services/in-app-notification.service';
 import { ToastService } from '../../core/services/toast.service';
 // import { LanguageSwitcherComponent } from '../../shared/language-switcher.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -37,6 +38,7 @@ export class LoginComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(TranslationService);
   private readonly cache = inject(DataCacheService);
   private readonly notifications = inject(NotificationService);
+  private readonly inAppNotifications = inject(InAppNotificationService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
@@ -174,9 +176,10 @@ export class LoginComponent implements OnInit, OnDestroy {
         await this.auth.signOut();
         return;
       }
-      if (p.role === 'owner' && p.status === 'approved' && p.ownerId) {
+      if ((p.role === 'owner' || p.role === 'supervisor') && p.status === 'approved' && p.ownerId) {
         await this.cache.loadMembers(p.ownerId);
         this.notifications.checkDueMembers(this.cache.members());
+        void this.inAppNotifications.syncDueAlertsFromMembers(p.ownerId, this.cache.members());
       }
       await this.redirectAfterProfile(p);
     } catch (e: unknown) {

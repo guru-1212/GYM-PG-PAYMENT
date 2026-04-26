@@ -1,0 +1,297 @@
+<div class="nb-wrap" [class.nb-wrap--page]="pageMode && mode === 'owner'">
+  @if (pageMode && mode === 'owner') {
+    <div class="nb-page">
+      <header class="nb-page-head">
+        <h2 class="nb-drawer-title">Notifications</h2>
+        <p class="nb-drawer-sub">Your alerts and messages sent to members</p>
+      </header>
+      <div class="nb-drawer-toolbar">
+        @if (unreadOwnerCount() > 0) {
+          <button type="button" class="nb-toolbar-btn" (click)="markAllOwnerRead()">Mark all alerts read</button>
+        }
+      </div>
+      <div class="nb-drawer-body nb-page-body">
+        <ng-container *ngTemplateOutlet="ownerSectionsTpl"></ng-container>
+      </div>
+    </div>
+  } @else {
+    <div class="nb-root" [class.nb-root--hub]="hub && mode === 'owner'" data-notify-bell-root>
+      @if (menuOpen()) {
+        <div class="nb-backdrop" (click)="closeMenu()" aria-hidden="true"></div>
+        <aside
+          id="nb-drawer"
+          class="nb-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="nb-drawer-title"
+          (click)="$event.stopPropagation()"
+        >
+          <header class="nb-drawer-head">
+            <div class="nb-drawer-head-text">
+              <h2 id="nb-drawer-title" class="nb-drawer-title">Notifications</h2>
+              <p class="nb-drawer-sub">
+                {{ mode === 'owner' ? 'Your alerts and messages sent to members' : 'Messages from your owner' }}
+              </p>
+            </div>
+            <button type="button" class="nb-drawer-close" (click)="closeMenu()" aria-label="Close panel">
+              <svg class="nb-ico-svg nb-ico-svg--close" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </button>
+          </header>
+
+          <div class="nb-drawer-toolbar">
+            @if (mode === 'owner' && unreadOwnerCount() > 0) {
+              <button type="button" class="nb-toolbar-btn" (click)="markAllOwnerRead()">Mark all alerts read</button>
+            }
+            @if (mode === 'member' && unreadMemberCount() > 0) {
+              <button type="button" class="nb-toolbar-btn" (click)="markAllMemberRead()">Mark all read</button>
+            }
+          </div>
+
+          <div class="nb-drawer-body">
+            @if (mode === 'owner') {
+              <ng-container *ngTemplateOutlet="ownerSectionsTpl"></ng-container>
+            } @else {
+              <section class="nb-section" aria-labelledby="nb-sec-member">
+                <div class="nb-section-head">
+                  <h3 id="nb-sec-member" class="nb-section-title">Your messages</h3>
+                  <span class="nb-section-hint">{{ memberRows().length }} total</span>
+                </div>
+                @if (memberRows().length === 0) {
+                  <p class="nb-empty">No messages yet.</p>
+                } @else {
+                  <div class="nb-table-scroll">
+                    <table class="nb-table">
+                      <colgroup>
+                        <col class="nb-col-time" />
+                        <col class="nb-col-title" />
+                        <col class="nb-col-msg" />
+                        <col class="nb-col-status" />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th scope="col">When</th>
+                          <th scope="col">Title</th>
+                          <th scope="col">Message</th>
+                          <th scope="col">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (b of memberRows(); track trackMember($index, b)) {
+                          <tr
+                            class="nb-tr"
+                            [class.nb-tr--unread]="isMemberBroadcastUnread(b)"
+                            (click)="onPickMemberBroadcast(b)"
+                            (keydown.enter)="onPickMemberBroadcast(b)"
+                            tabindex="0"
+                            role="button"
+                          >
+                            <td class="nb-td nb-td--time">
+                              @if (b.createdAt; as ca) {
+                                {{ ca.toDate() | date: 'MMM d, y, h:mm a' }}
+                              } @else {
+                                —
+                              }
+                            </td>
+                            <td class="nb-td nb-td--title">{{ b.title }}</td>
+                            <td class="nb-td nb-td--msg">{{ previewText(b.body, 120) }}</td>
+                            <td class="nb-td nb-td--status">
+                              <span class="nb-pill" [class.nb-pill--unread]="isMemberBroadcastUnread(b)">
+                                {{ isMemberBroadcastUnread(b) ? 'New' : 'Seen' }}
+                              </span>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </section>
+            }
+          </div>
+        </aside>
+      }
+
+      @if (hub && mode === 'owner') {
+        <div class="nb-hub" (click)="$event.stopPropagation()">
+          <button
+            type="button"
+            class="nb-tab-btn"
+            (click)="toggleMenu(); $event.stopPropagation()"
+            [attr.aria-expanded]="menuOpen()"
+            aria-controls="nb-drawer"
+          >
+            <svg class="nb-ico-svg nb-ico-svg--tab" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M20 13V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6m16 0-4 4H8l-4-4m16 0v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4"
+              />
+            </svg>
+            <span>Notifications</span>
+            @if (badgeCount() > 0) {
+              <span class="nb-tab-count">{{ badgeCount() > 99 ? '99+' : badgeCount() }}</span>
+            }
+          </button>
+          <button
+            type="button"
+            class="nb-trigger nb-trigger--pair"
+            (click)="toggleMenu(); $event.stopPropagation()"
+            [attr.aria-expanded]="menuOpen()"
+            aria-controls="nb-drawer"
+            aria-label="Notifications"
+          >
+            <svg class="nb-ico-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M10.29 21a1.73 1.73 0 0 0 3.42 0"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            @if (badgeCount() > 0) {
+              <span class="nb-badge">{{ badgeCount() > 99 ? '99+' : badgeCount() }}</span>
+            }
+          </button>
+        </div>
+      } @else {
+        <button
+          type="button"
+          class="nb-trigger"
+          (click)="toggleMenu(); $event.stopPropagation()"
+          [attr.aria-expanded]="menuOpen()"
+          aria-label="Notifications"
+        >
+          <svg class="nb-ico-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M10.29 21a1.73 1.73 0 0 0 3.42 0"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          @if (badgeCount() > 0) {
+            <span class="nb-badge">{{ badgeCount() > 99 ? '99+' : badgeCount() }}</span>
+          }
+        </button>
+      }
+    </div>
+  }
+</div>
+
+<ng-template #ownerSectionsTpl>
+  <section class="nb-section" aria-labelledby="nb-sec-alerts">
+    <div class="nb-section-head">
+      <h3 id="nb-sec-alerts" class="nb-section-title">Your alerts</h3>
+      <span class="nb-section-hint">{{ ownerRows().length }} total</span>
+    </div>
+    @if (ownerRows().length === 0) {
+      <p class="nb-empty">No alerts yet.</p>
+    } @else {
+      <div class="nb-table-scroll">
+        <table class="nb-table">
+          <colgroup>
+            <col class="nb-col-time" />
+            <col class="nb-col-title" />
+            <col class="nb-col-msg" />
+            <col class="nb-col-status" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">When</th>
+              <th scope="col">Title</th>
+              <th scope="col">Message</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (n of ownerRows(); track trackOwner($index, n)) {
+              <tr
+                class="nb-tr"
+                [class.nb-tr--unread]="!n.read"
+                (click)="onPickOwner(n)"
+                (keydown.enter)="onPickOwner(n)"
+                tabindex="0"
+                role="button"
+              >
+                <td class="nb-td nb-td--time">
+                  @if (n.createdAt; as ca) {
+                    {{ ca.toDate() | date: 'MMM d, y, h:mm a' }}
+                  } @else {
+                    —
+                  }
+                </td>
+                <td class="nb-td nb-td--title">{{ n.title }}</td>
+                <td class="nb-td nb-td--msg">{{ previewText(n.body, 120) }}</td>
+                <td class="nb-td nb-td--status">
+                  <span class="nb-pill" [class.nb-pill--unread]="!n.read">{{ n.read ? 'Read' : 'Unread' }}</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  <section class="nb-section" aria-labelledby="nb-sec-sent">
+    <div class="nb-section-head">
+      <h3 id="nb-sec-sent" class="nb-section-title">Sent to members</h3>
+      <span class="nb-section-hint">History</span>
+    </div>
+    @if (ownerSentRows().length === 0) {
+      <p class="nb-empty">No messages sent yet. Use Notify members to broadcast.</p>
+    } @else {
+      <div class="nb-table-scroll">
+        <table class="nb-table nb-table--sent">
+          <colgroup>
+            <col class="nb-col-time" />
+            <col class="nb-col-title" />
+            <col class="nb-col-msg" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">When</th>
+              <th scope="col">Title</th>
+              <th scope="col">Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (b of ownerSentRows(); track trackSent($index, b)) {
+              <tr class="nb-tr">
+                <td class="nb-td nb-td--time">
+                  @if (b.createdAt; as ca) {
+                    {{ ca.toDate() | date: 'MMM d, y, h:mm a' }}
+                  } @else {
+                    —
+                  }
+                </td>
+                <td class="nb-td nb-td--title">{{ b.title }}</td>
+                <td class="nb-td nb-td--msg">{{ previewText(b.body, 160) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</ng-template>

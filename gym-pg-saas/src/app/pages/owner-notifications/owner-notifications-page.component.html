@@ -1,0 +1,7 @@
+<div class="onp">
+  @if (profile()?.ownerId; as oid) {
+    <app-notification-bell [ownerId]="oid" pageMode />
+  } @else {
+    <p class="onp-muted">Sign in as an owner to view notifications.</p>
+  }
+</div>

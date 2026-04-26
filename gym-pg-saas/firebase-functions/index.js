@@ -211,3 +211,153 @@ exports.onPaymentReceived = functions.firestore
       return null;
     }
   });
+
+// --- Member PWA install (QR + mobile) + owner → member push broadcasts ---
+
+function normalizeDigits10(raw) {
+  const d = String(raw || '').replace(/\D/g, '');
+  return d.length >= 10 ? d.slice(-10) : d;
+}
+
+async function findMemberDocByOwnerAndMobile(db, ownerId, rawMobile) {
+  const digits = normalizeDigits10(rawMobile);
+  if (digits.length !== 10) return null;
+  const variants = [digits, `+91${digits}`, `91${digits}`];
+  for (const v of variants) {
+    const q = await db.collection('members').where('ownerId', '==', ownerId).where('mobile', '==', v).limit(1).get();
+    if (!q.empty) return q.docs[0];
+  }
+  const all = await db.collection('members').where('ownerId', '==', ownerId).limit(600).get();
+  for (const doc of all.docs) {
+    if (normalizeDigits10(doc.get('mobile')) === digits) return doc;
+  }
+  return null;
+}
+
+/**
+ * Public callable (no prior auth). Validates QR install doc + member mobile, returns Firebase custom token.
+ * Deploy functions and enable Authentication (Custom) for this to work.
+ */
+exports.verifyMemberForApp = functions.https.onCall(async (data) => {
+  const installCode = String(data.installCode || '');
+  const ownerId = String(data.ownerId || '');
+  const mobile = data.mobile;
+  if (!installCode || !ownerId) {
+    throw new functions.https.HttpsError('invalid-argument', 'installCode and ownerId are required');
+  }
+  const codeSnap = await admin.firestore().collection('memberInstallQrCodes').doc(installCode).get();
+  const c = codeSnap.data() || {};
+  if (!codeSnap.exists || c.active !== true || c.ownerId !== ownerId) {
+    throw new functions.https.HttpsError('permission-denied', 'Invalid or inactive install link');
+  }
+  const memberDoc = await findMemberDocByOwnerAndMobile(admin.firestore(), ownerId, mobile);
+  if (!memberDoc || !memberDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'This mobile number is not on file for this property. Ask the owner to add you first.');
+  }
+  const memberId = memberDoc.id;
+  const db = admin.firestore();
+  const actRef = db.collection('memberAppActivations').doc(memberId);
+
+  let alreadyActivated = false;
+  await db.runTransaction(async (t) => {
+    const act = await t.get(actRef);
+    if (act.exists) {
+      alreadyActivated = true;
+      return;
+    }
+    t.set(actRef, {
+      ownerId,
+      memberId,
+      installCode,
+      activatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  if (alreadyActivated) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'This member number is already linked to the app. Open the app from your home screen. New sign-ups on another phone are not allowed.',
+    );
+  }
+
+  try {
+    const ownerSnap = await db.collection('owners').doc(ownerId).get();
+    const od = ownerSnap.data() || {};
+    const ownerBusinessName = String(
+      od.businessName || od.name || 'Your property',
+    ).slice(0, 120);
+    const md = memberDoc.data() || {};
+    const memberDisplayName = `${String(md.firstName || 'Member').trim()} ${String(md.lastName || '').trim()}`
+      .trim()
+      .slice(0, 120);
+    const customToken = await admin.auth().createCustomToken(`memapp_${memberId}`, {
+      role: 'member_app',
+      ownerId,
+      memberId,
+      ownerBusinessName,
+      memberDisplayName,
+    });
+    return { customToken };
+  } catch (e) {
+    await actRef.delete().catch(() => {});
+    throw e;
+  }
+});
+
+/** When a member submits self-onboarding (public, no auth), notify the owner in-app. */
+exports.onMemberProfilePendingReview = functions.firestore
+  .document('members/{memberId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+    if (after.selfOnboardingStatus !== 'pending_review') return null;
+    if (before.selfOnboardingStatus === 'pending_review') return null;
+    const ownerId = after.ownerId;
+    if (!ownerId) return null;
+    const first = String(after.firstName || 'Member').trim();
+    const last = String(after.lastName || '').trim();
+    const name = `${first} ${last}`.trim();
+    await admin.firestore().collection('owners').doc(ownerId).collection('appNotifications').add({
+      title: 'Profile pending review',
+      body: `${name} submitted details for your approval.`,
+      category: 'profile_review',
+      read: false,
+      memberId: context.params.memberId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return null;
+  });
+
+exports.onOwnerBroadcastCreated = functions.firestore
+  .document('owners/{ownerId}/broadcasts/{broadcastId}')
+  .onCreate(async (snap, context) => {
+    const d = snap.data() || {};
+    const title = d.title ? String(d.title) : 'Message from your owner';
+    const body = d.body ? String(d.body) : '';
+    const ownerId = context.params.ownerId;
+    const tokensSnap = await admin.firestore()
+      .collection('owners')
+      .doc(ownerId)
+      .collection('memberDeviceTokens')
+      .get();
+    const tokens = tokensSnap.docs.map((x) => x.data().token).filter(Boolean);
+    if (!tokens.length) return null;
+    const message = {
+      notification: {
+        title,
+        body: body.slice(0, 400),
+        icon: '/icons/icon-192.png',
+      },
+      data: {
+        type: 'owner-broadcast',
+        ownerId,
+      },
+      tokens,
+    };
+    try {
+      return await admin.messaging().sendMulticast(message);
+    } catch (e) {
+      console.error('onOwnerBroadcastCreated', e);
+      return null;
+    }
+  });

@@ -1,0 +1,140 @@
+.onm {
+  max-width: 48rem;
+}
+
+.onm-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.onm-head {
+  flex: 1;
+  min-width: min(100%, 18rem);
+  margin-bottom: 0;
+}
+
+.onm-bell {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+@media (max-width: 640px) {
+  .onm-topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .onm-bell {
+    align-self: flex-end;
+  }
+}
+
+.onm-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.onm-sub {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.onm-card {
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: white;
+  padding: 1.25rem 1.35rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.onm-h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.onm-muted {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.onm-btn {
+  border: none;
+  border-radius: 0.65rem;
+  padding: 0.6rem 1rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.onm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.onm-btn--primary {
+  background: linear-gradient(120deg, #4f46e5, #2563eb);
+  color: white;
+}
+
+.onm-btn--secondary {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.onm-qr-wrap {
+  margin-top: 1.25rem;
+  text-align: center;
+}
+
+.onm-qr {
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+}
+
+.onm-url {
+  margin: 0.75rem 0 0;
+  font-size: 0.7rem;
+  word-break: break-all;
+  color: #64748b;
+}
+
+.onm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.onm-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.onm-input,
+.onm-textarea {
+  border-radius: 0.65rem;
+  border: 1px solid #cbd5e1;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.onm-textarea {
+  resize: vertical;
+  min-height: 6rem;
+}

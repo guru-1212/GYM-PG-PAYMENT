@@ -1,0 +1,50 @@
+<div class="onm">
+  <div class="onm-topbar">
+    <div class="onm-head">
+      <h1 class="onm-title">Notify members</h1>
+      <p class="onm-sub">
+        One install QR for your property. Members on your list verify with their registered mobile number once, then open the app from their home screen.
+        Broadcast messages below; push when the device allows it and Functions are deployed.
+      </p>
+    </div>
+    @if (profile()?.ownerId) {
+      <app-notification-bell class="onm-bell" [ownerId]="profile()!.ownerId" [hub]="true" />
+    }
+  </div>
+
+  <section class="onm-card">
+    <h2 class="onm-h2">Member app install (one link for everyone)</h2>
+    <p class="onm-muted">
+      This QR does not change when you open this page again. Only members you added can use it, with the mobile number on their record.
+      Each member can complete first-time sign-in only once (use the installed app after that).
+    </p>
+    <button type="button" class="onm-btn onm-btn--secondary" [disabled]="qrBusy()" (click)="loadInstallLink()">
+      {{ qrBusy() ? 'Loading…' : qrUrl() ? 'Refresh QR display' : 'Load install link' }}
+    </button>
+    @if (qrUrl()) {
+      <div class="onm-qr-wrap">
+        @if (qrDataUrl(); as png) {
+          <img class="onm-qr" [src]="png" width="280" height="280" alt="Member app install QR code" />
+        } @else if (qrBusy()) {
+          <p class="onm-muted">Preparing QR image…</p>
+        } @else {
+          <p class="onm-muted">QR preview unavailable. Members can still use the link below.</p>
+        }
+        <p class="onm-url"><code>{{ qrUrl() }}</code></p>
+      </div>
+    }
+  </section>
+
+  <section class="onm-card">
+    <h2 class="onm-h2">Send a message to all members</h2>
+    <form [formGroup]="form" (ngSubmit)="sendBroadcast()" class="onm-form">
+      <label class="onm-label" for="nb-title">Title</label>
+      <input id="nb-title" class="onm-input" type="text" formControlName="title" placeholder="e.g. Food notice" />
+      <label class="onm-label" for="nb-body">Message</label>
+      <textarea id="nb-body" class="onm-textarea" rows="5" formControlName="body" placeholder="Message body"></textarea>
+      <button type="submit" class="onm-btn onm-btn--primary" [disabled]="sendBusy()">
+        {{ sendBusy() ? 'Sending…' : 'Send to all member devices' }}
+      </button>
+    </form>
+  </section>
+</div>

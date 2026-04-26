@@ -20,6 +20,7 @@ import { Member } from '../models/member.model';
 import { dateToTimestamp, firstDueFromJoin } from '../utils/date.utils';
 import { AuthService } from './auth.service';
 import { FirebaseAppService } from './firebase-app.service';
+import { InAppNotificationService } from './in-app-notification.service';
 
 export interface MemberInput {
   firstName: string;
@@ -64,6 +65,7 @@ export interface MemberInput {
 export class MemberService {
   private readonly fb = inject(FirebaseAppService);
   private readonly auth = inject(AuthService);
+  private readonly inApp = inject(InAppNotificationService);
 
   /* Complaints disabled — restore helpers + getDoc/setDoc imports when feature fixed
   private normMobile10(raw: string): string {
@@ -190,6 +192,18 @@ export class MemberService {
     } catch (e) {
     }
     */
+
+    try {
+      const display = `${input.firstName.trim()} ${input.lastName?.trim() || ''}`.trim() || 'Member';
+      await this.inApp.addOwnerNotification(owner.ownerId, {
+        title: 'New member added',
+        body: `${display} was added to your list.`,
+        category: 'member_added',
+        memberId: memberRef.id,
+      });
+    } catch {
+      /* non-fatal */
+    }
 
     return memberRef.id;
   }

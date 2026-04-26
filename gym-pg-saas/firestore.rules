@@ -533,5 +533,74 @@ service cloud.firestore {
 
       allow delete: if false;
     }
+
+    /**
+     * Member PWA one-time activation (written only by Cloud Functions admin SDK).
+     * Doc id = members/{memberId} id. Clients cannot read or write.
+     */
+    match /memberAppActivations/{memberId} {
+      allow read, write: if false;
+    }
+
+    /** PWA install QR: doc id = opaque code in URL. Public read when active (join flow). */
+    match /memberInstallQrCodes/{code} {
+      allow read: if resource.data.active == true;
+      allow create: if isApprovedOwner()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.active == true;
+      allow update: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canEditMembers'));
+      allow delete: if false;
+    }
+
+    /** Owner / supervisor in-app + FCM companion notifications. */
+    match /owners/{ownerId}/appNotifications/{nid} {
+      function canReadOwnerScoped() {
+        return isAdmin()
+          || (isApprovedOwner() && request.auth.uid == ownerId)
+          || (isActiveSupervisorOf(ownerId) && supervisorPerm('canViewMembers'));
+      }
+      allow read: if canReadOwnerScoped();
+      allow create: if (isApprovedOwner() && request.auth.uid == ownerId)
+        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canEditMembers'));
+      // Includes merge-upserts for deduped alerts (stable doc ids), not only read flips.
+      allow update: if (isApprovedOwner() && request.auth.uid == ownerId)
+        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canEditMembers'));
+      allow delete: if false;
+    }
+
+    /** Owner → all members broadcast (member app reads with custom token). */
+    match /owners/{ownerId}/broadcasts/{bid} {
+      function memberAppForThisOwner() {
+        return signedIn()
+          && request.auth.token.role == 'member_app'
+          && request.auth.token.ownerId == ownerId;
+      }
+      allow read: if isAdmin()
+        || (isApprovedOwner() && request.auth.uid == ownerId)
+        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canViewMembers'))
+        || memberAppForThisOwner();
+      allow create: if (isApprovedOwner() && request.auth.uid == ownerId)
+        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canEditMembers'));
+      allow update, delete: if false;
+    }
+
+    /** Member PWA device tokens for Cloud Messaging (member_app custom claims). */
+    match /owners/{ownerId}/memberDeviceTokens/{memberId} {
+      function memberAppOwnsTokenDoc() {
+        return signedIn()
+          && request.auth.token.role == 'member_app'
+          && request.auth.token.ownerId == ownerId
+          && request.auth.token.memberId == memberId;
+      }
+      allow read: if isAdmin()
+        || (isApprovedOwner() && request.auth.uid == ownerId)
+        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canViewMembers'));
+      allow create, update: if memberAppOwnsTokenDoc()
+        && request.resource.data.keys().hasOnly(['token', 'updatedAt', 'platform'])
+        && request.resource.data.token is string
+        && request.resource.data.token.size() > 10;
+      allow delete: if false;
+    }
   }
 }

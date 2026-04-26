@@ -28,6 +28,14 @@ export const EN: Record<string, unknown> = {
     sidebarStyleHint: 'Default keeps the original look',
     sidebarClassic: 'Default',
     sidebarPro: 'Pro',
+    notifications: 'Notifications',
+  },
+  memberApp: {
+    welcomeHi: 'Hi, {name}',
+    welcomeBody:
+      'You will receive notifications from {pg} for updates. Please keep notifications turned on in your browser or phone settings so you get alerts quickly.',
+    welcomeNote:
+      'If you previously blocked notifications, enable them for this app in your device settings.',
   },
   a11y: {
     openMenu: 'Open menu',
