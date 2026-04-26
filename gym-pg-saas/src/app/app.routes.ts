@@ -21,6 +21,7 @@ import { HomeComponent } from './pages/home/home.component';
 import { OwnerDashboardComponent } from './pages/dashboard/owner-dashboard.component';
 import { LoginComponent } from './pages/login/login.component';
 import { MemberOnboardingComponent } from './pages/member-onboarding/member-onboarding.component';
+import { MemberReceiptComponent } from './pages/member-receipt/member-receipt.component';
 import { MembersComponent } from './pages/members/members.component';
 import { PaymentsPageComponent } from './pages/payments/payments-page.component';
 import { PendingApprovalComponent } from './pages/pending-approval/pending-approval.component';
@@ -53,6 +54,8 @@ export const routes: Routes = [
   { path: 'complaint/:ownerId', component: HomeComponent },
   /** Public onboarding link a member receives to fill in their own details. */
   { path: 'member-onboarding/:token', component: MemberOnboardingComponent },
+  /** Public receipt link a member receives to download their payment receipt. */
+  { path: 'member-receipt/:token', component: MemberReceiptComponent },
   {
     path: 'member-app/install/:code',
     loadComponent: () =>

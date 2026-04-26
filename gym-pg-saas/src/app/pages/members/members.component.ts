@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { jsPDF } from 'jspdf';
 import { Subscription } from 'rxjs';
+import { Timestamp } from 'firebase/firestore';
 import { Member, SubscriptionType } from '../../core/models/member.model';
 import { PgLayout } from '../../core/models/pg-layout.model';
 import { Payment, PaymentMethod } from '../../core/models/payment.model';
@@ -13,6 +14,7 @@ import { TranslationService } from '../../core/services/translation.service';
 import { MemberService } from '../../core/services/member.service';
 import { MemberOnboardingService } from '../../core/services/member-onboarding.service';
 import { PaymentService } from '../../core/services/payment.service';
+import { MemberReceiptService } from '../../core/services/member-receipt.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { ToastService } from '../../core/services/toast.service';
 import {
@@ -76,6 +78,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   private readonly onboardingApi = inject(MemberOnboardingService);
   private readonly paymentsApi = inject(PaymentService);
   private readonly pgLayoutApi = inject(PgLayoutService);
+  private readonly receiptService = inject(MemberReceiptService);
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
 
@@ -1489,91 +1492,49 @@ ${pgName}`;
         year: 'numeric',
       });
       const mobile = (m.mobile || '').replace(/\D/g, '');
-      const fileName = `receipt-${m.firstName}-${monthText.replace(/\s+/g, '-')}.pdf`;
       const receiptNo = `RCPT-${paymentDate.getFullYear()}${String(paymentDate.getMonth() + 1).padStart(2, '0')}${String(
         paymentDate.getDate(),
       ).padStart(2, '0')}-${m.memberId.slice(0, 6).toUpperCase()}`;
-      const memberName = `${m.firstName} ${m.lastName || ''}`.trim();
-      const paymentDateText = paymentDate.toLocaleDateString('en-IN');
 
-      const doc = new jsPDF();
-      const pageW = doc.internal.pageSize.getWidth();
-      const margin = 14;
+      // Create a mock payment object for the receipt service
+      const payment: Payment = {
+        paymentId: `payment-${Date.now()}`,
+        memberId: m.memberId,
+        ownerId: this.auth.profile()?.ownerId || '',
+        amount: estimatedPaidAmount,
+        date: Timestamp.fromDate(paymentDate),
+        method: 'cash' as PaymentMethod,
+        createdAt: Timestamp.fromDate(paymentDate),
+      };
 
-      // Outer border
-      doc.setDrawColor(180, 180, 180);
-      doc.rect(8, 8, pageW - 16, 281);
+      // Generate receipt link
+      const { url, expiresAt } = await this.receiptService.generateReceiptLink(m, payment, receiptNo);
 
-      // Header strip
-      doc.setFillColor(16, 185, 129);
-      doc.rect(8, 8, pageW - 16, 24, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16);
-      doc.text('PAYMENT RECEIPT', margin, 23);
-      doc.setFontSize(11);
-      doc.text(businessName.toUpperCase(), pageW - margin, 23, { align: 'right' });
+      // Create WhatsApp message
+      const msg = `Hi ${m.firstName} ${m.lastName || ''}
 
-      // Receipt meta
-      doc.setTextColor(33, 37, 41);
-      doc.setFontSize(10);
-      doc.text(`Receipt No: ${receiptNo}`, margin, 42);
-      doc.text(`Date: ${paymentDateText}`, pageW - margin, 42, { align: 'right' });
+This message from ${businessName}
 
-      // Member info box
-      doc.setDrawColor(220, 220, 220);
-      doc.roundedRect(margin, 48, pageW - margin * 2, 34, 2, 2);
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Received From', margin + 4, 56);
-      doc.setTextColor(33, 37, 41);
-      doc.setFontSize(12);
-      doc.text(memberName || '-', margin + 4, 63);
-      doc.setFontSize(10);
-      doc.text(`Mobile: ${m.mobile || '-'}`, margin + 4, 70);
-      doc.text(`Payment Month: ${monthText}`, pageW - margin - 4, 70, { align: 'right' });
+Your payment receipt for ${monthText} is ready!
 
-      // Amount table
-      const tableY = 92;
-      doc.setFillColor(248, 250, 252);
-      doc.rect(margin, tableY, pageW - margin * 2, 10, 'F');
-      doc.setDrawColor(220, 220, 220);
-      doc.rect(margin, tableY, pageW - margin * 2, 44);
-      doc.setFontSize(10);
-      doc.setTextColor(71, 85, 105);
-      doc.text('Description', margin + 4, tableY + 7);
-      doc.text('Amount (INR)', pageW - margin - 4, tableY + 7, { align: 'right' });
-      doc.setDrawColor(230, 230, 230);
-      doc.line(margin, tableY + 10, pageW - margin, tableY + 10);
-      doc.setTextColor(33, 37, 41);
-      doc.text(`Membership payment - ${monthText}`, margin + 4, tableY + 20);
-      doc.text(`Rs ${estimatedPaidAmount.toLocaleString('en-IN')}`, pageW - margin - 4, tableY + 20, { align: 'right' });
-      doc.line(margin, tableY + 26, pageW - margin, tableY + 26);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Total Paid', margin + 4, tableY + 36);
-      doc.text(`Rs ${estimatedPaidAmount.toLocaleString('en-IN')}`, pageW - margin - 4, tableY + 36, { align: 'right' });
-      doc.setFont('helvetica', 'normal');
+Amount: ₹${estimatedPaidAmount.toLocaleString('en-IN')}
+Receipt No: ${receiptNo}
 
-      // Footer note
-      doc.setFillColor(240, 253, 244);
-      doc.roundedRect(margin, 150, pageW - margin * 2, 26, 2, 2, 'F');
-      doc.setTextColor(22, 101, 52);
-      doc.setFontSize(11);
-      doc.text('Thank you for your payment!', margin + 4, 160);
-      doc.setTextColor(75, 85, 99);
-      doc.setFontSize(9);
-      doc.text('This is a system-generated receipt. Please keep it for your records.', margin + 4, 167);
-      doc.text(`${businessName}`, pageW - margin - 4, 167, { align: 'right' });
+Click the link below to view and download your receipt:
+${url}
 
-      doc.save(fileName);
+This link will expire on ${expiresAt.toLocaleDateString('en-IN')}
 
-      const msg = encodeURIComponent(
-        `Hi ${m.firstName}, here is your payment receipt for ${monthText}.`,
-      );
-      const wa = `https://wa.me/91${mobile}?text=${msg}`;
+Thanks regards,
+${businessName}`;
+
+      const wa = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
       window.open(wa, '_blank', 'noopener,noreferrer');
-    } catch {
-      this.toast.error('Could not generate receipt');
+      
+      this.toast.success('Receipt link sent successfully');
+    } catch (error) {
+      console.error('Error sending receipt:', error);
+      this.toast.error('Could not generate receipt link');
     }
   }
 

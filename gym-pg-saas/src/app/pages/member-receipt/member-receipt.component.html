@@ -1,0 +1,71 @@
+<div class="receipt-container">
+  <div class="receipt-card">
+    <!-- Loading State -->
+    @if (loading) {
+      <div>
+        <div class="icon-success">
+          <div class="loading-spinner"></div>
+        </div>
+        <h2 style="color: #1e293b; margin: 0 0 16px 0; font-size: 24px; font-weight: 700;">Loading Receipt...</h2>
+        <p style="color: #64748b; margin: 0;">Please wait while we prepare your receipt</p>
+      </div>
+    }
+
+    <!-- Error State -->
+    @if (error) {
+      <div>
+        <div class="icon-success" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+          <span class="material-icons-outlined text-white text-3xl">error</span>
+        </div>
+        <h2 style="color: #1e293b; margin: 0 0 16px 0; font-size: 24px; font-weight: 700;">Unable to Load Receipt</h2>
+        <p style="color: #64748b; margin: 0 0 24px 0;">{{ error }}</p>
+        <button 
+          (click)="loadReceiptData()" 
+          style="background: linear-gradient(135deg, #64748b 0%, #475569 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;"
+        >
+          Try Again
+        </button>
+      </div>
+    }
+
+    <!-- Success State -->
+    @if (receiptData && !loading && !error) {
+      <div>
+        <div class="icon-success">
+          <span class="material-icons-outlined text-white text-3xl">receipt</span>
+        </div>
+        
+        <h2 style="color: #1e293b; margin: 0 0 8px 0; font-size: 28px; font-weight: 700;">Payment Receipt</h2>
+        <p style="color: #64748b; margin: 0 0 24px 0;">Your receipt is ready for download</p>
+
+        <div class="receipt-info">
+          <h3>Receipt Details</h3>
+          <p><strong>Receipt Number:</strong> {{ receiptData.receiptNumber }}</p>
+          <p><strong>Member:</strong> {{ receiptData.receiptData.memberName }}</p>
+          <p><strong>Amount:</strong> ₹{{ receiptData.receiptData.amount.toLocaleString('en-IN') }}</p>
+          <p><strong>Month:</strong> {{ receiptData.receiptData.monthText }}</p>
+          <p><strong>Payment Date:</strong> {{ paymentDate | date: 'mediumDate' }}</p>
+          <p><strong>Payment Method:</strong> {{ receiptData.receiptData.paymentMethod.charAt(0).toUpperCase() + receiptData.receiptData.paymentMethod.slice(1) }}</p>
+        </div>
+
+        <button 
+          class="download-btn" 
+          (click)="downloadReceipt()" 
+          [disabled]="downloading"
+        >
+          @if (downloading) {
+            <div class="loading-spinner"></div>
+            <span>Downloading...</span>
+          } @else {
+            <span class="material-icons-outlined">download</span>
+            <span>Download Receipt</span>
+          }
+        </button>
+
+        <p style="color: #94a3b8; margin: 24px 0 0 0; font-size: 12px;">
+          This receipt link will expire on {{ receiptData.expiresAt.toDate() | date: 'mediumDate' }}
+        </p>
+      </div>
+    }
+  </div>
+</div>
