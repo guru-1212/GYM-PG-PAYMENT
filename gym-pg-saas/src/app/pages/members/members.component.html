@@ -259,7 +259,7 @@
                           <span class="material-icons-outlined text-base">share</span>
                         </button>
                         @if ((m.onboardingLinkShareCount || 0) > 0) {
-                          <span class="text-[9px] font-medium leading-none text-purple-800/90">Shared {{ m.onboardingLinkShareCount }}×</span>
+                          <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-[9px] font-semibold text-white">{{ m.onboardingLinkShareCount }}</span>
                         }
                       </div>
                     }
@@ -353,17 +353,19 @@
             }
             @if (needsSelfOnboarding(m) && canShareOnboardingLinkAction()) {
               <div class="flex flex-col gap-0.5">
-                <button
-                  type="button"
-                  class="saas-btn-secondary px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-                  [disabled]="!canShareOnboardingLink(m)"
-                  (click)="openShareLink(m)"
-                >
-                  Share link
-                </button>
-                @if ((m.onboardingLinkShareCount || 0) > 0) {
-                  <span class="text-[10px] font-medium text-purple-800">Shared {{ m.onboardingLinkShareCount }}×</span>
-                }
+                <div class="relative">
+                  <button
+                    type="button"
+                    class="saas-btn-secondary px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                    [disabled]="!canShareOnboardingLink(m)"
+                    (click)="openShareLink(m)"
+                  >
+                    Share link
+                  </button>
+                  @if ((m.onboardingLinkShareCount || 0) > 0) {
+                    <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-[9px] font-semibold text-white">{{ m.onboardingLinkShareCount }}</span>
+                  }
+                </div>
               </div>
             }
             @if (canEditMembersAction()) {
@@ -484,6 +486,12 @@
         rows="2"
         class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
       ></textarea>
+    </div>
+    <div>
+      <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+        <input type="checkbox" formControlName="status" [checked]="memberForm.controls.status.value === 'active'" (change)="memberForm.controls.status.setValue($any($event.target).checked ? 'active' : 'inactive')" class="h-4 w-4" />
+        <span class="text-sm font-medium text-slate-700">Active member</span>
+      </label>
     </div>
       @if (isPg()) {
       @if (hasSeatLayout()) {
