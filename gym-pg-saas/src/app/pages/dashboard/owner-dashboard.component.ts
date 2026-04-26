@@ -100,6 +100,13 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly itemsPerPage = 10;
   readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
   readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
+  /** Used to hide monthly-earnings (and other owner-only widgets) from supervisors. */
+  readonly isSupervisor = computed(() => this.auth.profile()?.role === 'supervisor');
+  /** True only when admin enabled WhatsApp for this owner; supervisors never see it. */
+  readonly whatsappEnabled = computed(() => {
+    const p = this.auth.profile();
+    return !!p && p.role !== 'supervisor' && p.featureFlags?.whatsappEnabled === true;
+  });
   readonly hasPgLayout = computed(() => {
     if ((this.pgLayout()?.floors?.length ?? 0) > 0) return true;
     return this.formToLayoutFloors().some((f) => f.rooms.length > 0);
@@ -124,6 +131,17 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     return this.auth.profile()?.businessType === 'pg'
       ? this.i18n.t('fees.rentDue')
       : this.i18n.t('fees.planExpiry');
+  });
+
+  /**
+   * Dashboard heading: prepends the owner's business / PG / gym name.
+   * Example: "Aurora Mens PG Dashboard" (or "Dashboard" if no name set).
+   */
+  readonly dashboardTitle = computed(() => {
+    this.i18n.lang();
+    const base = this.i18n.t('dashboard.title');
+    const name = this.auth.profile()?.businessName?.trim();
+    return name ? `${name} ${base}` : base;
   });
 
   readonly subscriptionDaysRemaining = computed(() => {
@@ -264,6 +282,11 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   readonly partialPendingList = computed(() =>
     this.members().filter((m) => m.status === 'active' && (Number(m.pendingAmount) || 0) > 0),
+  );
+
+  /** Active members with a submitted self-onboarding profile awaiting owner approval. */
+  readonly reviewPendingCount = computed(
+    () => this.members().filter((m) => m.status === 'active' && Boolean(m.pendingSelfOnboarding)).length,
   );
 
   dueStatusLabel(m: Member): string {

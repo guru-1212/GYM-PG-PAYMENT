@@ -64,6 +64,30 @@ export class AdminService {
     await updateDoc(doc(this.fb.db, 'owners', ownerId), { status });
   }
 
+  /**
+   * Toggle a per-owner feature flag (e.g. supervisor accounts, WhatsApp).
+   * Stored on `owners/{ownerId}.featureFlags.<key>`. Absence = disabled.
+   */
+  async setOwnerFeatureFlag(
+    ownerId: string,
+    key: 'supervisorEnabled' | 'whatsappEnabled',
+    value: boolean,
+  ): Promise<void> {
+    // Dot-path update so we don't clobber other flag keys.
+    await updateDoc(doc(this.fb.db, 'owners', ownerId), {
+      [`featureFlags.${key}`]: value,
+    });
+  }
+
+  /**
+   * Set the maximum number of supervisors an owner is allowed to create.
+   * Pass `null` to clear (which falls back to the default of 2).
+   */
+  async setOwnerSupervisorQuota(ownerId: string, value: number | null): Promise<void> {
+    const next = value === null ? null : Math.max(0, Math.floor(Number(value) || 0));
+    await updateDoc(doc(this.fb.db, 'owners', ownerId), { supervisorQuota: next });
+  }
+
   stats(owners: Owner[]): { total: number; pending: number; approved: number } {
     const nonAdmin = owners.filter((o) => o.role === 'owner');
     return {

@@ -1,7 +1,7 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, OnDestroy, OnInit, signal, effect } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { jsPDF } from 'jspdf';
 import { Subscription } from 'rxjs';
 import { Member, SubscriptionType } from '../../core/models/member.model';
@@ -11,6 +11,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { MemberService } from '../../core/services/member.service';
+import { MemberOnboardingService } from '../../core/services/member-onboarding.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -69,8 +70,10 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 export class MembersComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly cache = inject(DataCacheService);
   private readonly membersApi = inject(MemberService);
+  private readonly onboardingApi = inject(MemberOnboardingService);
   private readonly paymentsApi = inject(PaymentService);
   private readonly pgLayoutApi = inject(PgLayoutService);
   private readonly toast = inject(ToastService);
@@ -84,6 +87,8 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly sortKey = signal<'due' | 'name'>('due');
   readonly sortDir = signal<'asc' | 'desc'>('asc');
   readonly dueSectionFilter = signal<'all' | 'dueToday' | 'overdue' | 'dueSoon'>('all');
+  /** Deep link from dashboard: `?onboarding=review` shows only share-link submissions pending approval. */
+  readonly onboardingReviewFilter = signal<'all' | 'review'>('all');
 
   readonly modalOpen = signal(false);
   readonly editingId = signal<string | null>(null);
@@ -218,6 +223,10 @@ export class MembersComponent implements OnInit, OnDestroy {
       }
     }
 
+    if (this.onboardingReviewFilter() === 'review') {
+      list = list.filter((m) => this.hasPendingSelfOnboardingReview(m));
+    }
+
     const sk = this.sortKey();
     const dir = this.sortDir() === 'asc' ? 1 : -1;
     const dueCalendarTime = (m: Member): number => {
@@ -340,7 +349,8 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly memberForm = this.fb.nonNullable.group({
     firstName: ['', [Validators.required, Validators.pattern(/^[^0-9]*$/)]],
     lastName: ['', [Validators.pattern(/^[^0-9]*$/)]],
-    mobile: ['', optionalDigitsLen(10)],
+    // Mobile is required so the member-onboarding share link can do mobile-match verification.
+    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
     email: [''],
     address: [''],
     floorNumber: ['', [Validators.required, Validators.pattern(/^\d+$/)]],
@@ -363,6 +373,26 @@ export class MembersComponent implements OnInit, OnDestroy {
       Validators.required,
     ),
   });
+
+  /* ---------- self-onboarding photo state (owner-side modal) ---------- */
+  readonly profilePhotoFile = signal<File | null>(null);
+  readonly aadhaarFrontFile = signal<File | null>(null);
+  readonly aadhaarBackFile = signal<File | null>(null);
+  readonly profilePhotoUrl = signal<string>('');
+  readonly aadhaarFrontUrl = signal<string>('');
+  readonly aadhaarBackUrl = signal<string>('');
+  readonly profilePhotoPreview = signal<string>('');
+  readonly aadhaarFrontPreview = signal<string>('');
+  readonly aadhaarBackPreview = signal<string>('');
+  readonly memberSavingBusy = signal<boolean>(false);
+
+  /* ---------- share-link (member onboarding) state ---------- */
+  readonly shareLinkOpen = signal<boolean>(false);
+  readonly shareLinkMember = signal<Member | null>(null);
+  readonly shareLinkUrl = signal<string>('');
+  readonly shareLinkExpiresAt = signal<Date | null>(null);
+  readonly shareLinkBusy = signal<boolean>(false);
+  readonly shareLinkCopied = signal<boolean>(false);
 
   readonly payForm = this.fb.nonNullable.group({
     amount: [0, [Validators.required, positiveAmount()]],
@@ -446,6 +476,9 @@ export class MembersComponent implements OnInit, OnDestroy {
       } else {
         this.dueSectionFilter.set('all');
       }
+
+      const onboarding = params.get('onboarding');
+      this.onboardingReviewFilter.set(onboarding === 'review' ? 'review' : 'all');
     });
     const routePath = this.route.snapshot.routeConfig?.path;
     this.listMode.set(routePath === 'inactive-members' ? 'inactive' : 'active');
@@ -518,8 +551,30 @@ export class MembersComponent implements OnInit, OnDestroy {
       this.payFilter.set(value);
       // When user changes payment filter manually, clear dashboard deep-link due filter.
       this.dueSectionFilter.set('all');
+      this.exitOnboardingReviewFilterMode();
       this.currentPage.set(1);
       this.pageGroupStart.set(1);
+    }
+  }
+
+  /** Clears profile-review-only list mode and drops `onboarding` from the URL when it was set via deep link. */
+  clearOnboardingReviewDeepLink(): void {
+    this.exitOnboardingReviewFilterMode();
+  }
+
+  /** Used when the user changes payment filter manually so URL and list stay in sync. */
+  private exitOnboardingReviewFilterMode(): void {
+    const urlHad = this.route.snapshot.queryParamMap.get('onboarding') === 'review';
+    const signalHad = this.onboardingReviewFilter() === 'review';
+    if (!urlHad && !signalHad) return;
+    this.onboardingReviewFilter.set('all');
+    if (urlHad) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { onboarding: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
     }
   }
 
@@ -589,6 +644,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       status: 'active',
       subscriptionType: 'monthly',
     });
+    this.resetOnboardingPhotoState();
     this.manualSeatEntryTriggered.set(false);
     this.manualSeatError.set(null);
     this.modalOpen.set(true);
@@ -596,7 +652,9 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   openEdit(m: Member): void {
     this.editingId.set(m.memberId);
-    this.moreOpen.set(!!(m.gender || m.aadhaarLast4 || m.notes));
+    this.moreOpen.set(
+      !!(m.gender || m.aadhaarLast4 || m.notes || m.profilePhotoUrl || m.aadhaarFrontUrl || m.aadhaarBackUrl),
+    );
     const jd = timestampToDate(m.joinDate);
     const joinStr = jd ? this.toInputDate(jd) : '';
     const dd = timestampToDate(m.dueDate);
@@ -611,7 +669,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       roomNumber: String(m.roomNumber || '').replace(/\D/g, ''),
       bedNumber: String(m.bedNumber || '').replace(/\D/g, ''),
       gender: (m.gender as 'male' | 'female' | 'other' | undefined) || '',
-      aadhaarLast4: m.aadhaarLast4 || '',
+      aadhaarLast4: m.aadhaarNumber || m.aadhaarLast4 || '',
       notes: m.notes || '',
       joinDate: joinStr,
       dueDate: dueStr,
@@ -624,6 +682,13 @@ export class MembersComponent implements OnInit, OnDestroy {
       status: m.status,
       subscriptionType: m.subscriptionType || 'monthly',
     });
+    this.resetOnboardingPhotoState();
+    this.profilePhotoUrl.set(m.profilePhotoUrl || '');
+    this.aadhaarFrontUrl.set(m.aadhaarFrontUrl || '');
+    this.aadhaarBackUrl.set(m.aadhaarBackUrl || '');
+    this.profilePhotoPreview.set(m.profilePhotoUrl || '');
+    this.aadhaarFrontPreview.set(m.aadhaarFrontUrl || '');
+    this.aadhaarBackPreview.set(m.aadhaarBackUrl || '');
     this.manualSeatEntryTriggered.set(false);
     this.manualSeatError.set(null);
     this.modalOpen.set(true);
@@ -632,7 +697,65 @@ export class MembersComponent implements OnInit, OnDestroy {
   closeModal(): void {
     this.manualSeatEntryTriggered.set(false);
     this.manualSeatError.set(null);
+    this.resetOnboardingPhotoState();
     this.modalOpen.set(false);
+  }
+
+  /** Reset all the photo-upload signals back to empty / clean. */
+  private resetOnboardingPhotoState(): void {
+    this.profilePhotoFile.set(null);
+    this.aadhaarFrontFile.set(null);
+    this.aadhaarBackFile.set(null);
+    this.profilePhotoUrl.set('');
+    this.aadhaarFrontUrl.set('');
+    this.aadhaarBackUrl.set('');
+    this.profilePhotoPreview.set('');
+    this.aadhaarFrontPreview.set('');
+    this.aadhaarBackPreview.set('');
+  }
+
+  /** File input handler — preview locally and stash the File for upload at save time. */
+  onMemberPhotoSelected(kind: 'profile' | 'aadhaarFront' | 'aadhaarBack', event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files && input.files.length ? input.files[0] : null;
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      this.toast.error('Please choose an image file (JPG / PNG / WEBP).');
+      input.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      this.toast.error('Image must be smaller than 5 MB.');
+      input.value = '';
+      return;
+    }
+    const previewUrl = URL.createObjectURL(file);
+    if (kind === 'profile') {
+      this.profilePhotoFile.set(file);
+      this.profilePhotoPreview.set(previewUrl);
+    } else if (kind === 'aadhaarFront') {
+      this.aadhaarFrontFile.set(file);
+      this.aadhaarFrontPreview.set(previewUrl);
+    } else {
+      this.aadhaarBackFile.set(file);
+      this.aadhaarBackPreview.set(previewUrl);
+    }
+  }
+
+  removeMemberPhoto(kind: 'profile' | 'aadhaarFront' | 'aadhaarBack'): void {
+    if (kind === 'profile') {
+      this.profilePhotoFile.set(null);
+      this.profilePhotoUrl.set('');
+      this.profilePhotoPreview.set('');
+    } else if (kind === 'aadhaarFront') {
+      this.aadhaarFrontFile.set(null);
+      this.aadhaarFrontUrl.set('');
+      this.aadhaarFrontPreview.set('');
+    } else {
+      this.aadhaarBackFile.set(null);
+      this.aadhaarBackUrl.set('');
+      this.aadhaarBackPreview.set('');
+    }
   }
 
   async toggleMemberStatus(m: Member, enabled: boolean): Promise<void> {
@@ -677,7 +800,19 @@ export class MembersComponent implements OnInit, OnDestroy {
         return;
       }
     }
-    const input = {
+    // The "Aadhaar number" field accepts up to 12 digits. We store both:
+    //  - aadhaarLast4 (existing column, kept for backward-compat with older rows)
+    //  - aadhaarNumber (new column, full value when 12 digits provided)
+    const aadhaarRaw = (v.aadhaarLast4 || '').replace(/\D/g, '');
+    const aadhaarNumberFull = aadhaarRaw.length === 12 ? aadhaarRaw : '';
+    const aadhaarTail = aadhaarRaw.length >= 4 ? aadhaarRaw.slice(-4) : aadhaarRaw;
+
+    const profileFile = this.profilePhotoFile();
+    const aadhaarFrontFile = this.aadhaarFrontFile();
+    const aadhaarBackFile = this.aadhaarBackFile();
+    const hasAnyNewFile = !!(profileFile || aadhaarFrontFile || aadhaarBackFile);
+
+    const baseInput = {
       firstName: v.firstName,
       lastName: v.lastName || undefined,
       mobile: v.mobile || undefined,
@@ -687,7 +822,8 @@ export class MembersComponent implements OnInit, OnDestroy {
       roomNumber: v.roomNumber,
       bedNumber: v.bedNumber,
       gender: v.gender || undefined,
-      aadhaarLast4: v.aadhaarLast4 || undefined,
+      aadhaarLast4: aadhaarTail || undefined,
+      aadhaarNumber: aadhaarNumberFull || undefined,
       notes: v.notes || undefined,
       joinDate: join,
       dueDate: due,
@@ -700,13 +836,59 @@ export class MembersComponent implements OnInit, OnDestroy {
       status: v.status,
       subscriptionType: this.isGym() ? v.subscriptionType : undefined,
     };
+
+    this.memberSavingBusy.set(true);
     try {
       const id = this.editingId();
+      let memberId = id;
       if (id) {
-        await this.membersApi.updateMember(id, input);
+        // EDIT: upload first (if any new files), then update with URLs.
+        let profilePhotoUrl = this.profilePhotoUrl();
+        let aadhaarFrontUrl = this.aadhaarFrontUrl();
+        let aadhaarBackUrl = this.aadhaarBackUrl();
+        if (profileFile) {
+          profilePhotoUrl = await this.onboardingApi.uploadOwnerPhoto(id, 'profile', profileFile);
+        }
+        if (aadhaarFrontFile) {
+          aadhaarFrontUrl = await this.onboardingApi.uploadOwnerPhoto(id, 'aadhaarFront', aadhaarFrontFile);
+        }
+        if (aadhaarBackFile) {
+          aadhaarBackUrl = await this.onboardingApi.uploadOwnerPhoto(id, 'aadhaarBack', aadhaarBackFile);
+        }
+        await this.membersApi.updateMember(id, {
+          ...baseInput,
+          profilePhotoUrl,
+          aadhaarFrontUrl,
+          aadhaarBackUrl,
+        });
         this.toast.success('Member updated');
       } else {
-        await this.membersApi.addMember(input);
+        // CREATE: first create the doc (we need its id for storage paths), then upload
+        // any photos and write the URLs back. If owner provided no images, we skip the
+        // second update entirely and the legacy create path runs unchanged.
+        memberId = await this.membersApi.addMember(baseInput);
+        if (hasAnyNewFile && memberId) {
+          let profilePhotoUrl = '';
+          let aadhaarFrontUrl = '';
+          let aadhaarBackUrl = '';
+          if (profileFile) {
+            profilePhotoUrl = await this.onboardingApi.uploadOwnerPhoto(memberId, 'profile', profileFile);
+          }
+          if (aadhaarFrontFile) {
+            aadhaarFrontUrl = await this.onboardingApi.uploadOwnerPhoto(memberId, 'aadhaarFront', aadhaarFrontFile);
+          }
+          if (aadhaarBackFile) {
+            aadhaarBackUrl = await this.onboardingApi.uploadOwnerPhoto(memberId, 'aadhaarBack', aadhaarBackFile);
+          }
+          await this.membersApi.updateMember(memberId, {
+            ...baseInput,
+            paidAmount: 0, // already recorded in addMember; don't double-charge
+            recordPaymentOnUpdate: false,
+            profilePhotoUrl,
+            aadhaarFrontUrl,
+            aadhaarBackUrl,
+          });
+        }
         this.toast.success('Member added');
       }
       this.closeModal();
@@ -723,7 +905,132 @@ export class MembersComponent implements OnInit, OnDestroy {
       } else {
         this.toast.error(msg || 'Could not save member');
       }
+    } finally {
+      this.memberSavingBusy.set(false);
     }
+  }
+
+  /* ========================================================================
+   *                    MEMBER SELF-ONBOARDING (SHARE LINK)
+   * ======================================================================== */
+
+  /** Member submitted via share link; owner must approve before it becomes the live profile. */
+  hasPendingSelfOnboardingReview(m: Member): boolean {
+    return Boolean(m.pendingSelfOnboarding);
+  }
+
+  /** True when this member still needs to fill missing self-onboarding info. */
+  needsSelfOnboarding(m: Member): boolean {
+    if (m.selfOnboardingStatus === 'completed') return false;
+    if (m.pendingSelfOnboarding) return false;
+    return !m.profilePhotoUrl || !m.aadhaarFrontUrl || !m.aadhaarBackUrl;
+  }
+
+  readonly onboardingReviewBusyId = signal<string | null>(null);
+
+  async approvePendingOnboarding(m: Member): Promise<void> {
+    if (!this.canEditMembersAction()) return;
+    this.onboardingReviewBusyId.set(m.memberId);
+    try {
+      await this.membersApi.approvePendingSelfOnboarding(m.memberId);
+      this.toast.success('Submission approved and saved to the member profile.');
+      this.closeDetails();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not approve';
+      this.toast.error(msg);
+    } finally {
+      this.onboardingReviewBusyId.set(null);
+    }
+  }
+
+  async rejectPendingOnboarding(m: Member): Promise<void> {
+    if (!this.canEditMembersAction()) return;
+    if (!confirm('Reject this submission? The member will need a new share link to try again.')) return;
+    this.onboardingReviewBusyId.set(m.memberId);
+    try {
+      await this.membersApi.rejectPendingSelfOnboarding(m.memberId);
+      this.toast.success('Submission rejected. You can share a new link.');
+      this.closeDetails();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not reject';
+      this.toast.error(msg);
+    } finally {
+      this.onboardingReviewBusyId.set(null);
+    }
+  }
+
+  /**
+   * Whether the current account is allowed to edit members (Add / Edit /
+   * Delete buttons, member modal save). Owners/admins always pass; supervisors
+   * are gated on `canEditMembers`.
+   */
+  readonly canEditMembersAction = computed(() => this.auth.hasPermission('canEditMembers'));
+  /** Whether the current account can share onboarding links. */
+  readonly canShareOnboardingLinkAction = computed(() =>
+    this.auth.hasPermission('canShareOnboardingLink'),
+  );
+  /** Whether the current account can record payments ("Mark Paid"). */
+  readonly canRecordPaymentsAction = computed(() => this.auth.hasPermission('canRecordPayments'));
+
+  /** True when an onboarding share link can be issued (mobile is the second factor). */
+  canShareOnboardingLink(m: Member): boolean {
+    return Boolean(m.mobile && m.mobile.replace(/\D/g, '').length === 10);
+  }
+
+  async openShareLink(m: Member): Promise<void> {
+    if (!this.canShareOnboardingLink(m)) {
+      this.toast.error("Add the member's 10-digit mobile number first.");
+      return;
+    }
+    this.shareLinkMember.set(m);
+    this.shareLinkOpen.set(true);
+    this.shareLinkBusy.set(true);
+    this.shareLinkUrl.set('');
+    this.shareLinkExpiresAt.set(null);
+    this.shareLinkCopied.set(false);
+    try {
+      const { url, expiresAt } = await this.onboardingApi.generateLink(m);
+      this.shareLinkUrl.set(url);
+      this.shareLinkExpiresAt.set(expiresAt);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not generate link';
+      this.toast.error(msg);
+      this.shareLinkOpen.set(false);
+    } finally {
+      this.shareLinkBusy.set(false);
+    }
+  }
+
+  closeShareLink(): void {
+    this.shareLinkOpen.set(false);
+    this.shareLinkMember.set(null);
+    this.shareLinkUrl.set('');
+    this.shareLinkExpiresAt.set(null);
+    this.shareLinkCopied.set(false);
+  }
+
+  async copyShareLink(): Promise<void> {
+    const url = this.shareLinkUrl();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      this.shareLinkCopied.set(true);
+      this.toast.success('Link copied to clipboard');
+      setTimeout(() => this.shareLinkCopied.set(false), 2500);
+    } catch {
+      this.toast.error('Could not copy. Long-press the link to copy manually.');
+    }
+  }
+
+  /** Build a WhatsApp share URL prefilled with the onboarding link. */
+  whatsappShareLink(): string | null {
+    const m = this.shareLinkMember();
+    const url = this.shareLinkUrl();
+    if (!m || !url) return null;
+    const mobile = (m.mobile || '').replace(/\D/g, '');
+    if (mobile.length !== 10) return null;
+    const msg = `Hi ${m.firstName}, please complete your registration here (valid for 24 hours): ${url}`;
+    return `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
   }
 
   async deleteMember(m: Member): Promise<void> {

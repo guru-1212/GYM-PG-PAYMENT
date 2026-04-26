@@ -43,31 +43,37 @@
         <span class="material-icons-outlined">dashboard</span>
         {{ 'nav.dashboard' | t }}
       </a>
-      <a
-        routerLink="/members"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-      >
-        <span class="material-icons-outlined">groups</span>
-        {{ 'nav.members' | t }}
-      </a>
-      <a
-        routerLink="/inactive-members"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-      >
-        <span class="material-icons-outlined">person_off</span>
-        Inactive Members
-      </a>
-      <a
-        routerLink="/payments"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-      >
-        <span class="material-icons-outlined">payments</span>
-        {{ 'nav.payments' | t }}
-      </a>
-      @if (isPgOwner()) {
+      @if (canViewMembers()) {
+        <a
+          routerLink="/members"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">groups</span>
+          {{ 'nav.members' | t }}
+        </a>
+      }
+      @if (canViewInactiveMembers()) {
+        <a
+          routerLink="/inactive-members"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">person_off</span>
+          Inactive Members
+        </a>
+      }
+      @if (canViewPayments()) {
+        <a
+          routerLink="/payments"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">payments</span>
+          {{ 'nav.payments' | t }}
+        </a>
+      }
+      @if (isPgOwner() && canViewRooms()) {
         <a
           routerLink="/rooms"
           routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
@@ -77,23 +83,38 @@
           {{ 'nav.rooms' | t }}
         </a>
       }
-      <a
-        routerLink="/monthly-earnings"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-      >
-        <span class="material-icons-outlined">bar_chart</span>
-        Monthly Earnings
-      </a>
+      @if (canViewMonthlyEarnings()) {
+        <a
+          routerLink="/monthly-earnings"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">bar_chart</span>
+          Monthly Earnings
+        </a>
+      }
+      @if (canSeeSupervisorsLink()) {
+        <a
+          routerLink="/supervisors"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">supervisor_account</span>
+          {{ 'nav.supervisors' | t }}
+        </a>
+      }
+      @if (canViewAnalytics()) {
+        <a
+          routerLink="/analytics"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">analytics</span>
+          Analytics
+        </a>
+      }
       <!-- Complaints disabled — restore when feature fixed
-      <a
-        routerLink="/complaints"
-        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-      >
-        <span class="material-icons-outlined">report_problem</span>
-        Complaints
-      </a>
+      <a routerLink="/complaints" ...>Complaints</a>
       -->
     </nav>
     <div class="border-t border-slate-100 p-3 dark:border-slate-800">
@@ -110,6 +131,9 @@
       </label>
       -->
       <div class="mb-3">
+        <app-theme-picker />
+      </div>
+      <div class="mb-3">
         <app-theme-toggle />
       </div>
       <button
@@ -125,7 +149,7 @@
 
   <div class="flex min-w-0 flex-1 flex-col">
     <header
-      class="sticky top-0 z-20 flex w-full min-w-0 items-center justify-between gap-3 border-b border-white/60 bg-white/85 px-3 py-2.5 backdrop-blur-xl md:hidden dark:border-slate-700/70 dark:bg-slate-950/90 dark:backdrop-blur-xl"
+      class="sticky top-0 z-20 flex w-full min-w-0 items-center justify-between gap-3 border-b border-slate-200/90 bg-white px-3 py-2.5 md:hidden dark:border-slate-700 dark:bg-slate-950"
     >
       <button
         type="button"
@@ -162,7 +186,7 @@
           </button>
           @if (userMenuOpen()) {
             <div
-              class="absolute right-0 top-12 z-50 min-w-[14rem] rounded-xl border border-slate-200/80 bg-white/95 p-2 shadow-xl backdrop-blur-xl dark:border-slate-600/80 dark:bg-slate-900/95 dark:shadow-black/40"
+              class="absolute right-0 top-12 z-50 min-w-[14rem] rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-600 dark:bg-slate-900 dark:shadow-black/40"
               role="menu"
             >
               <p class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">{{ 'auth.email' | t }}</p>
@@ -194,7 +218,7 @@
           (click)="closeMobileMenu()"
         ></div>
         <aside
-          class="absolute left-0 top-0 flex h-full w-[min(18rem,88vw)] flex-col border-r border-white/60 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-950/95 dark:shadow-black/40"
+          class="saas-mobile-nav-drawer absolute left-0 top-0 flex h-full w-[min(18rem,88vw)] flex-col border-r border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-950 dark:shadow-black/40"
           (click)="$event.stopPropagation()"
         >
           <div class="flex items-center justify-between border-b border-slate-100 px-4 py-4 dark:border-slate-800">
@@ -229,34 +253,40 @@
               <span class="material-icons-outlined">dashboard</span>
               {{ 'nav.home' | t }}
             </a>
-            <a
-              routerLink="/members"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-              (click)="closeMobileMenu()"
-            >
-              <span class="material-icons-outlined">groups</span>
-              {{ 'nav.members' | t }}
-            </a>
-            <a
-              routerLink="/inactive-members"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-              (click)="closeMobileMenu()"
-            >
-              <span class="material-icons-outlined">person_off</span>
-              Inactive Members
-            </a>
-            <a
-              routerLink="/payments"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-              (click)="closeMobileMenu()"
-            >
-              <span class="material-icons-outlined">payments</span>
-              {{ 'nav.payments' | t }}
-            </a>
-            @if (isPgOwner()) {
+            @if (canViewMembers()) {
+              <a
+                routerLink="/members"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">groups</span>
+                {{ 'nav.members' | t }}
+              </a>
+            }
+            @if (canViewInactiveMembers()) {
+              <a
+                routerLink="/inactive-members"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">person_off</span>
+                Inactive Members
+              </a>
+            }
+            @if (canViewPayments()) {
+              <a
+                routerLink="/payments"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">payments</span>
+                {{ 'nav.payments' | t }}
+              </a>
+            }
+            @if (isPgOwner() && canViewRooms()) {
               <a
                 routerLink="/rooms"
                 routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
@@ -267,15 +297,39 @@
                 {{ 'nav.rooms' | t }}
               </a>
             }
-            <a
-              routerLink="/monthly-earnings"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-              (click)="closeMobileMenu()"
-            >
-              <span class="material-icons-outlined">bar_chart</span>
-              Monthly Earnings
-            </a>
+            @if (canViewMonthlyEarnings()) {
+              <a
+                routerLink="/monthly-earnings"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">bar_chart</span>
+                Monthly Earnings
+              </a>
+            }
+            @if (canSeeSupervisorsLink()) {
+              <a
+                routerLink="/supervisors"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">supervisor_account</span>
+                {{ 'nav.supervisors' | t }}
+              </a>
+            }
+            @if (canViewAnalytics()) {
+              <a
+                routerLink="/analytics"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">analytics</span>
+                Analytics
+              </a>
+            }
             <!-- Complaints nav disabled — restore when feature fixed
             <a
               routerLink="/complaints"
@@ -289,6 +343,9 @@
             -->
           </nav>
           <div class="border-t border-slate-100 p-3 dark:border-slate-800">
+            <div class="mb-3">
+              <app-theme-picker />
+            </div>
             <app-theme-toggle />
           </div>
         </aside>

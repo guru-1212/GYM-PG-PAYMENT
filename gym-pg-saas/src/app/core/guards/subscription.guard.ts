@@ -20,8 +20,9 @@ export const subscriptionGuard = async () => {
     }, 100);
   });
 
-  // Check if subscription is valid for owners
-  if (auth.isApprovedOwner() && !auth.isSubscriptionValid()) {
+  // Check if subscription is valid for owners (and supervisors inherit the
+  // parent owner's subscription via the projected planEndDate).
+  if ((auth.isApprovedOwner() || auth.isSupervisor()) && !auth.isSubscriptionValid()) {
     await router.navigateByUrl('/subscription-expired');
     return false;
   }

@@ -337,6 +337,64 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ------------------------- feature flags -------------------------
+
+  isSupervisorEnabled(o: Owner): boolean {
+    return o.featureFlags?.supervisorEnabled === true;
+  }
+
+  isWhatsappEnabled(o: Owner): boolean {
+    return o.featureFlags?.whatsappEnabled === true;
+  }
+
+  async toggleSupervisorEnabled(o: Owner, checked: boolean): Promise<void> {
+    this.busyId.set(o.ownerId);
+    try {
+      await this.admin.setOwnerFeatureFlag(o.ownerId, 'supervisorEnabled', checked);
+      this.toast.success(
+        checked ? 'Supervisor accounts enabled' : 'Supervisor accounts disabled',
+      );
+    } catch {
+      this.toast.error('Could not update feature flag');
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  async toggleWhatsappEnabled(o: Owner, checked: boolean): Promise<void> {
+    this.busyId.set(o.ownerId);
+    try {
+      await this.admin.setOwnerFeatureFlag(o.ownerId, 'whatsappEnabled', checked);
+      this.toast.success(
+        checked ? 'WhatsApp integration enabled' : 'WhatsApp integration disabled',
+      );
+    } catch {
+      this.toast.error('Could not update feature flag');
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  /** Default = 2; admin can override per owner. */
+  supervisorQuotaValue(o: Owner): number {
+    return typeof o.supervisorQuota === 'number' ? o.supervisorQuota : 2;
+  }
+
+  async setSupervisorQuota(o: Owner, raw: unknown): Promise<void> {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    const value = Math.max(0, Math.floor(n));
+    this.busyId.set(o.ownerId);
+    try {
+      await this.admin.setOwnerSupervisorQuota(o.ownerId, value);
+      this.toast.success(`Supervisor cap set to ${value}`);
+    } catch {
+      this.toast.error('Could not update cap');
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
   closeModal(): void {
     this.showSubscriptionModal.set(false);
     this.selectedOwner.set(null);

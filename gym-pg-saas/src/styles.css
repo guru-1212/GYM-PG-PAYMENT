@@ -18,18 +18,137 @@
     --saas-primary-to: #4f46e5;
     --saas-glow: 0 10px 28px rgba(37, 99, 235, 0.18);
     --saas-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    /* Animated background blobs (light mode). The brand themes override
+       these so the entire backdrop visibly shifts when the user picks a
+       different accent. The legacy spot-1 / spot-2 vars are still used
+       by the static body radial-gradient as a low-opacity base wash. */
+    --saas-bg-spot-1: rgba(99, 102, 241, 0.18); /* indigo-500 */
+    --saas-bg-spot-2: rgba(59, 130, 246, 0.16); /* blue-500 */
+    --saas-bg-spot-3: rgba(168, 85, 247, 0.12); /* violet-500 */
+    --saas-blob-1: rgba(99, 102, 241, 0.55); /* indigo-500 */
+    --saas-blob-2: rgba(59, 130, 246, 0.45); /* blue-500 */
+    --saas-blob-3: rgba(168, 85, 247, 0.42); /* violet-500 */
+  }
+
+  /* Brand themes only re-skin LIGHT mode. Dark mode keeps the original
+     indigo/violet accent so the user-facing dark UI stays unchanged. */
+  html:not(.dark)[data-brand-theme='emerald'] {
+    --saas-primary-from: #059669; /* emerald-600 */
+    --saas-primary-to: #10b981; /* emerald-500 */
+    --saas-glow: 0 10px 28px rgba(5, 150, 105, 0.22);
+    --saas-bg-spot-1: rgba(16, 185, 129, 0.18);
+    --saas-bg-spot-2: rgba(20, 184, 166, 0.16);
+    --saas-bg-spot-3: rgba(5, 150, 105, 0.14);
+    --saas-blob-1: rgba(16, 185, 129, 0.55); /* emerald-500 */
+    --saas-blob-2: rgba(20, 184, 166, 0.45); /* teal-500 */
+    --saas-blob-3: rgba(132, 204, 22, 0.4); /* lime-500 */
+  }
+
+  html:not(.dark)[data-brand-theme='sunset'] {
+    --saas-primary-from: #f97316; /* orange-500 */
+    --saas-primary-to: #db2777; /* pink-600 */
+    --saas-glow: 0 10px 28px rgba(244, 63, 94, 0.22);
+    --saas-bg-spot-1: rgba(249, 115, 22, 0.18);
+    --saas-bg-spot-2: rgba(244, 63, 94, 0.16);
+    --saas-bg-spot-3: rgba(219, 39, 119, 0.14);
+    --saas-blob-1: rgba(249, 115, 22, 0.55); /* orange-500 */
+    --saas-blob-2: rgba(244, 63, 94, 0.5); /* rose-500 */
+    --saas-blob-3: rgba(219, 39, 119, 0.45); /* pink-600 */
   }
 
   * {
     font-family: 'Inter', 'Noto Sans Telugu', system-ui, sans-serif;
+    /* Ensure screenshots are allowed for all elements */
+    -webkit-touch-callout: default !important;
+    touch-action: manipulation !important;
+  }
+
+  /* Explicitly allow screenshots - override any restrictions */
+  *, *::before, *::after {
+    -webkit-touch-callout: default !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
+  }
+
+  html,
+  body {
+    min-height: 100%;
+    /* Explicitly allow screenshots on all devices */
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    touch-action: manipulation;
+    -webkit-touch-callout: default;
+    pointer-events: auto;
   }
 
   body {
     @apply text-slate-900 antialiased;
+    position: relative;
+    overflow-x: hidden;
     background:
-      radial-gradient(800px circle at 0% 0%, rgba(79, 70, 229, 0.08), transparent 45%),
-      radial-gradient(700px circle at 100% 0%, rgba(37, 99, 235, 0.08), transparent 50%),
+      radial-gradient(900px circle at 0% 0%, var(--saas-bg-spot-1), transparent 50%),
+      radial-gradient(800px circle at 100% 0%, var(--saas-bg-spot-2), transparent 55%),
+      radial-gradient(700px circle at 50% 100%, var(--saas-bg-spot-3), transparent 55%),
       var(--saas-bg);
+    background-attachment: fixed;
+    /* Explicitly allow screenshots on all devices */
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    touch-action: manipulation;
+    -webkit-touch-callout: default;
+    pointer-events: auto;
+  }
+
+  /* Animated, drifting gradient blobs that float behind the UI.
+     They're fixed to the viewport so they stay put while content scrolls,
+     and they sit behind everything via z-index: -1. The pulsing/floating
+     animation is slow (20–28s) so it feels ambient rather than busy. */
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    pointer-events: none;
+    z-index: -1;
+    border-radius: 50%;
+    will-change: transform, opacity;
+    filter: blur(80px) saturate(140%);
+    opacity: 0.85;
+  }
+
+  body::before {
+    top: -18vmax;
+    left: -18vmax;
+    width: 55vmax;
+    height: 55vmax;
+    background:
+      radial-gradient(circle at 30% 30%, var(--saas-blob-1), transparent 65%),
+      radial-gradient(circle at 70% 70%, var(--saas-blob-3), transparent 70%);
+    animation: saasBlobFloatA 22s ease-in-out infinite alternate;
+  }
+
+  body::after {
+    bottom: -22vmax;
+    right: -22vmax;
+    width: 60vmax;
+    height: 60vmax;
+    background:
+      radial-gradient(circle at 30% 30%, var(--saas-blob-2), transparent 65%),
+      radial-gradient(circle at 70% 70%, var(--saas-blob-1), transparent 70%);
+    animation: saasBlobFloatB 28s ease-in-out infinite alternate;
+  }
+
+  /* Users who prefer reduced motion get a static (still pretty) backdrop. */
+  @media (prefers-reduced-motion: reduce) {
+    body::before,
+    body::after {
+      animation: none;
+    }
   }
 
   .material-icons-outlined {
@@ -54,13 +173,20 @@
   }
 
   .saas-card {
-    @apply rounded-2xl border border-white/70 bg-white/80 backdrop-blur-sm transition-all duration-200;
-    box-shadow: var(--saas-shadow);
+    @apply rounded-2xl border border-white/60 bg-white/70 transition-all duration-300;
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    box-shadow:
+      var(--saas-shadow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7);
   }
 
   .saas-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.11), var(--saas-glow);
+    box-shadow:
+      0 18px 38px rgba(15, 23, 42, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      var(--saas-glow);
   }
 
   .saas-btn-primary {
@@ -125,15 +251,27 @@ html.dark body {
     radial-gradient(800px circle at 0% 0%, rgba(79, 70, 229, 0.14), transparent 45%),
     radial-gradient(700px circle at 100% 0%, rgba(37, 99, 235, 0.12), transparent 50%),
     var(--saas-bg);
+  background-attachment: fixed;
+}
+
+/* Dark mode UI is intentionally unchanged: hide the animated light-mode
+   blobs and restore the original mild glass blur on cards. */
+html.dark body::before,
+html.dark body::after {
+  display: none;
 }
 
 html.dark .saas-card {
   @apply border-slate-700/80 bg-slate-900/90 text-slate-100;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   box-shadow: var(--saas-shadow);
 }
 
 html.dark .saas-card:hover {
-  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.38), var(--saas-glow);
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.38),
+    var(--saas-glow);
 }
 
 html.dark .saas-btn-secondary {
@@ -346,5 +484,563 @@ html.dark .hover\:bg-emerald-50:hover {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ============================================================
+ * Ambient theme background animation — slow, low-amplitude drift
+ * for the two blurred gradient blobs behind the UI. Designed to be
+ * almost subliminal: the user feels motion but it never distracts.
+ * ============================================================ */
+
+@keyframes saasBlobFloatA {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(6vmax, 4vmax, 0) scale(1.08) rotate(8deg);
+  }
+  100% {
+    transform: translate3d(2vmax, 8vmax, 0) scale(0.98) rotate(-6deg);
+  }
+}
+
+@keyframes saasBlobFloatB {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(-5vmax, -4vmax, 0) scale(1.05) rotate(-10deg);
+  }
+  100% {
+    transform: translate3d(-8vmax, 2vmax, 0) scale(1.02) rotate(6deg);
+  }
+}
+
+/* ============================================================
+ * Brand theme accent overrides — LIGHT MODE ONLY.
+ *
+ * Strategy: Tailwind utility classes such as `bg-indigo-50`,
+ * `text-indigo-700`, `hover:bg-indigo-50/60`, etc. are used heavily
+ * throughout the templates. Rather than touching every template, we
+ * scope a higher-specificity selector under `[data-brand-theme="..."]`
+ * that re-applies a different palette using direct CSS (avoiding
+ * `@apply` to keep Tailwind's circular-dependency checker happy).
+ * Dark mode (`html.dark`) is intentionally excluded so it stays
+ * exactly as it was.
+ *
+ * Default theme (`indigo`) is rendered by omitting the
+ * `data-brand-theme` attribute → existing styles unchanged for users
+ * who never pick a non-default brand.
+ * ============================================================ */
+
+/* ---------------------- Emerald theme ---------------------- */
+/* Tailwind palette refs:
+ *   emerald-50 #ecfdf5  emerald-100 #d1fae5  emerald-200 #a7f3d0
+ *   emerald-300 #6ee7b7 emerald-500 #10b981  emerald-600 #059669
+ *   emerald-700 #047857 emerald-800 #065f46  emerald-900 #064e3b
+ */
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-50 {
+  background-color: rgb(236 253 245 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-50\/40 {
+  background-color: rgb(236 253 245 / 0.4);
+}
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-50\/50 {
+  background-color: rgb(236 253 245 / 0.5);
+}
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-50\/60 {
+  background-color: rgb(236 253 245 / 0.6);
+}
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-50\/70 {
+  background-color: rgb(236 253 245 / 0.7);
+}
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-100 {
+  background-color: rgb(209 250 229 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-500 {
+  background-color: rgb(16 185 129 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-500\/10 {
+  background-color: rgb(16 185 129 / 0.1);
+}
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-500\/25 {
+  background-color: rgb(16 185 129 / 0.18);
+}
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-600 {
+  background-color: rgb(5 150 105 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .bg-indigo-700 {
+  background-color: rgb(4 120 87 / var(--tw-bg-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='emerald'] .text-indigo-500 {
+  color: rgb(16 185 129 / var(--tw-text-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .text-indigo-600 {
+  color: rgb(5 150 105 / var(--tw-text-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .text-indigo-700 {
+  color: rgb(4 120 87 / var(--tw-text-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .text-indigo-800 {
+  color: rgb(6 95 70 / var(--tw-text-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .text-indigo-900 {
+  color: rgb(6 78 59 / var(--tw-text-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='emerald'] .border-indigo-100 {
+  border-color: rgb(209 250 229 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .border-indigo-200 {
+  border-color: rgb(167 243 208 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .border-indigo-200\/80 {
+  border-color: rgb(167 243 208 / 0.8);
+}
+html:not(.dark)[data-brand-theme='emerald'] .border-indigo-300 {
+  border-color: rgb(110 231 183 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .border-indigo-500 {
+  border-color: rgb(16 185 129 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .border-indigo-600 {
+  border-color: rgb(5 150 105 / var(--tw-border-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='emerald'] .ring-indigo-100 {
+  --tw-ring-color: rgb(209 250 229 / var(--tw-ring-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='emerald'] .hover\:bg-indigo-50:hover {
+  background-color: rgb(236 253 245 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .hover\:bg-indigo-50\/60:hover {
+  background-color: rgb(236 253 245 / 0.6);
+}
+html:not(.dark)[data-brand-theme='emerald'] .hover\:bg-indigo-50\/70:hover {
+  background-color: rgb(236 253 245 / 0.7);
+}
+html:not(.dark)[data-brand-theme='emerald'] .hover\:bg-indigo-100:hover {
+  background-color: rgb(209 250 229 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .hover\:bg-indigo-700:hover {
+  background-color: rgb(4 120 87 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .hover\:border-indigo-200:hover {
+  border-color: rgb(167 243 208 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .hover\:text-indigo-800:hover {
+  color: rgb(6 95 70 / var(--tw-text-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .hover\:enabled\:bg-indigo-50:hover:enabled {
+  background-color: rgb(236 253 245 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .hover\:enabled\:border-indigo-200:hover:enabled {
+  border-color: rgb(167 243 208 / var(--tw-border-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='emerald'] .focus\:border-indigo-300:focus {
+  border-color: rgb(110 231 183 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='emerald'] .focus\:ring-indigo-100:focus {
+  --tw-ring-color: rgb(209 250 229 / var(--tw-ring-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='emerald'] .from-indigo-500 {
+  --tw-gradient-from: #10b981 var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(16 185 129 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+html:not(.dark)[data-brand-theme='emerald'] .to-indigo-600 {
+  --tw-gradient-to: #059669 var(--tw-gradient-to-position);
+}
+html:not(.dark)[data-brand-theme='emerald'] .to-indigo-50\/40 {
+  --tw-gradient-to: rgb(236 253 245 / 0.4) var(--tw-gradient-to-position);
+}
+
+html:not(.dark)[data-brand-theme='emerald'] .file\:bg-indigo-50::file-selector-button {
+  background-color: rgb(236 253 245);
+}
+html:not(.dark)[data-brand-theme='emerald'] .file\:text-indigo-700::file-selector-button {
+  color: rgb(4 120 87);
+}
+html:not(.dark)[data-brand-theme='emerald'] .hover\:file\:bg-indigo-100:hover::file-selector-button {
+  background-color: rgb(209 250 229);
+}
+
+/* ---------------------- Sunset theme ---------------------- */
+/* Tailwind palette refs:
+ *   rose-50  #fff1f2  rose-100 #ffe4e6  rose-200 #fecdd3
+ *   rose-300 #fda4af  rose-500 #f43f5e  rose-600 #e11d48
+ *   rose-700 #be123c  rose-800 #9f1239  rose-900 #881337
+ */
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-50 {
+  background-color: rgb(255 241 242 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-50\/40 {
+  background-color: rgb(255 241 242 / 0.4);
+}
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-50\/50 {
+  background-color: rgb(255 241 242 / 0.5);
+}
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-50\/60 {
+  background-color: rgb(255 241 242 / 0.6);
+}
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-50\/70 {
+  background-color: rgb(255 241 242 / 0.7);
+}
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-100 {
+  background-color: rgb(255 228 230 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-500 {
+  background-color: rgb(244 63 94 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-500\/10 {
+  background-color: rgb(244 63 94 / 0.1);
+}
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-500\/25 {
+  background-color: rgb(244 63 94 / 0.18);
+}
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-600 {
+  background-color: rgb(225 29 72 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .bg-indigo-700 {
+  background-color: rgb(190 18 60 / var(--tw-bg-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='sunset'] .text-indigo-500 {
+  color: rgb(244 63 94 / var(--tw-text-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .text-indigo-600 {
+  color: rgb(225 29 72 / var(--tw-text-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .text-indigo-700 {
+  color: rgb(190 18 60 / var(--tw-text-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .text-indigo-800 {
+  color: rgb(159 18 57 / var(--tw-text-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .text-indigo-900 {
+  color: rgb(136 19 55 / var(--tw-text-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='sunset'] .border-indigo-100 {
+  border-color: rgb(255 228 230 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .border-indigo-200 {
+  border-color: rgb(254 205 211 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .border-indigo-200\/80 {
+  border-color: rgb(254 205 211 / 0.8);
+}
+html:not(.dark)[data-brand-theme='sunset'] .border-indigo-300 {
+  border-color: rgb(253 164 175 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .border-indigo-500 {
+  border-color: rgb(244 63 94 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .border-indigo-600 {
+  border-color: rgb(225 29 72 / var(--tw-border-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='sunset'] .ring-indigo-100 {
+  --tw-ring-color: rgb(255 228 230 / var(--tw-ring-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='sunset'] .hover\:bg-indigo-50:hover {
+  background-color: rgb(255 241 242 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .hover\:bg-indigo-50\/60:hover {
+  background-color: rgb(255 241 242 / 0.6);
+}
+html:not(.dark)[data-brand-theme='sunset'] .hover\:bg-indigo-50\/70:hover {
+  background-color: rgb(255 241 242 / 0.7);
+}
+html:not(.dark)[data-brand-theme='sunset'] .hover\:bg-indigo-100:hover {
+  background-color: rgb(255 228 230 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .hover\:bg-indigo-700:hover {
+  background-color: rgb(190 18 60 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .hover\:border-indigo-200:hover {
+  border-color: rgb(254 205 211 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .hover\:text-indigo-800:hover {
+  color: rgb(159 18 57 / var(--tw-text-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .hover\:enabled\:bg-indigo-50:hover:enabled {
+  background-color: rgb(255 241 242 / var(--tw-bg-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .hover\:enabled\:border-indigo-200:hover:enabled {
+  border-color: rgb(254 205 211 / var(--tw-border-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='sunset'] .focus\:border-indigo-300:focus {
+  border-color: rgb(253 164 175 / var(--tw-border-opacity, 1));
+}
+html:not(.dark)[data-brand-theme='sunset'] .focus\:ring-indigo-100:focus {
+  --tw-ring-color: rgb(255 228 230 / var(--tw-ring-opacity, 1));
+}
+
+html:not(.dark)[data-brand-theme='sunset'] .from-indigo-500 {
+  --tw-gradient-from: #f97316 var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(249 115 22 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+html:not(.dark)[data-brand-theme='sunset'] .to-indigo-600 {
+  --tw-gradient-to: #db2777 var(--tw-gradient-to-position);
+}
+html:not(.dark)[data-brand-theme='sunset'] .to-indigo-50\/40 {
+  --tw-gradient-to: rgb(255 241 242 / 0.4) var(--tw-gradient-to-position);
+}
+
+html:not(.dark)[data-brand-theme='sunset'] .file\:bg-indigo-50::file-selector-button {
+  background-color: rgb(255 241 242);
+}
+html:not(.dark)[data-brand-theme='sunset'] .file\:text-indigo-700::file-selector-button {
+  color: rgb(190 18 60);
+}
+html:not(.dark)[data-brand-theme='sunset'] .hover\:file\:bg-indigo-100:hover::file-selector-button {
+  background-color: rgb(255 228 230);
+}
+
+/* =====================================================================
+ * Sidebar style — "pro"
+ * ---------------------------------------------------------------------
+ *  - Opt-in glassmorphism + theme-aware accent for the side navigation.
+ *  - Activated when <html data-sidebar-style="pro"> is set by ThemeService.
+ *  - Default (`classic`, no attribute) keeps the original sidebar UI
+ *    untouched — these rules ONLY apply when the attribute is present.
+ *  - Both light and dark mode get a subtle, theme-coloured upgrade while
+ *    preserving the familiar layout / spacing.
+ * ===================================================================*/
+
+/* Desktop Pro panel: glass + halo (md+ only — mobile drawer is opaque; see mobile block below). */
+html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--saas-primary-from) 14%, transparent) 0%,
+      color-mix(in srgb, var(--saas-primary-to) 6%, transparent) 35%,
+      rgba(255, 255, 255, 0.78) 100%
+    );
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+  border-right: 1px solid color-mix(in srgb, var(--saas-primary-from) 22%, rgba(255, 255, 255, 0.65));
+  box-shadow:
+    1px 0 0 0 rgba(255, 255, 255, 0.6) inset,
+    8px 0 28px -12px color-mix(in srgb, var(--saas-glow) 35%, transparent);
+  isolation: isolate;
+}
+
+html[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 220px;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 100% at 0% 0%,
+    color-mix(in srgb, var(--saas-primary-from) 32%, transparent) 0%,
+    transparent 70%
+  );
+  z-index: -1;
+}
+
+html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0 {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--saas-primary-from) 18%, rgba(2, 6, 23, 0.92)) 0%,
+      rgba(2, 6, 23, 0.92) 60%,
+      rgba(2, 6, 23, 0.95) 100%
+    );
+  border-right-color: color-mix(in srgb, var(--saas-primary-from) 28%, rgba(30, 41, 59, 0.7));
+  box-shadow:
+    1px 0 0 0 rgba(255, 255, 255, 0.04) inset,
+    8px 0 28px -12px color-mix(in srgb, var(--saas-primary-from) 25%, transparent);
+}
+
+html.dark[data-sidebar-style='pro'] aside.md\:sticky.md\:top-0::before {
+  background: radial-gradient(
+    120% 100% at 0% 0%,
+    color-mix(in srgb, var(--saas-primary-from) 28%, transparent) 0%,
+    transparent 70%
+  );
+}
+
+/* Header divider gets a faint accent line. */
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) > div:first-child {
+  border-bottom-color: color-mix(in srgb, var(--saas-primary-from) 18%, rgba(241, 245, 249, 0.8));
+}
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) > div:first-child {
+  border-bottom-color: color-mix(in srgb, var(--saas-primary-from) 30%, rgba(30, 41, 59, 0.9));
+}
+
+/* Footer (theme picker + sign out) divider also gets the accent treatment. */
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) > div:last-child {
+  border-top-color: color-mix(in srgb, var(--saas-primary-from) 18%, rgba(241, 245, 249, 0.8));
+}
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) > div:last-child {
+  border-top-color: color-mix(in srgb, var(--saas-primary-from) 30%, rgba(30, 41, 59, 0.9));
+}
+
+/* Nav links — softer idle, animated leading bar on hover, gradient pill when active. */
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid transparent;
+  transition:
+    transform 200ms ease,
+    background-color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    color 200ms ease;
+}
+
+/* Animated leading vertical bar — appears on hover & active. */
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--saas-primary-from), var(--saas-primary-to));
+  transform: translateY(-50%);
+  transition: height 220ms ease, opacity 220ms ease;
+  opacity: 0;
+}
+
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a:hover::before {
+  height: 60%;
+  opacity: 0.6;
+}
+
+/* Hover state — translucent theme tint. */
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a:hover {
+  background-color: color-mix(in srgb, var(--saas-primary-from) 10%, rgba(255, 255, 255, 0.7));
+  border-color: color-mix(in srgb, var(--saas-primary-from) 18%, transparent);
+  box-shadow: 0 8px 22px -12px color-mix(in srgb, var(--saas-glow) 60%, transparent);
+}
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a:hover {
+  background-color: color-mix(in srgb, var(--saas-primary-from) 18%, rgba(15, 23, 42, 0.9));
+  border-color: color-mix(in srgb, var(--saas-primary-from) 28%, transparent);
+}
+
+/* Active route — gradient pill, white text, small glow. The router applies
+   `bg-indigo-50 text-indigo-800 ...` (or its themed equivalent) — we override
+   those background/text rules on the active link only. */
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a.bg-indigo-50,
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-emerald-50'],
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-rose-50'] {
+  background: linear-gradient(135deg, var(--saas-primary-from), var(--saas-primary-to));
+  color: #ffffff !important;
+  border-color: transparent;
+  box-shadow:
+    0 12px 30px -10px color-mix(in srgb, var(--saas-glow) 80%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--saas-primary-from) 40%, transparent) inset;
+}
+
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a.bg-indigo-50::before,
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-emerald-50']::before,
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-rose-50']::before {
+  height: 60%;
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a.bg-indigo-50 .material-icons-outlined,
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-emerald-50'] .material-icons-outlined,
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-rose-50'] .material-icons-outlined {
+  color: #ffffff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.18));
+}
+
+/* Dark-mode active link tweaks — keep the gradient, ensure contrast. */
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a.bg-indigo-950\/70,
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-emerald-950'],
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a[class*='bg-rose-950'] {
+  background: linear-gradient(135deg, var(--saas-primary-from), var(--saas-primary-to));
+  color: #ffffff !important;
+  box-shadow:
+    0 12px 30px -10px color-mix(in srgb, var(--saas-primary-from) 75%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--saas-primary-from) 50%, transparent) inset;
+}
+
+/* Sign-out button — give it a subtle accent border in pro mode. */
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) .saas-btn-secondary {
+  border-color: color-mix(in srgb, var(--saas-primary-from) 22%, rgba(226, 232, 240, 0.9));
+}
+html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) .saas-btn-secondary:hover {
+  border-color: color-mix(in srgb, var(--saas-primary-from) 40%, transparent);
+  background-color: color-mix(in srgb, var(--saas-primary-from) 6%, #ffffff);
+}
+html.dark[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) .saas-btn-secondary:hover {
+  background-color: color-mix(in srgb, var(--saas-primary-from) 18%, rgba(15, 23, 42, 0.85));
+}
+
+/* Mobile slide-out: fully opaque panel (no glass / transparency) — classic & pro. */
+@media (max-width: 767.98px) {
+  aside.saas-mobile-nav-drawer {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    border-right-color: rgb(226 232 240) !important; /* slate-200 */
+    box-shadow:
+      1px 0 0 0 rgb(241 245 249) inset,
+      8px 0 28px -12px rgb(15 23 42 / 0.12) !important;
+  }
+
+  html.dark aside.saas-mobile-nav-drawer {
+    border-right-color: rgb(51 65 85) !important; /* slate-700 */
+    box-shadow:
+      1px 0 0 0 rgb(30 41 59 / 0.5) inset,
+      8px 0 28px -12px rgb(0 0 0 / 0.35) !important;
+  }
+
+  /* Classic sidebar on mobile: solid white / slate-950 */
+  html:not([data-sidebar-style='pro']) aside.saas-mobile-nav-drawer {
+    background: #ffffff !important;
+  }
+
+  html.dark:not([data-sidebar-style='pro']) aside.saas-mobile-nav-drawer {
+    background: rgb(2 6 23) !important; /* slate-950 */
+  }
+
+  /* Pro on mobile: opaque theme tint (no transparent stops, no blur) */
+  html[data-sidebar-style='pro'] aside.saas-mobile-nav-drawer {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--saas-primary-from) 14%, #ffffff) 0%,
+      #ffffff 32%,
+      #f1f5f9 100%
+    ) !important;
+    border-right-color: color-mix(in srgb, var(--saas-primary-from) 35%, rgb(226 232 240)) !important;
+  }
+
+  html.dark[data-sidebar-style='pro'] aside.saas-mobile-nav-drawer {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--saas-primary-from) 22%, rgb(15 23 42)) 0%,
+      rgb(15 23 42) 40%,
+      rgb(2 6 23) 100%
+    ) !important;
+    border-right-color: color-mix(in srgb, var(--saas-primary-from) 40%, rgb(51 65 85)) !important;
+  }
+
+  /* Halo uses transparent radial stops — hide on mobile so the panel stays solid */
+  html[data-sidebar-style='pro'] aside.saas-mobile-nav-drawer::before {
+    display: none !important;
+  }
+}
+
+/* Reduced motion — disable hover translate/transition for users who prefer it. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a,
+  html[data-sidebar-style='pro'] :is(aside.md\:sticky.md\:top-0, aside.saas-mobile-nav-drawer) nav > a::before {
+    transition: none;
   }
 }

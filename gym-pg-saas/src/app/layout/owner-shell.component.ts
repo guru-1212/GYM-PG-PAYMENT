@@ -10,11 +10,12 @@ import { ModalComponent } from '../shared/modal.component';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../shared/brand-logo.component';
 import { ThemeToggleComponent } from '../shared/theme-toggle.component';
+import { ThemePickerComponent } from '../shared/theme-picker.component';
 
 @Component({
   selector: 'app-owner-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, BrandLogoComponent, ModalComponent, ThemeToggleComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, BrandLogoComponent, ModalComponent, ThemeToggleComponent, ThemePickerComponent],
   templateUrl: './owner-shell.component.html',
 })
 export class OwnerShellComponent implements OnInit, OnDestroy {
@@ -31,6 +32,23 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
     if (!n) return '?';
     return n.charAt(0).toUpperCase();
   });
+
+  /** Role helpers exposed to the template. */
+  readonly isSupervisor = computed(() => this.profile()?.role === 'supervisor');
+  readonly canViewMembers = computed(() => this.auth.hasPermission('canViewMembers'));
+  readonly canViewInactiveMembers = computed(() => this.auth.hasPermission('canViewInactiveMembers'));
+  readonly canViewPayments = computed(() => this.auth.hasPermission('canViewPayments'));
+  readonly canViewRooms = computed(() => this.auth.hasPermission('canViewRooms'));
+  /** Owner-only nav: shown when admin has enabled the supervisor feature flag for this owner. */
+  readonly canSeeSupervisorsLink = computed(
+    () =>
+      this.profile()?.role === 'owner' &&
+      this.profile()?.featureFlags?.supervisorEnabled === true,
+  );
+  /** Monthly earnings is hard-blocked for supervisors regardless of perms. */
+  readonly canViewMonthlyEarnings = computed(() => !this.isSupervisor());
+  /** Analytics dashboard — owner-only (financial + member data). */
+  readonly canViewAnalytics = computed(() => !this.isSupervisor());
 
   readonly mobileMenuOpen = signal(false);
   readonly userMenuOpen = signal(false);
