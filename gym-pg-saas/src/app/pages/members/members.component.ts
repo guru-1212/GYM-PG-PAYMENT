@@ -1029,8 +1029,63 @@ export class MembersComponent implements OnInit, OnDestroy {
     if (!m || !url) return null;
     const mobile = (m.mobile || '').replace(/\D/g, '');
     if (mobile.length !== 10) return null;
-    const msg = `Hi ${m.firstName}, please complete your registration here (valid for 24 hours): ${url}`;
+    
+    const ownerProfile = this.auth.profile();
+    const pgName = ownerProfile?.businessName?.trim() || ownerProfile?.name || 'PayBook';
+    const shareCount = (m.onboardingLinkShareCount || 0) + 1; // Current share count
+    
+    let msg = '';
+    
+    if (shareCount === 1) {
+      // First time message
+      msg = `Hi ${m.firstName} ${m.lastName || ''}
+
+This msg from ${pgName}
+
+Please use below link to update your profile with ${pgName}
+
+Make sure you are entering details are valid to avoid reminder 😊
+
+${url}
+
+Thanks regards,
+${pgName}`;
+    } else {
+      // Second time onwards message
+      msg = `Hi ${m.firstName} ${m.lastName || ''} this is ${shareCount}${this.getNumberSuffix(shareCount)} time we are sending link to you from ${pgName}
+
+From old data you provided was something wrong details or photo you sent please send correctly 😒
+
+This msg from ${pgName}
+
+Please use below link to update your profile with ${pgName}
+
+Make sure you are entering details are valid to avoid reminder 😊
+
+${url}
+
+Thanks regards,
+${pgName}`;
+    }
+    
     return `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
+  }
+
+  /** Helper method to get number suffix (1st, 2nd, 3rd, 4th, etc.) */
+  private getNumberSuffix(num: number): string {
+    const lastDigit = num % 10;
+    const lastTwoDigits = num % 100;
+    
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
+      return 'th';
+    }
+    
+    switch (lastDigit) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
   }
 
   async deleteMember(m: Member): Promise<void> {
