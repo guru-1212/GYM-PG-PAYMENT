@@ -1,234 +1,439 @@
-<div class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-emerald-50 px-4 py-8">
-  <div class="mx-auto max-w-xl">
-    <header class="mb-6 text-center">
-      <h1 class="text-2xl font-bold text-slate-900">Complete your profile</h1>
-      @if (businessName()) {
-        <p class="mt-1 text-sm text-slate-600">
-          Invitation from <span class="font-semibold text-slate-800">{{ businessName() }}</span>
-        </p>
-      }
-    </header>
-
-    @if (stage() === 'loading') {
-      <div class="flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <span class="material-icons-outlined animate-spin text-slate-500">progress_activity</span>
-        <p class="text-sm text-slate-600">Loading your link...</p>
-      </div>
-    }
-
-    @if (stage() === 'error') {
-      <div class="rounded-2xl border border-red-200 bg-red-50 p-6 text-center shadow-sm">
-        <span class="material-icons-outlined text-3xl text-red-600">error</span>
-        <p class="mt-2 text-base font-semibold text-red-800">{{ errorMessage() }}</p>
-        <p class="mt-1 text-sm text-red-700">
-          Please contact your owner to get a new link.
-        </p>
-        <button
-          type="button"
-          class="mt-4 rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          (click)="goHome()"
-        >
-          Go to home
-        </button>
-      </div>
-    }
-
-    @if (stage() === 'verify') {
-      <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        @if (memberDisplayName()) {
-          <p class="mb-2 text-sm text-slate-600">
-            Hi <span class="font-semibold text-slate-800">{{ memberDisplayName() }}</span>,
+<div class="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
+  <!-- Background decoration -->
+  <div class="absolute inset-0 opacity-30">
+    <div class="absolute top-20 left-20 w-72 h-72 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-full blur-3xl"></div>
+    <div class="absolute bottom-20 right-20 w-96 h-96 bg-gradient-to-br from-purple-400 to-pink-600 rounded-full blur-3xl"></div>
+  </div>
+  
+  <div class="relative z-10 px-4 py-8">
+    <div class="mx-auto max-w-2xl">
+      <!-- Header -->
+      <header class="mb-8 text-center">
+        <div class="mb-4 inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg">
+          <span class="material-icons-outlined text-2xl text-white">person_add</span>
+        </div>
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-900 to-indigo-900 bg-clip-text text-transparent">Complete Your Profile</h1>
+        @if (businessName()) {
+          <p class="mt-2 text-sm text-slate-600">
+            Welcome to <span class="font-semibold text-indigo-700">{{ businessName() }}</span>
           </p>
+          <p class="mt-1 text-xs text-slate-500">Please fill in your details to get started</p>
         }
-        <p class="mb-4 text-sm text-slate-600">
-          Enter the <span class="font-semibold">same 10-digit mobile number</span> your owner has saved for your profile (not any other number).
-        </p>
-        <form [formGroup]="verifyForm" (ngSubmit)="submitVerify()" class="space-y-4">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Mobile number</label>
-            <input
-              formControlName="mobile"
-              inputmode="numeric"
-              maxlength="10"
-              autocomplete="tel"
-              (input)="onMobileInput($event)"
-              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-              placeholder="10-digit mobile"
-            />
-            @if (verifyForm.controls.mobile.touched && verifyForm.controls.mobile.invalid) {
-              <p class="mt-1 text-sm text-red-600">Enter a valid 10-digit mobile</p>
-            }
+      </header>
+
+      <!-- Loading State -->
+      @if (stage() === 'loading') {
+        <div class="backdrop-blur-xl bg-white/90 border border-white/20 rounded-3xl p-8 shadow-2xl">
+          <div class="flex flex-col items-center justify-center gap-4">
+            <div class="relative">
+              <div class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+              <div class="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-blue-400 rounded-full animate-spin animation-delay-150"></div>
+            </div>
+            <p class="text-base font-medium text-slate-700">Loading your profile...</p>
+            <p class="text-sm text-slate-500">Please wait a moment</p>
           </div>
+        </div>
+      }
+
+      <!-- Error State -->
+      @if (stage() === 'error') {
+        <div class="backdrop-blur-xl bg-white/90 border border-white/20 rounded-3xl p-8 shadow-2xl">
+          <div class="text-center">
+            <div class="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <span class="material-icons-outlined text-3xl text-red-600">error_outline</span>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mb-2">Link Expired or Invalid</h2>
+            <p class="text-slate-600 mb-6">{{ errorMessage() }}</p>
+            <button
+              type="button"
+              class="px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white font-medium rounded-xl hover:from-slate-700 hover:to-slate-800 transition-all duration-200 shadow-lg hover:shadow-xl"
+              (click)="goHome()"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      }
+
+      <!-- Verification Stage -->
+      @if (stage() === 'verify') {
+        <div class="backdrop-blur-xl bg-white/90 border border-white/20 rounded-3xl p-8 shadow-2xl">
+          <div class="mb-6">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                <span class="material-icons-outlined text-indigo-600">smartphone</span>
+              </div>
+              <h2 class="text-xl font-bold text-slate-900">Verify Your Mobile Number</h2>
+            </div>
+            @if (memberDisplayName()) {
+              <p class="text-sm text-slate-600 mb-4">
+                Hi <span class="font-semibold text-indigo-700">{{ memberDisplayName() }}</span>,
+              </p>
+            }
+            <p class="text-sm text-slate-700 leading-relaxed">
+              Enter the <span class="font-semibold text-indigo-700">same 10-digit mobile number</span> that your owner has saved for your profile. This helps us verify your identity.
+            </p>
+          </div>
+          
+          <form [formGroup]="verifyForm" (ngSubmit)="submitVerify()" class="space-y-6">
+            <div class="relative">
+              <label class="block text-sm font-semibold text-slate-700 mb-2">Mobile Number</label>
+              <div class="relative">
+                <span class="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500">
+                  <span class="material-icons-outlined text-lg">phone</span>
+                </span>
+                <input
+                  formControlName="mobile"
+                  inputmode="numeric"
+                  maxlength="10"
+                  autocomplete="tel"
+                  (input)="onMobileInput($event)"
+                  class="w-full pl-12 pr-4 py-4 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-200 text-base font-medium"
+                  placeholder="Enter 10-digit mobile"
+                />
+              </div>
+              @if (verifyForm.controls.mobile.touched && verifyForm.controls.mobile.invalid) {
+                <div class="mt-2 flex items-center gap-2 text-red-600">
+                  <span class="material-icons-outlined text-sm">error_outline</span>
+                  <p class="text-sm">Please enter a valid 10-digit mobile number</p>
+                </div>
+              }
+            </div>
+            
+            <button
+              type="submit"
+              [disabled]="busy()"
+              class="w-full py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              @if (busy()) {
+                <span class="material-icons-outlined animate-spin">progress_activity</span>
+                <span>Verifying...</span>
+              } @else {
+                <span>Verify and Continue</span>
+              }
+            </button>
+            
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <p class="text-xs text-amber-800 flex items-center gap-2">
+                <span class="material-icons-outlined text-sm">security</span>
+                For your security, this link will be locked after 5 wrong attempts.
+              </p>
+            </div>
+          </form>
+        </div>
+      }
+
+      <!-- Form Fill Stage -->
+      @if (stage() === 'fill') {
+        <form [formGroup]="detailsForm" (ngSubmit)="submitDetails()" class="backdrop-blur-xl bg-white/90 border border-white/20 rounded-3xl p-8 shadow-2xl space-y-6">
+          <div class="mb-6">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                <span class="material-icons-outlined text-emerald-600">edit_note</span>
+              </div>
+              <h2 class="text-xl font-bold text-slate-900">Personal Information</h2>
+            </div>
+            <p class="text-sm text-slate-600 mt-2">Please provide your complete details for verification</p>
+          </div>
+
+          <!-- Basic Info Section -->
+          <div class="bg-gradient-to-r from-slate-50 to-indigo-50 rounded-2xl p-6 space-y-4">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">First Name</label>
+                <div class="relative">
+                  <input
+                    formControlName="firstName"
+                    class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl bg-slate-100 text-slate-600 font-medium"
+                    readonly
+                  />
+                  <span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400">
+                    <span class="material-icons-outlined text-sm">lock</span>
+                  </span>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Last Name</label>
+                <input
+                  formControlName="lastName"
+                  class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
+                  placeholder="Enter last name"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
+              <div class="relative">
+                <span class="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500">
+                  <span class="material-icons-outlined text-lg">email</span>
+                </span>
+                <input
+                  type="email"
+                  formControlName="email"
+                  class="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
+                  placeholder="your.email@example.com"
+                />
+              </div>
+              @if (detailsForm.controls.email.touched && detailsForm.controls.email.errors?.['email']) {
+                <div class="mt-2 flex items-center gap-2 text-red-600">
+                  <span class="material-icons-outlined text-sm">error_outline</span>
+                  <p class="text-sm">Please enter a valid email address</p>
+                </div>
+              }
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Gender</label>
+                <div class="relative">
+                  <span class="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500">
+                    <span class="material-icons-outlined text-lg">person</span>
+                  </span>
+                  <select
+                    formControlName="gender"
+                    class="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-200 appearance-none"
+                  >
+                    <option value="">Select gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <span class="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none">
+                    <span class="material-icons-outlined text-sm">arrow_drop_down</span>
+                  </span>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Aadhaar Number</label>
+                <div class="relative">
+                  <span class="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-500">
+                    <span class="material-icons-outlined text-lg">credit_card</span>
+                  </span>
+                  <input
+                    formControlName="aadhaarNumber"
+                    inputmode="numeric"
+                    maxlength="12"
+                    (input)="onAadhaarInput($event)"
+                    class="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
+                    placeholder="1234 5678 9012"
+                  />
+                </div>
+                @if (detailsForm.controls.aadhaarNumber.touched && detailsForm.controls.aadhaarNumber.invalid) {
+                  <div class="mt-2 flex items-center gap-2 text-red-600">
+                    <span class="material-icons-outlined text-sm">error_outline</span>
+                    <p class="text-sm">Enter 12-digit Aadhaar or leave blank</p>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-2">Address</label>
+              <div class="relative">
+                <span class="absolute left-4 top-3 text-slate-500">
+                  <span class="material-icons-outlined text-lg">location_on</span>
+                </span>
+                <textarea
+                  formControlName="address"
+                  rows="3"
+                  class="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-200 resize-none"
+                  placeholder="Enter your complete address"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Photo Upload Section -->
+          <div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 space-y-6">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                <span class="material-icons-outlined text-emerald-600">photo_camera</span>
+              </div>
+              <h3 class="text-lg font-bold text-slate-900">Photo Upload</h3>
+            </div>
+            <p class="text-sm text-slate-600">Please upload clear photos for verification</p>
+
+            <!-- Profile Photo -->
+            <div class="bg-white rounded-xl p-4 border border-emerald-200">
+              <label class="block text-sm font-semibold text-slate-700 mb-3">
+                Profile Photo <span class="text-red-500">*</span>
+              </label>
+              @if (profilePhotoPreview()) {
+                <div class="mb-4 relative">
+                  <img
+                    [src]="profilePhotoPreview()"
+                    alt="Profile preview"
+                    class="w-32 h-32 rounded-xl object-cover border-2 border-emerald-300 shadow-lg"
+                  />
+                  <div class="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+                    <span class="material-icons-outlined text-white text-sm">check</span>
+                  </div>
+                </div>
+              }
+              <div class="relative">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  class="hidden"
+                  id="profilePhoto"
+                  (change)="onPhotoSelected('profile', $event)"
+                />
+                <label
+                  for="profilePhoto"
+                  class="flex items-center justify-center gap-2 w-full py-3 px-4 border-2 border-dashed border-emerald-300 rounded-xl cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition-all duration-200"
+                >
+                  <span class="material-icons-outlined text-emerald-600">cloud_upload</span>
+                  <span class="text-sm font-medium text-emerald-700">
+                    {{ profilePhotoPreview() ? 'Change Photo' : 'Upload Photo' }}
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Aadhaar Photos -->
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div class="bg-white rounded-xl p-4 border border-emerald-200">
+                <label class="block text-sm font-semibold text-slate-700 mb-3">
+                  Aadhaar Front <span class="text-red-500">*</span>
+                </label>
+                @if (aadhaarFrontPreview()) {
+                  <div class="mb-4 relative">
+                    <img
+                      [src]="aadhaarFrontPreview()"
+                      alt="Aadhaar front"
+                      class="w-full h-32 rounded-xl object-cover border-2 border-emerald-300 shadow-lg"
+                    />
+                    <div class="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+                      <span class="material-icons-outlined text-white text-sm">check</span>
+                    </div>
+                  </div>
+                }
+                <div class="relative">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    class="hidden"
+                    id="aadhaarFront"
+                    (change)="onPhotoSelected('aadhaarFront', $event)"
+                  />
+                  <label
+                    for="aadhaarFront"
+                    class="flex items-center justify-center gap-2 w-full py-3 px-4 border-2 border-dashed border-emerald-300 rounded-xl cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition-all duration-200"
+                  >
+                    <span class="material-icons-outlined text-emerald-600">cloud_upload</span>
+                    <span class="text-sm font-medium text-emerald-700">
+                      {{ aadhaarFrontPreview() ? 'Change Photo' : 'Upload Front' }}
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-xl p-4 border border-emerald-200">
+                <label class="block text-sm font-semibold text-slate-700 mb-3">
+                  Aadhaar Back <span class="text-red-500">*</span>
+                </label>
+                @if (aadhaarBackPreview()) {
+                  <div class="mb-4 relative">
+                    <img
+                      [src]="aadhaarBackPreview()"
+                      alt="Aadhaar back"
+                      class="w-full h-32 rounded-xl object-cover border-2 border-emerald-300 shadow-lg"
+                    />
+                    <div class="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+                      <span class="material-icons-outlined text-white text-sm">check</span>
+                    </div>
+                  </div>
+                }
+                <div class="relative">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    class="hidden"
+                    id="aadhaarBack"
+                    (change)="onPhotoSelected('aadhaarBack', $event)"
+                  />
+                  <label
+                    for="aadhaarBack"
+                    class="flex items-center justify-center gap-2 w-full py-3 px-4 border-2 border-dashed border-emerald-300 rounded-xl cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition-all duration-200"
+                  >
+                    <span class="material-icons-outlined text-emerald-600">cloud_upload</span>
+                    <span class="text-sm font-medium text-emerald-700">
+                      {{ aadhaarBackPreview() ? 'Change Photo' : 'Upload Back' }}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress Indicator -->
+          @if (busy()) {
+            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-6">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
+                  <span class="material-icons-outlined text-white text-sm animate-pulse">cloud_upload</span>
+                </div>
+                <div>
+                  <p class="font-semibold text-emerald-900">{{ submitStatus() }}</p>
+                  <p class="text-sm text-emerald-700">Uploading your details...</p>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="flex justify-between text-sm text-emerald-700 mb-1">
+                  <span>Progress</span>
+                  <span>{{ submitProgress() }}%</span>
+                </div>
+                <div class="w-full h-3 bg-emerald-200 rounded-full overflow-hidden">
+                  <div
+                    class="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-300 ease-out"
+                    [style.width.%]="submitProgress()"
+                  ></div>
+                </div>
+              </div>
+              <p class="text-xs text-emerald-600 leading-relaxed">
+                <span class="material-icons-outlined text-sm align-middle mr-1">info</span>
+                Photos are optimized for faster upload. Wi-Fi recommended for best experience.
+              </p>
+            </div>
+          }
+
+          <!-- Submit Button -->
           <button
             type="submit"
             [disabled]="busy()"
-            class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            class="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
           >
-            {{ busy() ? 'Verifying...' : 'Verify and continue' }}
+            @if (busy()) {
+              <span class="material-icons-outlined animate-spin">progress_activity</span>
+              <span>{{ submitProgress() > 0 ? 'Submitting... ' + submitProgress() + '%' : 'Submitting...' }}</span>
+            } @else {
+              <span class="material-icons-outlined">send</span>
+              <span>Submit Profile</span>
+            }
           </button>
-          <p class="text-center text-xs text-slate-500">
-            For your security, this link is locked after 5 wrong attempts.
-          </p>
         </form>
-      </div>
-    }
+      }
 
-    @if (stage() === 'fill') {
-      <form [formGroup]="detailsForm" (ngSubmit)="submitDetails()" class="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">First name</label>
-            <input
-              formControlName="firstName"
-              class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-base"
-              readonly
-            />
+      <!-- Success State -->
+      @if (stage() === 'done') {
+        <div class="backdrop-blur-xl bg-white/90 border border-white/20 rounded-3xl p-8 shadow-2xl text-center">
+          <div class="mx-auto w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center mb-6 shadow-lg">
+            <span class="material-icons-outlined text-3xl text-white">check_circle</span>
           </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Last name</label>
-            <input
-              formControlName="lastName"
-              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Email</label>
-          <input
-            type="email"
-            formControlName="email"
-            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-          />
-          @if (detailsForm.controls.email.touched && detailsForm.controls.email.errors?.['email']) {
-            <p class="mt-1 text-sm text-red-600">Enter a valid email</p>
-          }
-        </div>
-
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Gender</label>
-          <select
-            formControlName="gender"
-            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-          >
-            <option value="">—</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Address</label>
-          <textarea
-            formControlName="address"
-            rows="2"
-            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-          ></textarea>
-        </div>
-
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar number</label>
-          <input
-            formControlName="aadhaarNumber"
-            inputmode="numeric"
-            maxlength="12"
-            (input)="onAadhaarInput($event)"
-            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-          />
-          @if (detailsForm.controls.aadhaarNumber.touched && detailsForm.controls.aadhaarNumber.invalid) {
-            <p class="mt-1 text-sm text-red-600">Enter the full 12-digit Aadhaar or leave blank</p>
-          }
-        </div>
-
-        <div>
-          <label class="mb-1 block text-sm font-medium text-slate-700">Profile photo <span class="text-red-600">*</span></label>
-          @if (profilePhotoPreview()) {
-            <img
-              [src]="profilePhotoPreview()"
-              alt="Profile preview"
-              class="mb-2 h-28 w-28 rounded-xl border border-slate-200 object-cover"
-            />
-          }
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-            (change)="onPhotoSelected('profile', $event)"
-          />
-        </div>
-
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Front <span class="text-red-600">*</span></label>
-            @if (aadhaarFrontPreview()) {
-              <img
-                [src]="aadhaarFrontPreview()"
-                alt="Aadhaar front"
-                class="mb-2 h-28 w-full rounded-xl border border-slate-200 object-cover"
-              />
-            }
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-              (change)="onPhotoSelected('aadhaarFront', $event)"
-            />
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Back <span class="text-red-600">*</span></label>
-            @if (aadhaarBackPreview()) {
-              <img
-                [src]="aadhaarBackPreview()"
-                alt="Aadhaar back"
-                class="mb-2 h-28 w-full rounded-xl border border-slate-200 object-cover"
-              />
-            }
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-              (change)="onPhotoSelected('aadhaarBack', $event)"
-            />
-          </div>
-        </div>
-
-        @if (busy()) {
-          <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/95 p-4 shadow-sm dark:border-emerald-800/60 dark:bg-emerald-950/40">
-            <p class="text-sm font-semibold text-emerald-900 dark:text-emerald-100">{{ submitStatus() }}</p>
-            <div class="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-emerald-200/80 dark:bg-emerald-900/60">
-              <div
-                class="h-full rounded-full bg-emerald-600 transition-[width] duration-200 ease-out dark:bg-emerald-400"
-                [style.width.%]="submitProgress()"
-              ></div>
-            </div>
-            <p class="mt-2 text-xs leading-relaxed text-emerald-800/90 dark:text-emerald-200/80">
-              Photos are resized on your phone first (less data), then uploaded. Wi-Fi is faster than mobile data; very poor signal can take several minutes for three images.
+          <h2 class="text-2xl font-bold text-slate-900 mb-3">Profile Submitted!</h2>
+          <p class="text-slate-600 mb-2">Your profile has been successfully submitted for review</p>
+          <p class="text-sm text-slate-500">
+            {{ businessName() }} will verify your details and activate your membership shortly
+          </p>
+          <div class="mt-6 p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+            <p class="text-sm text-emerald-800">
+              <span class="material-icons-outlined text-sm align-middle mr-1">check_circle_outline</span>
+              You can safely close this page now
             </p>
           </div>
-        }
-
-        <button
-          type="submit"
-          [disabled]="busy()"
-          class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {{ busy() ? (submitProgress() > 0 ? 'Submitting… ' + submitProgress() + '%' : 'Submitting…') : 'Submit details' }}
-        </button>
-      </form>
-    }
-
-    @if (stage() === 'done') {
-      <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center shadow-sm">
-        <span class="material-icons-outlined text-3xl text-emerald-600">check_circle</span>
-        <p class="mt-2 text-base font-semibold text-emerald-900">Submitted for review</p>
-        <p class="mt-1 text-sm text-emerald-800">
-          Your gym owner will check your details and photos. You can close this page.
-        </p>
-        <p class="mt-1 text-sm text-emerald-800">
-          Your details have been sent to your owner. You can close this page.
-        </p>
-      </div>
-    }
+        </div>
+      }
+    </div>
   </div>
 </div>
