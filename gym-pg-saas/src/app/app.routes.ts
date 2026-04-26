@@ -124,14 +124,8 @@ export const routes: Routes = [
             (m) => m.AnalyticsPageComponent,
           ),
       },
-      {
-        path: 'notify-members',
-        canActivate: [permissionGuard('canViewMembers')],
-        loadComponent: () =>
-          import('./pages/owner-notify-members/owner-notify-members-page.component').then(
-            (m) => m.OwnerNotifyMembersPageComponent,
-          ),
-      },
+      // Notify members page temporarily disabled.
+      { path: 'notify-members', redirectTo: 'notifications', pathMatch: 'full' },
       {
         path: 'notifications',
         loadComponent: () =>

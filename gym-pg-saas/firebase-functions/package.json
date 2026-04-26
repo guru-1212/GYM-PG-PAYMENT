@@ -1,0 +1,13 @@
+{
+  "name": "gym-pg-saas-functions",
+  "private": true,
+  "description": "Cloud Functions for PayBook / OurPGTracker (Firestore, Auth callables, FCM).",
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^4.9.0"
+  }
+}

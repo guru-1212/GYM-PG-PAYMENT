@@ -4,7 +4,17 @@ import { calendarDaysBetween, startOfDay, startOfToday, timestampToDate } from '
 import { AuthService } from './auth.service';
 import { FirebaseAppService } from './firebase-app.service';
 import { getMessaging, getToken, onMessage, deleteToken } from 'firebase/messaging';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import {
+  collection,
+  collectionGroup,
+  doc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  setDoc,
+  where,
+} from 'firebase/firestore';
 
 export interface NotificationData {
   title: string;
@@ -24,12 +34,15 @@ export class NotificationService {
   private messaging = getMessaging(this.fb.app);
   private fcmToken: string | null = null;
   private tokenRefreshInterval: any = null;
+  private messageUnsubscribe: (() => void) | null = null;
+  private roleListenerUnsubscribes: Array<() => void> = [];
+  private shownDocIds = new Set<string>();
 
   constructor() {
     // Initialize notifications for admin/owner only
     effect(() => {
       const user = this.auth.user();
-      if (user && (this.auth.isAdmin() || this.auth.isApprovedOwner())) {
+      if (user && (this.auth.isAdmin() || this.auth.isApprovedOwner() || this.auth.isSupervisor())) {
         this.initializeNotifications();
       } else {
         this.cleanupPushNotifications();
@@ -56,8 +69,8 @@ export class NotificationService {
       // Setup message listeners
       this.setupMessageListener();
       
-      // Setup admin event listeners
-      this.setupAdminEventListeners();
+      // Setup role-specific foreground listeners
+      this.setupRoleEventListeners();
       
       // Setup token refresh
       this.setupTokenRefresh();
@@ -121,7 +134,8 @@ export class NotificationService {
   }
 
   private setupMessageListener(): void {
-    onMessage(this.messaging, (payload) => {
+    this.messageUnsubscribe?.();
+    this.messageUnsubscribe = onMessage(this.messaging, (payload) => {
       // console.log('Received push message:', payload);
       
       // Show system notification even when app is in foreground
@@ -157,6 +171,11 @@ export class NotificationService {
       clearInterval(this.tokenRefreshInterval);
       this.tokenRefreshInterval = null;
     }
+    this.messageUnsubscribe?.();
+    this.messageUnsubscribe = null;
+    this.roleListenerUnsubscribes.forEach((fn) => fn());
+    this.roleListenerUnsubscribes = [];
+    this.shownDocIds.clear();
 
     // Remove FCM token on logout
     if (this.fcmToken) {
@@ -166,13 +185,25 @@ export class NotificationService {
     }
   }
 
-  private setupAdminEventListeners(): void {
+  private setupRoleEventListeners(): void {
+    this.roleListenerUnsubscribes.forEach((fn) => fn());
+    this.roleListenerUnsubscribes = [];
     const user = this.auth.user();
     if (!user) return;
+    if (this.auth.isAdmin()) {
+      this.setupAdminEventListeners(user.uid);
+      return;
+    }
+    if (this.auth.isApprovedOwner() || this.auth.isSupervisor()) {
+      const ownerId = this.auth.effectiveOwnerId();
+      if (ownerId) this.setupOwnerEventListeners(ownerId);
+    }
+  }
 
+  private setupAdminEventListeners(uid: string): void {
     // Listen for new member approval requests
-    const approvalRef = doc(this.fb.db, 'adminNotifications', user.uid);
-    onSnapshot(approvalRef, (snapshot) => {
+    const approvalRef = doc(this.fb.db, 'adminNotifications', uid);
+    this.roleListenerUnsubscribes.push(onSnapshot(approvalRef, (snapshot) => {
       const data = snapshot.data();
       if (data && data['pendingApprovals'] > 0) {
         this.showSystemNotification({
@@ -184,11 +215,11 @@ export class NotificationService {
           requireInteraction: true
         });
       }
-    });
+    }));
 
     // Listen for urgent payment dues
-    const duesRef = doc(this.fb.db, 'urgentNotifications', user.uid);
-    onSnapshot(duesRef, (snapshot) => {
+    const duesRef = doc(this.fb.db, 'urgentNotifications', uid);
+    this.roleListenerUnsubscribes.push(onSnapshot(duesRef, (snapshot) => {
       const data = snapshot.data();
       if (data && data['urgentDues']?.length > 0) {
         const dues = data['urgentDues'] as any[];
@@ -203,7 +234,68 @@ export class NotificationService {
           });
         });
       }
-    });
+    }));
+
+    // Foreground alert for owner->admin chat messages.
+    const adminUnreadQ = query(
+      collectionGroup(this.fb.db, 'messages'),
+      where('senderRole', '==', 'owner'),
+      where('readByAdmin', '==', false),
+      orderBy('timestamp', 'desc'),
+      limit(50),
+    );
+    this.roleListenerUnsubscribes.push(
+      onSnapshot(adminUnreadQ, (snap) => {
+        snap.docChanges().forEach((chg) => {
+          if (chg.type !== 'added') return;
+          const id = chg.doc.id;
+          if (this.shownDocIds.has(id)) return;
+          this.shownDocIds.add(id);
+          const data = chg.doc.data() as Record<string, unknown>;
+          const senderName = String(data['senderName'] || 'Owner').trim();
+          const text = String(data['text'] || '').trim();
+          this.showSystemNotification({
+            title: 'New owner message',
+            body: text ? `${senderName}: ${text}` : `${senderName} sent a message`,
+            icon: '/icons/icon-192.png',
+            tag: `chat-${id}`,
+            data: { type: 'admin-chat' },
+            requireInteraction: true,
+          });
+        });
+      }),
+    );
+  }
+
+  private setupOwnerEventListeners(ownerId: string): void {
+    // Foreground alert for in-app notifications written under owners/{ownerId}/appNotifications.
+    const ownerNotificationsQ = query(
+      collection(this.fb.db, `owners/${ownerId}/appNotifications`),
+      where('read', '==', false),
+      orderBy('createdAt', 'desc'),
+      limit(50),
+    );
+    this.roleListenerUnsubscribes.push(
+      onSnapshot(ownerNotificationsQ, (snap) => {
+        snap.docChanges().forEach((chg) => {
+          if (chg.type !== 'added') return;
+          const id = chg.doc.id;
+          if (this.shownDocIds.has(id)) return;
+          this.shownDocIds.add(id);
+          const data = chg.doc.data() as Record<string, unknown>;
+          const title = String(data['title'] || 'New notification').trim();
+          const body = String(data['body'] || '').trim();
+          this.showSystemNotification({
+            title,
+            body,
+            icon: '/icons/icon-192.png',
+            tag: `owner-app-${id}`,
+            data: { type: 'owner-in-app' },
+            requireInteraction: false,
+          });
+        });
+      }),
+    );
   }
 
   private showSystemNotification(notificationData: NotificationData): void {

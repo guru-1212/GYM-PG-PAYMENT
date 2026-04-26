@@ -290,6 +290,36 @@ service cloud.firestore {
         || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canShareOnboardingLink'));
     }
 
+    /**
+     * Member receipt share links (public token URL => /member-receipt/{token}).
+     * Token doc contains only receipt metadata; random token id is the access key.
+     */
+    match /memberReceiptLinks/{token} {
+      // Public reads are required so members can open the shared link without auth.
+      allow read: if true;
+
+      // Owner can create for own members. Supervisor can create only when allowed to
+      // record payments for the same owner scope.
+      allow create: if (
+          (isApprovedOwner() && request.resource.data.ownerId == request.auth.uid)
+          || (
+            isActiveSupervisorOf(request.resource.data.ownerId)
+            && supervisorPerm('canRecordPayments')
+          )
+        )
+        && request.resource.data.memberId is string
+        && request.resource.data.ownerId is string
+        && request.resource.data.receiptNumber is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId))
+        && get(/databases/$(database)/documents/members/$(request.resource.data.memberId)).data.ownerId == request.resource.data.ownerId;
+
+      // Links are immutable client-side; issue a fresh link instead of editing.
+      allow update, delete: if false;
+    }
+
     match /payments/{paymentId} {
       allow read: if isAdmin()
         || (isApprovedOwner() && resource.data.ownerId == request.auth.uid)

@@ -136,7 +136,7 @@
               <span class="nb-tab-count">{{ badgeCount() > 99 ? '99+' : badgeCount() }}</span>
             }
           </button>
-          <button
+          <!-- <button
             type="button"
             class="nb-trigger nb-trigger--pair"
             (click)="toggleMenu(); $event.stopPropagation()"
@@ -163,10 +163,10 @@
             @if (badgeCount() > 0) {
               <span class="nb-badge">{{ badgeCount() > 99 ? '99+' : badgeCount() }}</span>
             }
-          </button>
+          </button> -->
         </div>
       } @else {
-        <button
+        <!-- <button
           type="button"
           class="nb-trigger"
           (click)="toggleMenu(); $event.stopPropagation()"
@@ -192,7 +192,7 @@
           @if (badgeCount() > 0) {
             <span class="nb-badge">{{ badgeCount() > 99 ? '99+' : badgeCount() }}</span>
           }
-        </button>
+        </button> -->
       }
     </div>
   }

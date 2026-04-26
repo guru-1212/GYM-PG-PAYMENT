@@ -1,6 +1,7 @@
 import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
+import { NotificationService } from '../core/services/notification.service';
 import { TranslationService } from '../core/services/translation.service';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../shared/brand-logo.component';
@@ -15,6 +16,7 @@ import { ThemePickerComponent } from '../shared/theme-picker.component';
 })
 export class AdminShellComponent {
   private readonly auth = inject(AuthService);
+  private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
   readonly i18n = inject(TranslationService);
 
@@ -27,6 +29,10 @@ export class AdminShellComponent {
 
   readonly mobileMenuOpen = signal(false);
   readonly userMenuOpen = signal(false);
+
+  constructor() {
+    this.notifications.requestPermissionOnce();
+  }
 
   openMobileMenu(): void {
     this.closeUserMenu();

@@ -131,16 +131,11 @@
           Analytics
         </a>
       }
+      <!-- Notify members tab disabled for now.
       @if (canViewMembers()) {
-        <a
-          routerLink="/notify-members"
-          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
-        >
-          <span class="material-icons-outlined">campaign</span>
-          Notify members
-        </a>
+        <a routerLink="/notify-members">Notify members</a>
       }
+      -->
       <!-- Complaints disabled — restore when feature fixed
       <a routerLink="/complaints" ...>Complaints</a>
       -->
@@ -376,17 +371,11 @@
                 Analytics
               </a>
             }
+            <!-- Notify members tab disabled for now.
             @if (canViewMembers()) {
-              <a
-                routerLink="/notify-members"
-                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-                (click)="closeMobileMenu()"
-              >
-                <span class="material-icons-outlined">campaign</span>
-                Notify members
-              </a>
+              <a routerLink="/notify-members" (click)="closeMobileMenu()">Notify members</a>
             }
+            -->
             <!-- Complaints nav disabled — restore when feature fixed
             <a
               routerLink="/complaints"

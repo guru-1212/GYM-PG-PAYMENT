@@ -114,7 +114,11 @@ export class MemberReceiptComponent implements OnInit {
 
   // Convert Firebase Timestamp to JavaScript Date for template
   get paymentDate(): Date | null {
-    return this.receiptData?.receiptData?.paymentDate?.toDate() || null;
+    const raw = this.receiptData?.receiptData?.paymentDate;
+    if (!raw) return null;
+    const maybeTs = raw as { toDate?: () => Date };
+    if (typeof maybeTs.toDate === 'function') return maybeTs.toDate();
+    return raw instanceof Date ? raw : null;
   }
 
   ngOnInit(): void {

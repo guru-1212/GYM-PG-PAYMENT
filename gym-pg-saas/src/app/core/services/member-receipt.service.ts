@@ -2,11 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import {
   doc,
   getDoc,
-  serverTimestamp,
   setDoc,
   Timestamp,
 } from 'firebase/firestore';
-import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { Member } from '../models/member.model';
 import { Payment } from '../models/payment.model';
 import { AuthService } from './auth.service';
@@ -27,7 +25,7 @@ export interface ReceiptLinkData {
   receiptData: {
     memberName: string;
     amount: number;
-    paymentDate: Date;
+    paymentDate: Date | Timestamp;
     paymentMethod: string;
     businessName: string;
     monthText: string;
@@ -45,6 +43,11 @@ export interface ReceiptPublicView {
   businessName: string;
 }
 
+type ReceiptMemberSource = Pick<
+  Member,
+  'memberId' | 'ownerId' | 'firstName' | 'lastName' | 'mobile' | 'amount' | 'pendingAmount'
+>;
+
 @Injectable({ providedIn: 'root' })
 export class MemberReceiptService {
   private readonly fb = inject(FirebaseAppService);
@@ -54,6 +57,13 @@ export class MemberReceiptService {
 
   private tokenDocRef(token: string) {
     return doc(this.fb.db, RECEIPT_TOKENS_COLLECTION, token);
+  }
+
+  private toDate(value: unknown): Date {
+    if (value instanceof Date) return value;
+    const maybeTs = value as { toDate?: () => Date };
+    if (maybeTs && typeof maybeTs.toDate === 'function') return maybeTs.toDate();
+    return new Date();
   }
 
   /** Generate a URL-safe random token (~32 chars). */
@@ -79,15 +89,22 @@ export class MemberReceiptService {
    * Generate a receipt link for a member's payment receipt.
    */
   async generateReceiptLink(
-    member: Member,
+    member: ReceiptMemberSource,
     payment: Payment,
     receiptNumber: string
   ): Promise<{ token: string; url: string; expiresAt: Date }> {
-    const owner = this.auth.profile();
-    if (!owner || owner.role !== 'owner' || owner.status !== 'approved') {
-      throw new Error('Only approved owners can generate receipt links.');
+    const profile = this.auth.profile();
+    if (!profile) {
+      throw new Error('Please sign in again.');
     }
-    if (member.ownerId !== owner.ownerId) {
+    const canShareAsOwner = profile.role === 'owner' && profile.status === 'approved';
+    const canShareAsSupervisor =
+      profile.role === 'supervisor' && this.auth.hasPermission('canRecordPayments');
+    if (!canShareAsOwner && !canShareAsSupervisor) {
+      throw new Error('You do not have permission to generate receipt links.');
+    }
+    const ownerId = profile.ownerId;
+    if (!ownerId || member.ownerId !== ownerId) {
       throw new Error('You can only share links for your own members.');
     }
 
@@ -103,7 +120,7 @@ export class MemberReceiptService {
 
     const linkData: ReceiptLinkData = {
       memberId: member.memberId,
-      ownerId: owner.ownerId,
+      ownerId,
       paymentId: payment.paymentId || '',
       receiptNumber,
       receiptData: {
@@ -111,7 +128,7 @@ export class MemberReceiptService {
         amount: payment.amount || 0,
         paymentDate,
         paymentMethod: payment.method || 'cash',
-        businessName: owner.businessName || owner.name || 'PayBook',
+        businessName: profile.businessName || profile.name || 'PayBook',
         monthText,
       },
       createdAt: Timestamp.fromDate(new Date()),
@@ -129,7 +146,14 @@ export class MemberReceiptService {
   async readToken(token: string): Promise<ReceiptLinkData> {
     const snap = await getDoc(this.tokenDocRef(token));
     if (!snap.exists()) throw new Error('RECEIPT_LINK_NOT_FOUND');
-    const data = snap.data() as ReceiptLinkData;
+    const raw = snap.data() as ReceiptLinkData;
+    const data: ReceiptLinkData = {
+      ...raw,
+      receiptData: {
+        ...raw.receiptData,
+        paymentDate: this.toDate(raw.receiptData?.paymentDate),
+      },
+    };
     
     // Check if link is expired
     if (data.expiresAt.toDate().getTime() <= Date.now()) {
@@ -144,60 +168,118 @@ export class MemberReceiptService {
    */
   async generateReceiptPDF(linkData: ReceiptLinkData): Promise<Blob> {
     const { receiptData } = linkData;
+    const paymentDate = this.toDate(receiptData.paymentDate);
     
     const doc = new jsPDF();
     const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const margin = 12;
+    const margin = 14;
+    const contentW = pageW - margin * 2;
+    const amountText = `INR ${Math.max(0, Number(receiptData.amount) || 0).toLocaleString('en-IN')}`;
+    const paymentMethod =
+      receiptData.paymentMethod.charAt(0).toUpperCase() + receiptData.paymentMethod.slice(1).toLowerCase();
 
-    // Header background
-    doc.setFillColor(33, 37, 41);
-    doc.rect(8, 8, pageW - 16, 24, 'F');
+    // Outer border
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.6);
+    doc.roundedRect(8, 8, pageW - 16, 281, 3, 3);
+
+    // Header
+    doc.setFillColor(15, 23, 42);
+    doc.rect(8, 8, pageW - 16, 28, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.text('PAYMENT RECEIPT', margin, 23);
-    doc.setFontSize(11);
-    doc.text(receiptData.businessName.toUpperCase(), pageW - margin, 23, { align: 'right' });
-
-    // Receipt meta
-    doc.setTextColor(33, 37, 41);
-    doc.setFontSize(10);
-    doc.text(`Receipt No: ${linkData.receiptNumber}`, margin, 42);
-    doc.text(`Date: ${receiptData.paymentDate.toLocaleDateString('en-IN')}`, pageW - margin, 42, { align: 'right' });
-
-    // Member info box
-    doc.setFillColor(248, 250, 252);
-    doc.rect(margin, 52, pageW - margin * 2, 30, 'F');
-    doc.setTextColor(33, 37, 41);
-    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('Member Information', margin + 4, 62);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`Name: ${receiptData.memberName}`, margin + 4, 72);
-    doc.text(`Month: ${receiptData.monthText}`, margin + 4, 78);
-
-    // Payment details box
-    doc.setFillColor(248, 250, 252);
-    doc.rect(margin, 88, pageW - margin * 2, 40, 'F');
-    doc.setTextColor(33, 37, 41);
+    doc.setFontSize(17);
+    doc.text('PAYMENT RECEIPT', margin, 25);
     doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Payment Details', margin + 4, 98);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`Amount: ₹${receiptData.amount.toLocaleString('en-IN')}`, margin + 4, 108);
-    doc.text(`Payment Method: ${receiptData.paymentMethod.charAt(0).toUpperCase() + receiptData.paymentMethod.slice(1)}`, margin + 4, 114);
-    doc.text(`Payment Date: ${receiptData.paymentDate.toLocaleDateString('en-IN')}`, margin + 4, 120);
+    doc.text(String(receiptData.businessName || 'PayBook').toUpperCase(), pageW - margin, 25, { align: 'right' });
 
-    // Footer
-    doc.setTextColor(33, 37, 41);
-    doc.setFontSize(10);
-    doc.text('Thank you for your payment!', margin + 4, 160);
-    doc.setTextColor(75, 85, 99);
+    // Receipt metadata row
+    const metaY = 45;
+    doc.setTextColor(51, 65, 85);
     doc.setFontSize(9);
-    doc.text('This is a system-generated receipt. Please keep it for your records.', margin + 4, 167);
-    doc.text(`${receiptData.businessName}`, pageW - margin - 4, 167, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.text('RECEIPT NO', margin, metaY);
+    doc.text('ISSUE DATE', margin + 72, metaY);
+    doc.text('PAYMENT ID', margin + 128, metaY);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(11);
+    doc.text(linkData.receiptNumber, margin, metaY + 6);
+    doc.text(paymentDate.toLocaleDateString('en-IN'), margin + 72, metaY + 6);
+    doc.text(linkData.paymentId || 'N/A', margin + 128, metaY + 6);
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, metaY + 11, margin + contentW, metaY + 11);
+
+    // Bill to
+    const billY = 62;
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, billY, contentW, 31, 2, 2, 'F');
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('BILL TO', margin + 4, billY + 7);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Member Name: ${receiptData.memberName}`, margin + 4, billY + 14);
+    // doc.text(`Member ID: ${linkData.memberId}`, margin + 4, billY + 20);
+    doc.text(`Billing Month: ${receiptData.monthText}`, margin + 4, billY + 26);
+
+    // Payment details block
+    const payY = 100;
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, payY, contentW, 58, 2, 2, 'F');
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('PAYMENT DETAILS', margin + 4, payY + 8);
+    doc.setDrawColor(203, 213, 225);
+    doc.line(margin + 4, payY + 11, margin + contentW - 4, payY + 11);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    doc.text('Payment Method', margin + 4, payY + 20);
+    doc.text('Payment Date', margin + 4, payY + 28);
+    // doc.text('Owner ID', margin + 4, payY + 36);
+    doc.text('Generated On', margin + 4, payY + 44);
+
+    doc.setTextColor(15, 23, 42);
+    doc.text(paymentMethod, margin + 54, payY + 20);
+    doc.text(paymentDate.toLocaleDateString('en-IN'), margin + 54, payY + 28);
+    doc.text(linkData.ownerId, margin + 54, payY + 36);
+    doc.text(new Date().toLocaleString('en-IN'), margin + 54, payY + 44);
+
+    // Total amount highlight
+    const totalY = 166;
+    doc.setFillColor(15, 23, 42);
+    doc.roundedRect(margin, totalY, contentW, 24, 2, 2, 'F');
+    doc.setTextColor(148, 163, 184);
+    doc.setFontSize(10);
+    doc.text('TOTAL AMOUNT PAID', margin + 5, totalY + 9);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text(amountText, margin + contentW - 5, totalY + 16, { align: 'right' });
+
+    // Footer notes
+    const noteY = 205;
+    doc.setTextColor(51, 65, 85);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('Notes', margin, noteY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text('1. This is a system-generated receipt and does not require a physical signature.', margin, noteY + 7);
+    doc.text('2. Please keep this receipt for your records and verification purposes.', margin, noteY + 13);
+    doc.text('3. For corrections, contact your property admin with Receipt No and Payment ID.', margin, noteY + 19);
+
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, 272, margin + contentW, 272);
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(8.5);
+    doc.text(`Issued by ${receiptData.businessName}`, margin, 278);
+    doc.text('Powered by PayBook', margin + contentW, 278, { align: 'right' });
 
     return new Blob([doc.output('blob')], { type: 'application/pdf' });
   }

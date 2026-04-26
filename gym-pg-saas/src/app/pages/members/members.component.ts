@@ -13,6 +13,7 @@ import { DataCacheService } from '../../core/services/data-cache.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { MemberService } from '../../core/services/member.service';
 import { MemberOnboardingService } from '../../core/services/member-onboarding.service';
+import { NotificationService } from '../../core/services/notification.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { MemberReceiptService } from '../../core/services/member-receipt.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
@@ -77,6 +78,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   private readonly membersApi = inject(MemberService);
   private readonly onboardingApi = inject(MemberOnboardingService);
   private readonly paymentsApi = inject(PaymentService);
+  private readonly notifications = inject(NotificationService);
   private readonly pgLayoutApi = inject(PgLayoutService);
   private readonly receiptService = inject(MemberReceiptService);
   private readonly toast = inject(ToastService);
@@ -396,6 +398,12 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly shareLinkExpiresAt = signal<Date | null>(null);
   readonly shareLinkBusy = signal<boolean>(false);
   readonly shareLinkCopied = signal<boolean>(false);
+  readonly receiptConfirmOpen = signal<boolean>(false);
+  readonly receiptConfirmTarget = signal<ReceiptCandidate | null>(null);
+  readonly receiptConfirmAmount = signal<number>(0);
+  readonly receiptConfirmSending = signal<boolean>(false);
+  private receiptConfirmOptions: { amount?: number; method?: PaymentMethod; paymentDate?: Date } | null = null;
+  private receiptConfirmResolver: ((ok: boolean) => void) | null = null;
 
   readonly payForm = this.fb.nonNullable.group({
     amount: [0, [Validators.required, positiveAmount()]],
@@ -865,6 +873,7 @@ export class MembersComponent implements OnInit, OnDestroy {
           aadhaarBackUrl,
         });
         this.toast.success('Member updated');
+        this.notifyOwnerAction('Member updated', `${v.firstName} profile updated successfully.`);
       } else {
         // CREATE: first create the doc (we need its id for storage paths), then upload
         // any photos and write the URLs back. If owner provided no images, we skip the
@@ -893,6 +902,23 @@ export class MembersComponent implements OnInit, OnDestroy {
           });
         }
         this.toast.success('Member added');
+        this.notifyOwnerAction('Member added', `${v.firstName} added successfully.`);
+        if (memberId && paidAmount > 0) {
+          const receiptTarget: ReceiptCandidate = {
+            memberId,
+            ownerId: this.auth.profile()?.ownerId || '',
+            firstName: v.firstName,
+            lastName: v.lastName || '',
+            mobile: v.mobile || '',
+            amount: newAmount,
+            pendingAmount,
+          };
+          await this.promptSendReceiptNow(receiptTarget, {
+            amount: paidAmount,
+            method: v.paymentMethod,
+            paymentDate: new Date(),
+          });
+        }
       }
       this.closeModal();
     } catch (e) {
@@ -1172,7 +1198,17 @@ ${pgName}`;
       });
 
       this.toast.success(v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded');
+      const paymentText = paymentAmount.toLocaleString('en-IN');
+      this.notifyOwnerAction(
+        v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded',
+        `${m.firstName} paid INR ${paymentText}.`,
+      );
       this.closePay();
+      await this.promptSendReceiptNow(m, {
+        amount: paymentAmount,
+        method: v.method,
+        paymentDate: new Date(),
+      });
     } catch (error) {
       console.error('Record payment failed:', error);
       this.toast.error('Could not record payment');
@@ -1188,6 +1224,38 @@ ${pgName}`;
   private syncPayFormPending(): void {
     const nextPending = this.pendingFromPayForm();
     this.payForm.controls.pendingAmount.setValue(nextPending, { emitEvent: false });
+  }
+
+  /** Immediate success feedback: short "ting" + desktop notification (if allowed). */
+  private notifyOwnerAction(title: string, body: string): void {
+    this.playTingSound();
+    this.notifications.showNotification(title, body);
+  }
+
+  /** Lightweight in-app success chime. */
+  private playTingSound(): void {
+    if (typeof window === 'undefined') return;
+    const Ctx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1046.5, ctx.currentTime); // C6
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.07, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+      osc.onended = () => {
+        void ctx.close().catch(() => {});
+      };
+    } catch {
+      // Non-blocking: audio feedback is best-effort only.
+    }
   }
 
   openHistory(m: Member): void {
@@ -1468,22 +1536,69 @@ ${pgName}`;
     return `https://wa.me/91${digits}?text=${text}`;
   }
 
-  canSendReceipt(m: Member): boolean {
-    if (m.status !== 'active') return false;
+  canSendReceipt(m: ReceiptCandidate): boolean {
     const digits = (m.mobile || '').replace(/\D/g, '');
     return digits.length === 10;
   }
 
-  async sendReceipt(m: Member): Promise<void> {
+  private async promptSendReceiptNow(
+    m: ReceiptCandidate,
+    options?: { amount?: number; method?: PaymentMethod; paymentDate?: Date },
+  ): Promise<void> {
+    if (!this.canSendReceipt(m)) return;
+    this.receiptConfirmTarget.set(m);
+    this.receiptConfirmOptions = options || null;
+    this.receiptConfirmAmount.set(Math.max(0, Number(options?.amount) || 0));
+    this.receiptConfirmOpen.set(true);
+    const yes = await new Promise<boolean>((resolve) => {
+      this.receiptConfirmResolver = resolve;
+    });
+    if (!yes) return;
+    this.receiptConfirmSending.set(true);
+    try {
+      await this.sendReceipt(m, options);
+    } finally {
+      this.receiptConfirmSending.set(false);
+    }
+  }
+
+  onReceiptConfirmSend(): void {
+    this.resolveReceiptConfirm(true);
+  }
+
+  onReceiptConfirmSkip(): void {
+    this.resolveReceiptConfirm(false);
+  }
+
+  onReceiptConfirmClosed(): void {
+    this.resolveReceiptConfirm(false);
+  }
+
+  private resolveReceiptConfirm(ok: boolean): void {
+    this.receiptConfirmOpen.set(false);
+    const resolve = this.receiptConfirmResolver;
+    this.receiptConfirmResolver = null;
+    this.receiptConfirmOptions = null;
+    this.receiptConfirmTarget.set(null);
+    this.receiptConfirmAmount.set(0);
+    if (resolve) resolve(ok);
+  }
+
+  async sendReceipt(
+    m: ReceiptCandidate,
+    options?: { amount?: number; method?: PaymentMethod; paymentDate?: Date },
+  ): Promise<void> {
     if (!this.canSendReceipt(m)) {
       this.toast.error('Valid mobile number is required');
       return;
     }
 
     try {
-      const paymentDate = new Date();
-      const pendingAmount = Math.max(0, Number(m.pendingAmount) || 0);
-      const estimatedPaidAmount = Math.max(0, Number(m.amount || 0) - pendingAmount) || Number(m.amount || 0);
+      const paymentDate = options?.paymentDate ?? new Date();
+      const fallbackPendingAmount = Math.max(0, Number(m.pendingAmount) || 0);
+      const fallbackPaidAmount =
+        Math.max(0, Number(m.amount || 0) - fallbackPendingAmount) || Number(m.amount || 0);
+      const estimatedPaidAmount = Math.max(0, Number(options?.amount) || fallbackPaidAmount);
 
       const ownerProfile = this.auth.profile();
       const businessName = ownerProfile?.businessName?.trim() || ownerProfile?.name || 'PayBook';
@@ -1503,7 +1618,7 @@ ${pgName}`;
         ownerId: this.auth.profile()?.ownerId || '',
         amount: estimatedPaidAmount,
         date: Timestamp.fromDate(paymentDate),
-        method: 'cash' as PaymentMethod,
+        method: options?.method || ('cash' as PaymentMethod),
         createdAt: Timestamp.fromDate(paymentDate),
       };
 
@@ -1529,12 +1644,25 @@ Thanks regards,
 ${businessName}`;
 
       const wa = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
-      window.open(wa, '_blank', 'noopener,noreferrer');
-      
-      this.toast.success('Receipt link sent successfully');
+      const opened = window.open(wa, '_blank', 'noopener,noreferrer');
+      if (opened) {
+        this.toast.success('Opening WhatsApp with receipt message...');
+      } else {
+        // Popup likely blocked: fallback to same-tab navigation so owner can still send.
+        window.location.assign(wa);
+        this.toast.success('Opening WhatsApp in this tab...');
+      }
     } catch (error) {
       console.error('Error sending receipt:', error);
-      this.toast.error('Could not generate receipt link');
+      const msg =
+        error && typeof error === 'object' && 'message' in error
+          ? String((error as { message?: string }).message || '')
+          : '';
+      if (/permission/i.test(msg)) {
+        this.toast.error('Could not generate receipt link (permission denied). Deploy/update firestore.rules.');
+      } else {
+        this.toast.error(msg || 'Could not generate receipt link');
+      }
     }
   }
 
@@ -2112,3 +2240,8 @@ interface ImportPreviewRow {
   roomNumber: string;
   bedNumber: string;
 }
+
+type ReceiptCandidate = Pick<
+  Member,
+  'memberId' | 'ownerId' | 'firstName' | 'lastName' | 'mobile' | 'amount' | 'pendingAmount'
+>;

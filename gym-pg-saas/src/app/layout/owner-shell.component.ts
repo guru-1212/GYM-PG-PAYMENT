@@ -3,6 +3,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { OwnerAdminChatMessage } from '../core/models/owner-admin-chat.model';
 import { AuthService } from '../core/services/auth.service';
 import { InAppNotificationService } from '../core/services/in-app-notification.service';
+import { NotificationService } from '../core/services/notification.service';
 import { OwnerAdminChatService } from '../core/services/owner-admin-chat.service';
 // Complaints disabled — restore when feature fixed
 // import { ComplaintService } from '../core/services/complaint.service';
@@ -34,6 +35,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly chat = inject(OwnerAdminChatService);
   private readonly inApp = inject(InAppNotificationService);
+  private readonly notifications = inject(NotificationService);
   // private readonly complaintApi = inject(ComplaintService);
   private readonly router = inject(Router);
   readonly i18n = inject(TranslationService);
@@ -194,6 +196,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.notifications.requestPermissionOnce();
     this.countdownTimer = setInterval(() => this.nowMs.set(Date.now()), 1000);
   }
 

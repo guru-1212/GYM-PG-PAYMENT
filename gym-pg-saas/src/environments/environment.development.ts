@@ -27,7 +27,21 @@ const firebaseTest: FirebaseOptions = {
 export const useProdFirebase = false;
 export const selectedFirebase: FirebaseOptions = useProdFirebase ? firebaseProd : firebaseTest;
 
-export const environment = {
+/**
+ * Optional same-origin URL for the callable (Firebase Hosting rewrite in firebase.json).
+ * Example after deploy: `https://dev.ourpgtracker.in/api-fn/verifyMemberForApp`
+ * Leave null to use the default cloudfunctions.net endpoint (requires a successful deploy).
+ */
+export const verifyMemberCallableUrl: string | null = null;
+
+export type GymEnvironment = {
+  production: boolean;
+  firebase: FirebaseOptions;
+  verifyMemberCallableUrl: string | null;
+};
+
+export const environment: GymEnvironment = {
   production: false,
   firebase: selectedFirebase,
+  verifyMemberCallableUrl,
 };

@@ -2,14 +2,13 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../../shared/brand-logo.component';
 import { ThemeToggleComponent } from '../../shared/theme-toggle.component';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, TranslatePipe, BrandLogoComponent, ThemeToggleComponent],
+  imports: [CommonModule, FormsModule, RouterModule, BrandLogoComponent, ThemeToggleComponent],
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
 })

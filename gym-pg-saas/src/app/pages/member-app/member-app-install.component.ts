@@ -3,9 +3,10 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getAuth, signInWithCustomToken } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallable, httpsCallableFromURL } from 'firebase/functions';
 import { FirebaseAppService } from '../../core/services/firebase-app.service';
 import { applyDigitsOnlyFromInput } from '../../core/utils/validators';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-member-app-install',
@@ -70,8 +71,12 @@ export class MemberAppInstallComponent implements OnInit {
     this.busy.set(true);
     this.errorMessage.set('');
     try {
-      const functions = getFunctions(this.fb.app);
-      const verify = httpsCallable(functions, 'verifyMemberForApp');
+      const functions = getFunctions(this.fb.app, 'us-central1');
+      const url = environment.verifyMemberCallableUrl?.trim();
+      const verify =
+        url && url.length > 0
+          ? httpsCallableFromURL(functions, url)
+          : httpsCallable(functions, 'verifyMemberForApp');
       const res = await verify({
         installCode,
         ownerId: oid,
@@ -91,12 +96,16 @@ export class MemberAppInstallComponent implements OnInit {
       const msg = String(fe?.message || '');
       if (code === 'functions/failed-precondition' || /already linked|already-activated/i.test(msg)) {
         this.errorMessage.set(
-          'This number is already set up on the member app. Open the app from your phone’s home screen. Signing in again from a new phone is not allowed.',
+          "This number is already set up on the member app. Open the app from your phone's home screen. Signing in again from a new phone is not allowed.",
         );
       } else if (code === 'functions/not-found' || msg.includes('not-found') || msg.includes('NOT_FOUND')) {
         this.errorMessage.set('This mobile number does not match our records for this property.');
       } else if (code === 'functions/permission-denied' || msg.includes('permission') || msg.includes('PERMISSION')) {
         this.errorMessage.set('This QR code is invalid or no longer active.');
+      } else if (/CORS|Failed to fetch|NetworkError|Load failed|network request failed/i.test(msg)) {
+        this.errorMessage.set(
+          'Could not reach the sign-in service (often a missing deploy or blocked cloudfunctions.net). Deploy verifyMemberForApp to us-central1 for this Firebase project, or set verifyMemberCallableUrl to your Hosting rewrite (see firebase.json / environment).',
+        );
       } else {
         this.errorMessage.set(
           'Could not sign you in. If this keeps happening, ask the owner to deploy the latest Cloud Functions (verifyMemberForApp).',
