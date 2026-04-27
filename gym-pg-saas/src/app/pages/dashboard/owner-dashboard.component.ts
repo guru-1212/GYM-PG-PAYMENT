@@ -2,10 +2,10 @@ import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
 import { Component, computed, HostListener, inject, OnDestroy, OnInit, signal, effect } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { jsPDF } from 'jspdf';
 import { Member, SubscriptionType } from '../../core/models/member.model';
-import { Payment } from '../../core/models/payment.model';
+import { Payment, PaymentMethod } from '../../core/models/payment.model';
 import { PgFloorLayout, PgLayout } from '../../core/models/pg-layout.model';
+import { Timestamp } from 'firebase/firestore';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
 import { MemberService } from '../../core/services/member.service';
@@ -13,6 +13,7 @@ import { PaymentService } from '../../core/services/payment.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { InAppNotificationService } from '../../core/services/in-app-notification.service';
+import { MemberReceiptService } from '../../core/services/member-receipt.service';
 // Complaints disabled — restore when feature fixed
 // import { ComplaintService } from '../../core/services/complaint.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -63,6 +64,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   private readonly membersApi = inject(MemberService);
   private readonly paymentsApi = inject(PaymentService);
   private readonly pgLayoutApi = inject(PgLayoutService);
+  private readonly receiptService = inject(MemberReceiptService);
   private readonly notifications = inject(NotificationService);
   private readonly inAppNotifications = inject(InAppNotificationService);
   // private readonly complaintApi = inject(ComplaintService);
@@ -498,80 +500,80 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     }
     try {
       const paymentDate = new Date();
-      const pendingAmount = Math.max(0, Number(m.pendingAmount) || 0);
-      const estimatedPaidAmount = Math.max(0, Number(m.amount || 0) - pendingAmount) || Number(m.amount || 0);
+      const pendingBeforeAmount = Math.max(0, Number(m.pendingAmount) || 0);
+      const pendingAfterAmount = 0;
+      const estimatedPaidAmount =
+        Math.max(0, Number(m.amount || 0) - pendingAfterAmount) || Number(m.amount || 0);
       const ownerProfile = this.auth.profile();
       const businessName = ownerProfile?.businessName?.trim() || ownerProfile?.name || 'PayBook';
       const monthText = paymentDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
       const mobile = (m.mobile || '').replace(/\D/g, '');
-      const fileName = `receipt-${m.firstName}-${monthText.replace(/\s+/g, '-')}.pdf`;
       const receiptNo = `RCPT-${paymentDate.getFullYear()}${String(paymentDate.getMonth() + 1).padStart(2, '0')}${String(
         paymentDate.getDate(),
       ).padStart(2, '0')}-${m.memberId.slice(0, 6).toUpperCase()}`;
-      const memberName = `${m.firstName} ${m.lastName || ''}`.trim();
-      const paymentDateText = paymentDate.toLocaleDateString('en-IN');
-      const doc = new jsPDF();
-      const pageW = doc.internal.pageSize.getWidth();
-      const margin = 14;
-      doc.setDrawColor(180, 180, 180);
-      doc.rect(8, 8, pageW - 16, 281);
-      doc.setFillColor(16, 185, 129);
-      doc.rect(8, 8, pageW - 16, 24, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(16);
-      doc.text('PAYMENT RECEIPT', margin, 23);
-      doc.setFontSize(11);
-      doc.text(businessName.toUpperCase(), pageW - margin, 23, { align: 'right' });
-      doc.setTextColor(33, 37, 41);
-      doc.setFontSize(10);
-      doc.text(`Receipt No: ${receiptNo}`, margin, 42);
-      doc.text(`Date: ${paymentDateText}`, pageW - margin, 42, { align: 'right' });
-      doc.setDrawColor(220, 220, 220);
-      doc.roundedRect(margin, 48, pageW - margin * 2, 34, 2, 2);
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Received From', margin + 4, 56);
-      doc.setTextColor(33, 37, 41);
-      doc.setFontSize(12);
-      doc.text(memberName || '-', margin + 4, 63);
-      doc.setFontSize(10);
-      doc.text(`Mobile: ${m.mobile || '-'}`, margin + 4, 70);
-      doc.text(`Payment Month: ${monthText}`, pageW - margin - 4, 70, { align: 'right' });
-      const tableY = 92;
-      doc.setFillColor(248, 250, 252);
-      doc.rect(margin, tableY, pageW - margin * 2, 10, 'F');
-      doc.setDrawColor(220, 220, 220);
-      doc.rect(margin, tableY, pageW - margin * 2, 44);
-      doc.setFontSize(10);
-      doc.setTextColor(71, 85, 105);
-      doc.text('Description', margin + 4, tableY + 7);
-      doc.text('Amount (INR)', pageW - margin - 4, tableY + 7, { align: 'right' });
-      doc.setDrawColor(230, 230, 230);
-      doc.line(margin, tableY + 10, pageW - margin, tableY + 10);
-      doc.setTextColor(33, 37, 41);
-      doc.text(`Membership payment - ${monthText}`, margin + 4, tableY + 20);
-      doc.text(`Rs ${estimatedPaidAmount.toLocaleString('en-IN')}`, pageW - margin - 4, tableY + 20, { align: 'right' });
-      doc.line(margin, tableY + 26, pageW - margin, tableY + 26);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Total Paid', margin + 4, tableY + 36);
-      doc.text(`Rs ${estimatedPaidAmount.toLocaleString('en-IN')}`, pageW - margin - 4, tableY + 36, { align: 'right' });
-      doc.setFont('helvetica', 'normal');
-      doc.setFillColor(240, 253, 244);
-      doc.roundedRect(margin, 150, pageW - margin * 2, 26, 2, 2, 'F');
-      doc.setTextColor(22, 101, 52);
-      doc.setFontSize(11);
-      doc.text('Thank you for your payment!', margin + 4, 160);
-      doc.setTextColor(75, 85, 99);
-      doc.setFontSize(9);
-      doc.text('This is a system-generated receipt. Please keep it for your records.', margin + 4, 167);
-      doc.text(`${businessName}`, pageW - margin - 4, 167, { align: 'right' });
-      doc.save(fileName);
-      const msg = encodeURIComponent(`Hi ${m.firstName}, here is your payment receipt for ${monthText}.`);
-      const wa = `https://wa.me/91${mobile}?text=${msg}`;
-      window.open(wa, '_blank', 'noopener,noreferrer');
-    } catch {
-      this.toast.error('Could not generate receipt');
+
+      const receiptMember = {
+        memberId: m.memberId,
+        ownerId: m.ownerId,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        mobile: m.mobile,
+        amount: m.amount,
+        pendingAmount: pendingBeforeAmount,
+        dueDate: m.dueDate,
+        pendingBeforeAmount,
+        pendingAfterAmount,
+      };
+      const payment: Payment = {
+        paymentId: `payment-${Date.now()}`,
+        memberId: m.memberId,
+        ownerId: this.auth.profile()?.ownerId || '',
+        amount: estimatedPaidAmount,
+        date: Timestamp.fromDate(paymentDate),
+        method: 'cash' as PaymentMethod,
+        createdAt: Timestamp.fromDate(paymentDate),
+      };
+      const { url, expiresAt } = await this.receiptService.generateReceiptLink(
+        receiptMember,
+        payment,
+        receiptNo,
+      );
+
+      const msg = `Hi ${m.firstName} ${m.lastName || ''}
+
+This message from ${businessName}
+
+Your payment receipt for ${monthText} is ready!
+
+Amount: ₹${estimatedPaidAmount.toLocaleString('en-IN')}
+Receipt No: ${receiptNo}
+
+Click the link below to view and download your receipt:
+${url}
+
+This link will expire on ${expiresAt.toLocaleDateString('en-IN')}
+
+Thanks regards,
+${businessName}`;
+
+      const wa = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
+      const opened = window.open(wa, '_blank', 'noopener,noreferrer');
+      if (opened) {
+        this.toast.success('Opening WhatsApp with receipt message...');
+      } else {
+        window.location.assign(wa);
+        this.toast.success('Opening WhatsApp in this tab...');
+      }
+    } catch (error) {
+      const msg =
+        error && typeof error === 'object' && 'message' in error
+          ? String((error as { message?: string }).message || '')
+          : '';
+      if (/permission/i.test(msg)) {
+        this.toast.error('Could not generate receipt link (permission denied). Deploy/update firestore.rules.');
+      } else {
+        this.toast.error(msg || 'Could not generate receipt link');
+      }
     }
   }
 
