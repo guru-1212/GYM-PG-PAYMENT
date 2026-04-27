@@ -41,6 +41,7 @@ export const EN: Record<string, unknown> = {
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
     navMenu: 'Navigation menu',
+    bottomNav: 'Bottom navigation',
     language: 'Language',
     userMenu: 'Account menu',
     toggleTheme: 'Toggle dark mode',

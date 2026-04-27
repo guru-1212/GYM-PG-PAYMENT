@@ -1,7 +1,7 @@
 import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
-import { Component, computed, HostListener, inject, OnDestroy, OnInit, signal, effect } from '@angular/core';
+import { Component, computed, HostListener, inject, OnDestroy, OnInit, signal, effect, untracked } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Member, SubscriptionType } from '../../core/models/member.model';
 import { Payment, PaymentMethod } from '../../core/models/payment.model';
 import { PgFloorLayout, PgLayout } from '../../core/models/pg-layout.model';
@@ -40,6 +40,81 @@ import { memberImportSampleAoA, memberImportSampleCsv } from '../../core/utils/m
 import { MEMBER_IMPORT_PROGRESS_MESSAGES } from '../../core/utils/member-import-progress.messages';
 import { parsePgImportSeat, pgSheetSubscriptionError } from '../../core/utils/pg-sheet-import.utils';
 
+// ── Sparkline (30-day earnings) dimensions ────────────────────────────────────
+const SP_W = 320;
+const SP_H = 64;
+const SP_PAD = 6;
+
+// ── Donut (collection health) helpers ─────────────────────────────────────────
+const DONUT_CX = 60;
+const DONUT_CY = 60;
+const DONUT_OUTER = 52;
+const DONUT_INNER = 36;
+
+function ptOnCircle(cx: number, cy: number, r: number, deg: number) {
+  const rad = ((deg - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function donutArcPath(
+  cx: number, cy: number, outerR: number, innerR: number,
+  startDeg: number, endDeg: number,
+): string {
+  const gap = 1.6;
+  const s = startDeg + gap, e = endDeg - gap;
+  if (e - s <= 0) return '';
+  const large = e - s > 180 ? 1 : 0;
+  const o1 = ptOnCircle(cx, cy, outerR, s), o2 = ptOnCircle(cx, cy, outerR, e);
+  const i1 = ptOnCircle(cx, cy, innerR, e), i2 = ptOnCircle(cx, cy, innerR, s);
+  return `M${o1.x} ${o1.y} A${outerR} ${outerR} 0 ${large} 1 ${o2.x} ${o2.y}` +
+    ` L${i1.x} ${i1.y} A${innerR} ${innerR} 0 ${large} 0 ${i2.x} ${i2.y}Z`;
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function compactRupee(v: number): string {
+  if (v >= 10000000) return '₹' + (v / 10000000).toFixed(1).replace(/\.0$/, '') + 'Cr';
+  if (v >= 100000) return '₹' + (v / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
+  if (v >= 1000) return '₹' + (v / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return '₹' + Math.round(v);
+}
+
+// ── Public types used by template ─────────────────────────────────────────────
+export type ActionTab = 'overdue' | 'dueToday' | 'dueSoon' | 'partial';
+
+export interface SparkPoint { x: number; y: number; total: number; date: Date; label: string; }
+export interface DonutSegment {
+  d: string;
+  color: string;
+  label: string;
+  count: number;
+  pct: number;
+  /** Router target when clicked. */
+  link: { path: string; query: Record<string, string> };
+}
+export interface PulseChip {
+  id: string;
+  tone: 'red' | 'amber' | 'emerald' | 'sky' | 'violet' | 'slate';
+  icon: string;
+  label: string;
+  link?: { path: string; query?: Record<string, string> };
+  action?: () => void;
+}
+export interface MiniBedRoom { roomNumber: number | string; occ: number; beds: number; }
+export interface MiniBedFloor { label: string; floorNumber: number; rooms: MiniBedRoom[]; }
+export interface QueueRow {
+  m: Member;
+  tag: ActionTab;
+  /** Color tone token consumed by the template. */
+  tone: 'red' | 'amber' | 'sky' | 'indigo';
+  /** Right-side status line (e.g. "Overdue by 4 days"). */
+  status: string;
+  /** Optional secondary line (e.g. "Pending ₹1,200"). */
+  secondary?: string;
+}
+
 @Component({
   selector: 'app-owner-dashboard',
   standalone: true,
@@ -71,6 +146,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   private readonly toast = inject(ToastService);
   private readonly fb = inject(FormBuilder);
   private readonly i18n = inject(TranslationService);
+  private readonly router = inject(Router);
 
   readonly members = signal<Member[]>([]);
   readonly payments = signal<Payment[]>([]);
@@ -102,6 +178,14 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly dueSoonPage = signal(1);
   readonly overduePage = signal(1);
   readonly itemsPerPage = 10;
+
+  // ── Command-deck state ────────────────────────────────────────────────────
+  /** Active tab in the unified Action Queue (Command Deck left panel). */
+  readonly activeActionTab = signal<ActionTab>('overdue');
+  /** Set true once user (or auto-init effect) has explicitly chosen a tab. */
+  private actionTabPicked = false;
+  /** Pagination for the unified action queue. */
+  readonly actionQueuePage = signal(1);
   readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
   readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
   /** Used to hide monthly-earnings (and other owner-only widgets) from supervisors. */
@@ -355,6 +439,379 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   private currentOwnerId: string | null = null;
   private dueAlertDebounce: ReturnType<typeof setTimeout> | null = null;
 
+  // ── Command Deck: unified action queue (Tabs: Overdue / Due today / Due soon / Partial)
+  readonly actionQueueCounts = computed(() => ({
+    overdue: this.overdueList().length,
+    dueToday: this.dueTodayList().length,
+    dueSoon: this.dueSoonList().length,
+    partial: this.partialPendingList().length,
+  }));
+
+  readonly actionQueueAll = computed<QueueRow[]>(() => {
+    const tab = this.activeActionTab();
+    switch (tab) {
+      case 'overdue':
+        return this.overdueList().map((m) => ({
+          m,
+          tag: 'overdue' as ActionTab,
+          tone: 'red' as const,
+          status: this.overdueByLine(m),
+          secondary: this.memberDueDate(m)
+            ? `Due ${this.memberDueDate(m)!.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`
+            : undefined,
+        }));
+      case 'dueToday':
+        return this.dueTodayList().map((m) => ({
+          m,
+          tag: 'dueToday' as ActionTab,
+          tone: 'amber' as const,
+          status: 'Due today',
+          secondary: m.amount ? `₹${Number(m.amount).toLocaleString('en-IN')}` : undefined,
+        }));
+      case 'dueSoon':
+        return this.dueSoonList().map((m) => ({
+          m,
+          tag: 'dueSoon' as ActionTab,
+          tone: 'sky' as const,
+          status: this.dueStatusLabel(m),
+          secondary: m.amount ? `₹${Number(m.amount).toLocaleString('en-IN')}` : undefined,
+        }));
+      case 'partial':
+        return this.partialPendingList().map((m) => ({
+          m,
+          tag: 'partial' as ActionTab,
+          tone: 'indigo' as const,
+          status: `Pending ₹${(Number(m.pendingAmount) || 0).toLocaleString('en-IN')}`,
+          secondary: this.memberDueDate(m)
+            ? `Due ${this.memberDueDate(m)!.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`
+            : undefined,
+        }));
+    }
+  });
+
+  readonly actionQueuePages = computed(() =>
+    Math.max(1, Math.ceil(this.actionQueueAll().length / this.itemsPerPage)),
+  );
+
+  readonly actionQueuePaged = computed(() => {
+    const list = this.actionQueueAll();
+    const page = Math.min(this.actionQueuePage(), this.actionQueuePages());
+    const start = (page - 1) * this.itemsPerPage;
+    return list.slice(start, start + this.itemsPerPage);
+  });
+
+  // ── Sparkline: last 30-day daily collections ───────────────────────────────
+  readonly dailyEarnings30 = computed(() => {
+    const today = startOfToday();
+    const days: { date: Date; total: number }[] = [];
+    for (let i = 29; i >= 0; i -= 1) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i, 12);
+      days.push({ date: d, total: 0 });
+    }
+    const oid = this.auth.profile()?.ownerId;
+    for (const p of this.payments()) {
+      if (oid && p.ownerId !== oid) continue;
+      const pd = this.convertTimestampToDate(p.date);
+      if (!pd) continue;
+      for (let i = 0; i < days.length; i += 1) {
+        if (isSameDay(days[i].date, pd)) {
+          days[i].total += Number(p.amount) || 0;
+          break;
+        }
+      }
+    }
+    return days;
+  });
+
+  readonly sparkline = computed(() => {
+    const data = this.dailyEarnings30();
+    const max = Math.max(1, ...data.map((d) => d.total));
+    const dx = data.length > 1 ? (SP_W - 2 * SP_PAD) / (data.length - 1) : 0;
+    const points: SparkPoint[] = data.map((d, i) => ({
+      x: SP_PAD + i * dx,
+      y: SP_PAD + (SP_H - 2 * SP_PAD) * (1 - d.total / max),
+      total: d.total,
+      date: d.date,
+      label: d.date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+    }));
+    const line = points.map((p, i) => (i === 0 ? `M${p.x},${p.y}` : ` L${p.x},${p.y}`)).join('');
+    const area =
+      points.length === 0
+        ? ''
+        : `${line} L${points[points.length - 1].x},${SP_H - SP_PAD} L${points[0].x},${SP_H - SP_PAD}Z`;
+    const totalSum = data.reduce((s, d) => s + d.total, 0);
+    const todayTotal = data[data.length - 1]?.total ?? 0;
+    const prevTotal = data[data.length - 2]?.total ?? 0;
+    const trendPct = prevTotal > 0 ? ((todayTotal - prevTotal) / prevTotal) * 100 : 0;
+    return { width: SP_W, height: SP_H, points, line, area, max, totalSum, todayTotal, trendPct };
+  });
+
+  // ── Donut: collection health ───────────────────────────────────────────────
+  readonly collectionDonut = computed<DonutSegment[]>(() => {
+    const active = this.members().filter((m) => m.status === 'active');
+    const total = active.length;
+    if (total === 0) return [];
+    const overdueIds = new Set(this.overdueList().map((m) => m.memberId));
+    const dueTodayIds = new Set(this.dueTodayList().map((m) => m.memberId));
+    const partialIds = new Set(this.partialPendingList().map((m) => m.memberId));
+    const onTrackCount = active.filter(
+      (m) => !overdueIds.has(m.memberId) && !dueTodayIds.has(m.memberId) && !partialIds.has(m.memberId),
+    ).length;
+    type DonutDatum = { label: string; count: number; color: string; link: { path: string; query: Record<string, string> } };
+    const data: DonutDatum[] = [
+      {
+        label: 'On track',
+        count: onTrackCount,
+        color: '#10b981',
+        link: { path: '/members', query: { pay: 'paid' } as Record<string, string> },
+      },
+      {
+        label: 'Partial',
+        count: partialIds.size,
+        color: '#6366f1',
+        link: { path: '/members', query: { pay: 'partial' } as Record<string, string> },
+      },
+      {
+        label: 'Due today',
+        count: dueTodayIds.size,
+        color: '#f59e0b',
+        link: { path: '/members', query: { due: 'dueToday' } as Record<string, string> },
+      },
+      {
+        label: 'Overdue',
+        count: overdueIds.size,
+        color: '#ef4444',
+        link: { path: '/members', query: { pay: 'pending', due: 'overdue' } as Record<string, string> },
+      },
+    ].filter((d) => d.count > 0);
+    let start = -90;
+    return data.map((d) => {
+      const sweep = (d.count / total) * 360;
+      const seg: DonutSegment = {
+        ...d,
+        pct: d.count / total,
+        d: donutArcPath(DONUT_CX, DONUT_CY, DONUT_OUTER, DONUT_INNER, start, start + sweep),
+      };
+      start += sweep;
+      return seg;
+    });
+  });
+
+  readonly donutCenterValue = computed(() => this.totalMembers());
+
+  // ── Mini bed heatmap (PG only) ─────────────────────────────────────────────
+  readonly miniBedFloors = computed<MiniBedFloor[]>(() => {
+    const layout = this.pgLayout();
+    if (!layout?.floors?.length) return [];
+    const occupied = this.occupiedBedKeys();
+    return layout.floors.map((f) => ({
+      label: f.floorNumber === 0 ? 'GF' : `F${f.floorNumber}`,
+      floorNumber: f.floorNumber,
+      rooms: f.rooms.map((r) => {
+        let occ = 0;
+        const beds = Math.max(0, Number(r.beds) || 0);
+        for (let b = 1; b <= beds; b += 1) {
+          if (occupied.has(`${f.floorNumber}-${r.roomNumber}-${b}`)) occ += 1;
+        }
+        return { roomNumber: r.roomNumber, occ, beds };
+      }),
+    }));
+  });
+
+  bedCellTone(occ: number, beds: number): 'free' | 'partial' | 'full' | 'empty' {
+    if (beds <= 0) return 'empty';
+    if (occ <= 0) return 'free';
+    if (occ >= beds) return 'full';
+    return 'partial';
+  }
+
+  // ── Pulse strip chips (clickable, drill-down) ──────────────────────────────
+  readonly pulseChips = computed<PulseChip[]>(() => {
+    const overdueN = this.overdueList().length;
+    const dueTodayN = this.dueTodayList().length;
+    const reviewN = this.reviewPendingCount();
+    const todayEarn = this.dailyEarnings30()[29]?.total ?? 0;
+    const chips: PulseChip[] = [];
+
+    chips.push({
+      id: 'overdue',
+      tone: overdueN > 0 ? 'red' : 'emerald',
+      icon: overdueN > 0 ? 'warning' : 'check_circle',
+      label: overdueN > 0 ? `${overdueN} overdue` : 'No overdue',
+      link: overdueN > 0 ? { path: '/members', query: { pay: 'pending', due: 'overdue' } } : undefined,
+      action: overdueN > 0 ? () => this.setActionTab('overdue') : undefined,
+    });
+
+    chips.push({
+      id: 'dueToday',
+      tone: dueTodayN > 0 ? 'amber' : 'slate',
+      icon: 'today',
+      label: dueTodayN > 0 ? `${dueTodayN} due today` : 'Nothing today',
+      link: dueTodayN > 0 ? { path: '/members', query: { due: 'dueToday' } } : undefined,
+      action: dueTodayN > 0 ? () => this.setActionTab('dueToday') : undefined,
+    });
+
+    if (!this.isSupervisor()) {
+      chips.push({
+        id: 'today-earn',
+        tone: 'emerald',
+        icon: 'payments',
+        label: `${compactRupee(todayEarn)} today`,
+        action: () => this.showMonthlyEarningsModal.set(true),
+      });
+    }
+
+    if (this.isPg() && this.hasPgLayout()) {
+      const empty = this.emptyBeds();
+      chips.push({
+        id: 'beds',
+        tone: empty > 0 ? 'sky' : 'red',
+        icon: 'bed',
+        label: empty > 0 ? `${empty} beds free` : 'No beds free',
+        action: () => this.openBedMap(),
+      });
+    }
+
+    if (reviewN > 0) {
+      chips.push({
+        id: 'review',
+        tone: 'violet',
+        icon: 'how_to_reg',
+        label: `${reviewN} to review`,
+        link: { path: '/members', query: { onboarding: 'review' } },
+      });
+    }
+
+    return chips;
+  });
+
+  // ── Inline row & toolbar actions ──────────────────────────────────────────
+  setActionTab(tab: ActionTab): void {
+    this.actionTabPicked = true;
+    this.activeActionTab.set(tab);
+    this.actionQueuePage.set(1);
+  }
+
+  setActionQueuePage(page: number): void {
+    if (page >= 1 && page <= this.actionQueuePages()) {
+      this.actionQueuePage.set(page);
+    }
+  }
+
+  getActionQueuePageNumbers(): number[] {
+    return Array.from({ length: this.actionQueuePages() }, (_, i) => i + 1);
+  }
+
+  callMember(m: Member): void {
+    const num = (m.mobile || '').replace(/\D/g, '');
+    if (num.length !== 10) {
+      this.toast.error('No valid mobile number on file');
+      return;
+    }
+    window.location.href = `tel:+91${num}`;
+  }
+
+  whatsappReminder(m: Member): void {
+    const num = (m.mobile || '').replace(/\D/g, '');
+    if (num.length !== 10) {
+      this.toast.error('Valid 10-digit mobile required');
+      return;
+    }
+    const owner = this.auth.profile()?.businessName?.trim() || this.auth.profile()?.name || 'PayBook';
+    const due = this.memberDueDate(m);
+    const dueStr = due ? due.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    const amt = Number(m.amount) || 0;
+    const pending = Number(m.pendingAmount) || 0;
+    const lines = [
+      `Hi ${m.firstName}${m.lastName ? ' ' + m.lastName : ''},`,
+      '',
+      `This is a friendly reminder from ${owner}.`,
+    ];
+    if (pending > 0) {
+      lines.push(`You have a pending balance of ₹${pending.toLocaleString('en-IN')}.`);
+    } else if (dueStr) {
+      lines.push(`Your payment of ₹${amt.toLocaleString('en-IN')} is due on ${dueStr}.`);
+    } else {
+      lines.push('Your payment is due. Please clear it at the earliest.');
+    }
+    lines.push('', 'Thanks,', owner);
+    const text = encodeURIComponent(lines.join('\n'));
+    const opened = window.open(`https://wa.me/91${num}?text=${text}`, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      window.location.assign(`https://wa.me/91${num}?text=${text}`);
+    }
+  }
+
+  remindAllOverdue(): void {
+    const list = this.overdueList().filter((m) => (m.mobile || '').replace(/\D/g, '').length === 10);
+    if (list.length === 0) {
+      this.toast.error('No overdue members with a valid mobile number');
+      return;
+    }
+    this.whatsappReminder(list[0]);
+    if (list.length > 1) {
+      this.toast.success(
+        `Opened reminder 1 of ${list.length}. Use the Action Queue to send the rest one by one.`,
+      );
+    }
+  }
+
+  goToActionTab(tab: ActionTab): void {
+    this.setActionTab(tab);
+    setTimeout(() => {
+      document.getElementById('action-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  }
+
+  goToPulseChip(chip: PulseChip): void {
+    if (chip.action) chip.action();
+    if (chip.link) {
+      this.router.navigate([chip.link.path], { queryParams: chip.link.query });
+    }
+  }
+
+  goToDonutSegment(seg: DonutSegment): void {
+    this.router.navigate([seg.link.path], { queryParams: seg.link.query });
+  }
+
+  goToSparkline(): void {
+    if (this.isSupervisor()) return;
+    this.showMonthlyEarningsModal.set(true);
+  }
+
+  formatCompactRupee(value: number): string {
+    return compactRupee(value);
+  }
+
+  /** First name initials for avatar bubble. */
+  memberInitials(m: Member): string {
+    const f = (m.firstName || '').trim();
+    const l = (m.lastName || '').trim();
+    const a = f ? f[0] : '';
+    const b = l ? l[0] : f.length > 1 ? f[1] : '';
+    return (a + b).toUpperCase() || '?';
+  }
+
+  trackByMemberId(_: number, row: { m: Member }): string {
+    return row.m.memberId;
+  }
+
+  trackByChipId(_: number, chip: PulseChip): string {
+    return chip.id;
+  }
+
+  trackByLabel(_: number, item: { label: string }): string {
+    return item.label;
+  }
+
+  trackByFloorLabel(_: number, item: MiniBedFloor): string {
+    return item.label;
+  }
+
+  trackByRoomNumber(_: number, item: MiniBedRoom): string {
+    return String(item.roomNumber);
+  }
+
   constructor() {
     // Sync cache signals to component signals
     effect(() => {
@@ -386,6 +843,27 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       this.dueAlertDebounce = setTimeout(() => {
         void this.inAppNotifications.syncDueAlertsFromMembers(oid, list);
       }, 2000);
+    });
+
+    // Pick the most "actionable" tab automatically the first time data loads.
+    effect(() => {
+      const busy = this.loading();
+      if (busy) return;
+      if (this.actionTabPicked) return;
+      const counts = untracked(() => this.actionQueueCounts());
+      let pick: ActionTab = 'overdue';
+      if (counts.overdue > 0) pick = 'overdue';
+      else if (counts.dueToday > 0) pick = 'dueToday';
+      else if (counts.dueSoon > 0) pick = 'dueSoon';
+      else if (counts.partial > 0) pick = 'partial';
+      this.activeActionTab.set(pick);
+      this.actionTabPicked = true;
+    });
+
+    // Reset paging when tab changes.
+    effect(() => {
+      this.activeActionTab();
+      untracked(() => this.actionQueuePage.set(1));
     });
   }
 

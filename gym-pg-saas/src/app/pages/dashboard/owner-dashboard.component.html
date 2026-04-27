@@ -1,38 +1,64 @@
-<div class="saas-page mx-auto max-w-6xl space-y-8">
-  <div>
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900">{{ dashboardTitle() }}</h1>
-        <p class="text-slate-600">{{ 'dashboard.subtitle' | t }}</p>
-      </div>
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-        <!-- Complaints toggle disabled — restore when feature fixed
-        <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
-          <input
-            type="checkbox"
-            class="h-4 w-4"
-            [checked]="complaintEnabled()"
-            [disabled]="complaintToggleBusy()"
-            (change)="setComplaintEnabled($any($event.target).checked)"
-          />
-          Complaints {{ complaintEnabled() ? 'Enabled' : 'Disabled' }}
-        </label>
-        -->
-        @if (subscriptionCountdown(); as c) {
-          <div class="hidden rounded-lg border px-4 py-2 md:block" [ngClass]="c.expired || c.days <= 7 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'">
-            <p class="text-xs font-medium" [ngClass]="c.expired || c.days <= 7 ? 'text-red-700' : 'text-emerald-700'">
-              Plan {{ c.text }}
-            </p>
-          </div>
-        }
-      </div>
+<div class="saas-page mx-auto w-full min-w-0 max-w-7xl space-y-6 overflow-x-clip">
+  <!-- ── Header bar with title and plan countdown ─────────────────────────── -->
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div class="min-w-0 flex-1">
+      <h1 class="truncate text-2xl font-bold text-slate-900 sm:text-3xl">{{ dashboardTitle() }}</h1>
+      <p class="mt-0.5 text-sm text-slate-600">{{ 'dashboard.subtitle' | t }}</p>
     </div>
+    @if (subscriptionCountdown(); as c) {
+      <div
+        class="inline-flex shrink-0 items-center self-start rounded-full border px-3 py-1.5 text-xs font-semibold"
+        [ngClass]="c.expired || c.days <= 7 ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'"
+      >
+        <span class="material-icons-outlined mr-1 align-[-2px] text-sm">schedule</span>
+        Plan {{ c.text }}
+      </div>
+    }
   </div>
+
+  <!-- ── Pulse status strip (clickable chips, drill-down to filtered views) ── -->
+  @if (!loading() && pulseChips().length > 0) {
+    <div class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="toolbar" aria-label="Status pulse">
+      @for (chip of pulseChips(); track trackByChipId($index, chip)) {
+        <button
+          type="button"
+          (click)="goToPulseChip(chip)"
+          [disabled]="!chip.link && !chip.action"
+          class="group inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-default"
+          [ngClass]="{
+            'border-red-200 bg-red-50 text-red-800 hover:bg-red-100 focus-visible:ring-red-300': chip.tone === 'red',
+            'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 focus-visible:ring-amber-300': chip.tone === 'amber',
+            'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 focus-visible:ring-emerald-300': chip.tone === 'emerald',
+            'border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 focus-visible:ring-sky-300': chip.tone === 'sky',
+            'border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100 focus-visible:ring-violet-300': chip.tone === 'violet',
+            'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 focus-visible:ring-slate-300': chip.tone === 'slate'
+          }"
+        >
+          <span
+            class="inline-block h-1.5 w-1.5 rounded-full"
+            [ngClass]="{
+              'bg-red-500': chip.tone === 'red',
+              'bg-amber-500': chip.tone === 'amber',
+              'bg-emerald-500': chip.tone === 'emerald',
+              'bg-sky-500': chip.tone === 'sky',
+              'bg-violet-500': chip.tone === 'violet',
+              'bg-slate-400': chip.tone === 'slate'
+            }"
+          ></span>
+          <span class="material-icons-outlined text-sm leading-none">{{ chip.icon }}</span>
+          <span class="whitespace-nowrap">{{ chip.label }}</span>
+          @if (chip.link || chip.action) {
+            <span class="material-icons-outlined ml-0.5 text-[14px] leading-none opacity-0 transition group-hover:opacity-70">arrow_forward</span>
+          }
+        </button>
+      }
+    </div>
+  }
 
   @if (isPg()) {
     <section class="saas-card p-4">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div class="min-w-0">
           <p class="text-sm font-semibold text-slate-900">{{ 'dashboard.pgBedAvailability' | t }}</p>
           @if (hasPgLayout()) {
             <p class="text-xs text-slate-600">
@@ -46,18 +72,17 @@
             <p class="text-xs text-amber-700">{{ 'dashboard.setupRequired' | t }}</p>
           }
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2 sm:flex-nowrap">
           <button
             type="button"
-            class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            class="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:flex-none sm:px-4"
             (click)="openSetupModal()"
           >
             {{ 'dashboard.setupBedAvailability' | t }}
           </button>
           <button
             type="button"
-            class="saas-btn-primary px-4 py-2 text-sm
-            disabled:cursor-not-allowed disabled:opacity-50"
+            class="saas-btn-primary flex-1 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none sm:px-4"
             [disabled]="!hasPgLayout()"
             (click)="openBedMap()"
           >
@@ -69,8 +94,21 @@
   }
 
   @if (loading()) {
-    <div class="flex justify-center py-16">
-      <span class="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600"></span>
+    <!-- Skeleton: KPI cards + command deck shape, prevents layout shift on load -->
+    <div class="space-y-6">
+      <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+        @for (_ of [1,2,3,4,5,6]; track $index) {
+          <div class="h-[112px] animate-pulse rounded-2xl bg-gradient-to-br from-slate-200 to-slate-100 sm:h-[124px] dark:from-slate-700 dark:to-slate-800"></div>
+        }
+      </div>
+      <div class="grid gap-4 lg:grid-cols-3">
+        <div class="h-[420px] animate-pulse rounded-2xl bg-slate-100 lg:col-span-2 dark:bg-slate-800"></div>
+        <div class="space-y-4">
+          <div class="h-32 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+          <div class="h-48 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+          <div class="h-40 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+        </div>
+      </div>
     </div>
   } @else {
     <div class="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 [&>*]:min-w-0">
@@ -219,16 +257,16 @@
 
     @if (whatsappEnabled()) {
       <section
-        class="saas-card relative overflow-hidden p-5"
+        class="saas-card relative overflow-hidden p-4 sm:p-5"
         aria-label="WhatsApp integration"
       >
         <div class="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-emerald-200/50 blur-2xl"></div>
         <div class="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex items-start gap-3">
-            <span class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-md">
+          <div class="flex min-w-0 items-start gap-3">
+            <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-md sm:h-12 sm:w-12">
               <span class="material-icons-outlined">chat</span>
             </span>
-            <div>
+            <div class="min-w-0">
               <p class="text-base font-semibold text-slate-900">{{ 'dashboard.whatsappTitle' | t }}</p>
               <p class="mt-1 max-w-xl text-sm text-slate-600">{{ 'dashboard.whatsappBody' | t }}</p>
             </div>
@@ -241,157 +279,437 @@
       </section>
     }
 
-    <div class="grid gap-6 lg:grid-cols-2">
-      <section class="saas-card p-5">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-slate-900">{{ 'dashboard.dueToday' | t }}</h2>
-          <a routerLink="/members" class="text-sm font-semibold text-emerald-700 hover:underline">{{ 'nav.members' | t }}</a>
-        </div>
-        @if (dueTodayList().length === 0) {
-          <p class="text-sm text-slate-500">{{ 'dashboard.noOneDueToday' | t }}</p>
-        } @else {
-          <ul class="divide-y divide-slate-100">
-            @for (m of dueTodayPagedList(); track m.memberId) {
-              <li class="flex items-center justify-between py-3">
-                <div>
-                  <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
-                  <p class="text-xs text-slate-500">{{ m.mobile || '—' }}</p>
-                </div>
-                <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">{{
-                  'dashboard.dueTodayBadge' | t
-                }}</span>
-              </li>
-            }
-          </ul>
-          @if (dueTodayPages() > 1) {
-            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
-              @for (pageNum of getDueTodayPageNumbers(); track pageNum) {
-                <button
-                  type="button"
-                  (click)="setDueTodayPage(pageNum)"
-                  [class.bg-emerald-100]="dueTodayPage() === pageNum"
-                  [class.text-emerald-900]="dueTodayPage() === pageNum"
-                  [class.bg-slate-100]="dueTodayPage() !== pageNum"
-                  [class.text-slate-600]="dueTodayPage() !== pageNum"
-                  class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors hover:bg-emerald-50"
-                >
-                  {{ pageNum }}
-                </button>
-              }
-            </div>
-          }
+    <!-- ── Quick Actions Toolbar (full control, drill-down to features) ─── -->
+    <section class="saas-card -mt-2 px-3 py-2.5 sm:px-4">
+      <div class="-mx-1 flex gap-2 overflow-x-auto px-1 sm:flex-wrap sm:overflow-visible" role="toolbar" aria-label="Quick actions">
+        <a
+          routerLink="/members"
+          class="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow"
+        >
+          <span class="material-icons-outlined text-base leading-none">person_add</span>
+          <span>Add member</span>
+        </a>
+        @if (!isSupervisor()) {
+          <a
+            routerLink="/members"
+            [queryParams]="{ pay: 'pending' }"
+            class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800 transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-100"
+          >
+            <span class="material-icons-outlined text-base leading-none">payments</span>
+            <span>Record payment</span>
+          </a>
         }
-      </section>
-
-      <section class="saas-card p-5">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-slate-900">{{ 'dashboard.dueSoonTitle' | t }}</h2>
-          <a routerLink="/members" [queryParams]="{ due: 'dueSoon' }" class="text-sm font-semibold text-sky-700 hover:underline">{{ 'dashboard.viewSoonMembers' | t }}</a>
-        </div>
-        @if (dueSoonList().length === 0) {
-          <p class="text-sm text-slate-500">{{ 'dashboard.noDueSoon' | t }}</p>
-        } @else {
-          <ul class="divide-y divide-slate-100">
-            @for (m of dueSoonPagedList(); track m.memberId) {
-              <li class="flex items-center justify-between py-3">
-                <div>
-                  <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
-                  <p class="text-xs text-slate-500">{{ m.mobile || '—' }}</p>
-                </div>
-                <span class="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-900">{{ dueStatusLabel(m) }}</span>
-              </li>
-            }
-          </ul>
-          @if (dueSoonPages() > 1) {
-            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
-              @for (pageNum of getDueSoonPageNumbers(); track pageNum) {
-                <button
-                  type="button"
-                  (click)="setDueSoonPage(pageNum)"
-                  [class.bg-sky-100]="dueSoonPage() === pageNum"
-                  [class.text-sky-900]="dueSoonPage() === pageNum"
-                  [class.bg-slate-100]="dueSoonPage() !== pageNum"
-                  [class.text-slate-600]="dueSoonPage() !== pageNum"
-                  class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors hover:bg-sky-50"
-                >
-                  {{ pageNum }}
-                </button>
-              }
-            </div>
-          }
+        <button
+          type="button"
+          [disabled]="overdueList().length === 0"
+          class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-800 transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:translate-y-0"
+          (click)="remindAllOverdue()"
+        >
+          <span class="material-icons-outlined text-base leading-none">forward_to_inbox</span>
+          <span>Send reminders <span class="ml-0.5 rounded-full bg-rose-200/80 px-1.5 text-[10px] font-bold">{{ overdueList().length }}</span></span>
+        </button>
+        <button
+          type="button"
+          class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-semibold text-indigo-800 transition hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-100"
+          (click)="openImportModal()"
+        >
+          <span class="material-icons-outlined text-base leading-none">file_upload</span>
+          <span>Import members</span>
+        </button>
+        @if (isPg()) {
+          <button
+            type="button"
+            class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
+            (click)="openSetupModal()"
+          >
+            <span class="material-icons-outlined text-base leading-none">grid_view</span>
+            <span>Setup beds</span>
+          </button>
+          <button
+            type="button"
+            [disabled]="!hasPgLayout()"
+            class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            (click)="openBedMap()"
+          >
+            <span class="material-icons-outlined text-base leading-none">bed</span>
+            <span>Bed map</span>
+          </button>
         }
-      </section>
-
-      <section class="saas-card p-5">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-slate-900">{{ 'dashboard.overdue' | t }}</h2>
-          <span class="text-xs font-medium text-slate-500">{{ dueLabel() }}</span>
-        </div>
-        @if (overdueList().length === 0) {
-          <p class="text-sm text-slate-500">{{ 'dashboard.noOverdue' | t }}</p>
-        } @else {
-          <ul class="divide-y divide-slate-100">
-            @for (m of overduePagedList(); track m.memberId) {
-              <li class="flex items-center justify-between py-3">
-                <div>
-                  <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
-                  <p class="text-xs text-slate-500">
-                    {{ 'dashboard.dueWord' | t }} {{ (m.dueDate.toDate()) | date: 'mediumDate' }}
-                  </p>
-                </div>
-                <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">{{
-                  overdueByLine(m)
-                }}</span>
-              </li>
-            }
-          </ul>
-          @if (overduePages() > 1) {
-            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
-              @for (pageNum of getOverduePageNumbers(); track pageNum) {
-                <button
-                  type="button"
-                  (click)="setOverduePage(pageNum)"
-                  [class.bg-red-100]="overduePage() === pageNum"
-                  [class.text-red-900]="overduePage() === pageNum"
-                  [class.bg-slate-100]="overduePage() !== pageNum"
-                  [class.text-slate-600]="overduePage() !== pageNum"
-                  class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors hover:bg-red-50"
-                >
-                  {{ pageNum }}
-                </button>
-              }
-            </div>
-          }
+        @if (!isSupervisor()) {
+          <a
+            routerLink="/payments"
+            class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
+          >
+            <span class="material-icons-outlined text-base leading-none">receipt_long</span>
+            <span>All payments</span>
+          </a>
         }
-      </section>
-    </div>
-     <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
-      <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-blue-900">{{ 'dashboard.partialPending' | t }}</h2>
-        <span class="text-xs font-medium text-blue-700">{{
-          'dashboard.partialBanner' | t: { count: partialPendingList().length }
-        }}</span>
+        <a
+          routerLink="/analytics"
+          class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
+        >
+          <span class="material-icons-outlined text-base leading-none">insights</span>
+          <span>Analytics</span>
+        </a>
       </div>
-      @if (partialPendingList().length === 0) {
-        <p class="text-sm text-blue-900/80">{{ 'dashboard.noPartialPending' | t }}</p>
-      } @else {
-        <ul class="divide-y divide-blue-100">
-          @for (m of partialPendingList(); track m.memberId) {
-            <li class="flex items-center justify-between py-3">
+    </section>
+
+    <!-- ── Command Deck: Action Queue (left) + Visual stack (right) ─────── -->
+    <div class="grid min-w-0 gap-4 lg:grid-cols-3 [&>*]:min-w-0">
+      <!-- ◀ LEFT: Tabbed Action Queue (col-span-2 on lg+) -->
+      <section id="action-queue" class="saas-card flex min-w-0 flex-col p-0 lg:col-span-2">
+        <header class="flex flex-col gap-3 border-b border-slate-100 px-4 pb-3 pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 dark:border-slate-700">
+          <div class="min-w-0">
+            <h2 class="flex items-center gap-2 text-base font-semibold text-slate-900 sm:text-lg">
+              <span class="material-icons-outlined text-emerald-600">speed</span>
+              Action Queue
+            </h2>
+            <p class="mt-0.5 text-xs text-slate-500">Today's most pressing members. Click any row to view, or use the inline actions.</p>
+          </div>
+        </header>
+
+        <!-- Tabs (mobile: horizontal scroll) -->
+        <div role="tablist" aria-label="Action queue tabs" class="flex gap-1 overflow-x-auto border-b border-slate-100 px-2 pt-2 sm:px-3 dark:border-slate-700">
+          @for (t of [
+            { id: 'overdue', label: 'Overdue', icon: 'warning', tone: 'red', count: actionQueueCounts().overdue },
+            { id: 'dueToday', label: 'Due today', icon: 'today', tone: 'amber', count: actionQueueCounts().dueToday },
+            { id: 'dueSoon', label: 'Due soon', icon: 'event', tone: 'sky', count: actionQueueCounts().dueSoon },
+            { id: 'partial', label: 'Partial', icon: 'account_balance_wallet', tone: 'indigo', count: actionQueueCounts().partial }
+          ]; track t.id) {
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="activeActionTab() === t.id"
+              (click)="setActionTab($any(t.id))"
+              class="group inline-flex shrink-0 items-center gap-1.5 rounded-t-xl border-b-2 px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+              [ngClass]="{
+                'border-red-500 text-red-700 dark:text-red-300': activeActionTab() === t.id && t.tone === 'red',
+                'border-amber-500 text-amber-700 dark:text-amber-300': activeActionTab() === t.id && t.tone === 'amber',
+                'border-sky-500 text-sky-700 dark:text-sky-300': activeActionTab() === t.id && t.tone === 'sky',
+                'border-indigo-500 text-indigo-700 dark:text-indigo-300': activeActionTab() === t.id && t.tone === 'indigo',
+                'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200': activeActionTab() !== t.id
+              }"
+            >
+              <span class="material-icons-outlined text-base leading-none">{{ t.icon }}</span>
+              <span class="whitespace-nowrap">{{ t.label }}</span>
+              <span
+                class="ml-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums"
+                [ngClass]="{
+                  'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200': t.tone === 'red' && t.count > 0,
+                  'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200': t.tone === 'amber' && t.count > 0,
+                  'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200': t.tone === 'sky' && t.count > 0,
+                  'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200': t.tone === 'indigo' && t.count > 0,
+                  'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400': t.count === 0
+                }"
+              >{{ t.count }}</span>
+            </button>
+          }
+        </div>
+
+        <!-- Queue rows -->
+        <div class="flex-1 px-2 pb-3 pt-1 sm:px-3">
+          @if (actionQueueAll().length === 0) {
+            <div class="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+              <div class="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
+                <span class="material-icons-outlined text-3xl">check_circle</span>
+              </div>
+              <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">All clear in this lane</p>
+              <p class="max-w-xs text-xs text-slate-500">Nothing needs your attention here right now. Switch tabs to see other lanes.</p>
+            </div>
+          } @else {
+            <ul class="divide-y divide-slate-100 dark:divide-slate-700">
+              @for (row of actionQueuePaged(); track trackByMemberId($index, row)) {
+                <li>
+                  <div
+                    class="group flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-2.5 transition hover:bg-slate-50 sm:gap-3 sm:px-3 dark:hover:bg-slate-800/60"
+                  >
+                    <!-- Avatar -->
+                    <button
+                      type="button"
+                      class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold tracking-wider sm:h-10 sm:w-10 sm:text-sm"
+                      [ngClass]="{
+                        'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200': row.tone === 'red',
+                        'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200': row.tone === 'amber',
+                        'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200': row.tone === 'sky',
+                        'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200': row.tone === 'indigo'
+                      }"
+                      (click)="openMemberDetail(row.m)"
+                      [attr.aria-label]="'Open ' + row.m.firstName + ' details'"
+                    >
+                      {{ memberInitials(row.m) }}
+                      <span
+                        class="absolute -right-0.5 -top-0.5 inline-block h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-slate-900"
+                        [ngClass]="{
+                          'bg-red-500': row.tone === 'red',
+                          'bg-amber-500': row.tone === 'amber',
+                          'bg-sky-500': row.tone === 'sky',
+                          'bg-indigo-500': row.tone === 'indigo'
+                        }"
+                      ></span>
+                    </button>
+
+                    <!-- Identity + status -->
+                    <button
+                      type="button"
+                      (click)="openMemberDetail(row.m)"
+                      class="min-w-0 flex-1 text-left"
+                    >
+                      <div class="flex items-center gap-2">
+                        <p class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {{ row.m.firstName }} {{ row.m.lastName }}
+                        </p>
+                      </div>
+                      <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 sm:text-xs">
+                        <span class="truncate">{{ row.m.mobile || 'No mobile' }}</span>
+                        @if (isPg() && row.m.floorNumber && row.m.roomNumber) {
+                          <span class="text-slate-300">•</span>
+                          <span class="truncate">{{ formatRoomNumber(+row.m.floorNumber, +row.m.roomNumber) }}@if (row.m.bedNumber) { · bed {{ row.m.bedNumber }} }</span>
+                        }
+                        @if (row.secondary) {
+                          <span class="text-slate-300">•</span>
+                          <span class="truncate">{{ row.secondary }}</span>
+                        }
+                      </div>
+                    </button>
+
+                    <!-- Status pill -->
+                    <span
+                      class="hidden shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold sm:inline-flex"
+                      [ngClass]="{
+                        'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200': row.tone === 'red',
+                        'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200': row.tone === 'amber',
+                        'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-200': row.tone === 'sky',
+                        'bg-indigo-100 text-indigo-900 dark:bg-indigo-900/40 dark:text-indigo-200': row.tone === 'indigo'
+                      }"
+                    >{{ row.status }}</span>
+
+                    <!-- Inline actions -->
+                    <div class="flex shrink-0 items-center gap-0.5 sm:gap-1">
+                      @if (row.m.mobile) {
+                        <button
+                          type="button"
+                          title="Call"
+                          aria-label="Call member"
+                          class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-emerald-900/40"
+                          (click)="callMember(row.m)"
+                        >
+                          <span class="material-icons-outlined text-base">call</span>
+                        </button>
+                        <button
+                          type="button"
+                          title="Send WhatsApp reminder"
+                          aria-label="Send WhatsApp reminder"
+                          class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-emerald-900/40"
+                          (click)="whatsappReminder(row.m)"
+                        >
+                          <span class="material-icons-outlined text-base">chat</span>
+                        </button>
+                      }
+                      @if (!isSupervisor()) {
+                        <a
+                          routerLink="/members"
+                          [queryParams]="{ pay: row.tag === 'partial' ? 'partial' : 'pending' }"
+                          title="Record payment"
+                          aria-label="Record payment"
+                          class="hidden h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:-translate-y-0.5 hover:bg-emerald-100 sm:inline-flex"
+                        >
+                          <span class="material-icons-outlined text-base">payments</span>
+                        </a>
+                      }
+                      <button
+                        type="button"
+                        title="Open profile"
+                        aria-label="Open profile"
+                        class="hidden h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 sm:inline-flex dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-900/40"
+                        (click)="openMemberDetail(row.m)"
+                      >
+                        <span class="material-icons-outlined text-base">person</span>
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              }
+            </ul>
+
+            @if (actionQueuePages() > 1) {
+              <div class="mt-3 flex flex-wrap items-center justify-between gap-2 px-2 sm:px-3">
+                <p class="text-xs text-slate-500">
+                  Showing {{ actionQueuePaged().length }} of {{ actionQueueAll().length }}
+                </p>
+                <div class="flex flex-wrap items-center gap-1">
+                  @for (pageNum of getActionQueuePageNumbers(); track pageNum) {
+                    <button
+                      type="button"
+                      (click)="setActionQueuePage(pageNum)"
+                      class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+                      [ngClass]="actionQueuePage() === pageNum
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'"
+                    >
+                      {{ pageNum }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </section>
+
+      <!-- ▶ RIGHT: Visual stack — Sparkline + Donut + Bed heatmap -->
+      <aside class="min-w-0 space-y-4">
+        <!-- 1) Earnings Sparkline (last 30 days) -->
+        @if (!isSupervisor()) {
+          <button
+            type="button"
+            (click)="goToSparkline()"
+            class="saas-card group block w-full overflow-hidden p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+          >
+            <div class="mb-2 flex items-start justify-between gap-2">
               <div>
-                <p class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
-                <p class="text-xs text-slate-600">
-                  {{ 'dashboard.pendingAmount' | t }}: ₹{{ (m.pendingAmount || 0) | number: '1.0-0' }}
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Last 30 days</p>
+                <p class="mt-0.5 text-xl font-extrabold tabular-nums text-slate-900 dark:text-slate-100">
+                  {{ formatCompactRupee(sparkline().totalSum) }}
+                </p>
+                <p class="text-[11px] text-slate-500">Today {{ formatCompactRupee(sparkline().todayTotal) }}</p>
+              </div>
+              <span
+                class="material-icons-outlined text-emerald-600 opacity-70 transition group-hover:translate-x-0.5 group-hover:opacity-100"
+                aria-hidden="true"
+              >arrow_forward</span>
+            </div>
+            <svg
+              [attr.viewBox]="'0 0 ' + sparkline().width + ' ' + sparkline().height"
+              class="h-16 w-full"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="Daily earnings trend, last 30 days"
+            >
+              <defs>
+                <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#10b981" stop-opacity="0.35" />
+                  <stop offset="100%" stop-color="#10b981" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              @if (sparkline().area) {
+                <path [attr.d]="sparkline().area" fill="url(#spark-grad)" />
+              }
+              @if (sparkline().line) {
+                <path [attr.d]="sparkline().line" fill="none" stroke="#059669" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+              }
+              @for (p of sparkline().points; track $index) {
+                <circle [attr.cx]="p.x" [attr.cy]="p.y" r="1.4" fill="#10b981" opacity="0.55">
+                  <title>{{ p.label }} · ₹{{ p.total | number: '1.0-0' }}</title>
+                </circle>
+              }
+            </svg>
+          </button>
+        }
+
+        <!-- 2) Collection Health Donut (clickable segments) -->
+        <section class="saas-card overflow-hidden p-4">
+          <div class="mb-2 flex items-start justify-between">
+            <div>
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Collection health</p>
+              <p class="mt-0.5 text-sm text-slate-600">Active members by status — click any slice to drill in.</p>
+            </div>
+          </div>
+          @if (collectionDonut().length === 0) {
+            <p class="rounded-xl bg-slate-50 px-3 py-6 text-center text-xs text-slate-500 dark:bg-slate-800/60">No active members yet.</p>
+          } @else {
+            <div class="flex flex-col items-center gap-3 min-[380px]:flex-row min-[380px]:items-center">
+              <div class="relative shrink-0">
+                <svg viewBox="0 0 120 120" class="h-24 w-24 sm:h-28 sm:w-28" role="img" aria-label="Member status donut">
+                  @for (seg of collectionDonut(); track trackByLabel($index, seg)) {
+                    <path
+                      [attr.d]="seg.d"
+                      [attr.fill]="seg.color"
+                      class="cursor-pointer transition-opacity hover:opacity-80"
+                      (click)="goToDonutSegment(seg)"
+                    >
+                      <title>{{ seg.label }}: {{ seg.count }}</title>
+                    </path>
+                  }
+                </svg>
+                <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span class="text-2xl font-extrabold tabular-nums text-slate-900 dark:text-slate-100">{{ donutCenterValue() }}</span>
+                  <span class="-mt-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-500">Active</span>
+                </div>
+              </div>
+              <ul class="w-full min-w-0 flex-1 space-y-1.5">
+                @for (seg of collectionDonut(); track trackByLabel($index, seg)) {
+                  <li>
+                    <button
+                      type="button"
+                      (click)="goToDonutSegment(seg)"
+                      class="group flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                    >
+                      <span class="flex min-w-0 items-center gap-2">
+                        <span class="h-2.5 w-2.5 shrink-0 rounded-full" [style.background]="seg.color"></span>
+                        <span class="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{{ seg.label }}</span>
+                      </span>
+                      <span class="flex shrink-0 items-center gap-1.5">
+                        <span class="text-xs font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ seg.count }}</span>
+                        <span class="text-[10px] tabular-nums text-slate-400">{{ (seg.pct * 100) | number: '1.0-0' }}%</span>
+                        <span class="material-icons-outlined text-[14px] text-slate-300 opacity-0 transition group-hover:opacity-100">arrow_forward</span>
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        </section>
+
+        <!-- 3) Mini Bed Occupancy Heatmap (PG only, click → bed map modal) -->
+        @if (isPg() && hasPgLayout()) {
+          <button
+            type="button"
+            (click)="openBedMap()"
+            class="saas-card group block w-full overflow-hidden p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+          >
+            <div class="mb-2 flex items-start justify-between">
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Bed occupancy</p>
+                <p class="mt-0.5 text-sm">
+                  <span class="font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ totalBeds() - emptyBeds() }}</span>
+                  <span class="text-slate-500">/ {{ totalBeds() }} occupied</span>
                 </p>
               </div>
-              <a routerLink="/members" class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-900">
-                {{ 'dashboard.pendingPayment' | t }}
-              </a>
-            </li>
-          }
-        </ul>
-      }
-    </section>
+              <span class="material-icons-outlined text-emerald-600 opacity-70 transition group-hover:translate-x-0.5 group-hover:opacity-100">arrow_forward</span>
+            </div>
+            <div class="space-y-1.5">
+              @for (floor of miniBedFloors(); track trackByFloorLabel($index, floor)) {
+                <div class="flex items-center gap-2">
+                  <span class="w-7 shrink-0 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{{ floor.label }}</span>
+                  <div class="flex flex-1 flex-wrap gap-1">
+                    @for (room of floor.rooms; track trackByRoomNumber($index, room)) {
+                      <span
+                        class="inline-block h-3 w-5 rounded-sm transition group-hover:scale-105"
+                        [ngClass]="{
+                          'bg-emerald-200 dark:bg-emerald-700/60': bedCellTone(room.occ, room.beds) === 'free',
+                          'bg-amber-300 dark:bg-amber-600/70': bedCellTone(room.occ, room.beds) === 'partial',
+                          'bg-rose-400 dark:bg-rose-600/80': bedCellTone(room.occ, room.beds) === 'full',
+                          'bg-slate-200 dark:bg-slate-700': bedCellTone(room.occ, room.beds) === 'empty'
+                        }"
+                      >
+                        <span class="sr-only">Room {{ room.roomNumber }}: {{ room.occ }}/{{ room.beds }}</span>
+                        <span class="block w-full text-[0]" [title]="'Room ' + room.roomNumber + ' · ' + room.occ + '/' + room.beds + ' occupied'"></span>
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+            <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium text-slate-500">
+              <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-emerald-200 dark:bg-emerald-700/60"></span>Free</span>
+              <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-amber-300 dark:bg-amber-600/70"></span>Partial</span>
+              <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-sm bg-rose-400 dark:bg-rose-600/80"></span>Full</span>
+            </div>
+          </button>
+        }
+      </aside>
+    </div>
 <section class="saas-card overflow-hidden p-5">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>

@@ -40,6 +40,7 @@ export const TE: Record<string, unknown> = {
     openMenu: 'మెనూ తెరవండి',
     closeMenu: 'మెనూ మూసివేయండి',
     navMenu: 'నావిగేషన్ మెనూ',
+    bottomNav: 'దిగువ నావిగేషన్',
     language: 'భాష',
     userMenu: 'ఖాతా మెనూ',
     toggleTheme: 'డార్క్ మోడ్ మార్చండి',
