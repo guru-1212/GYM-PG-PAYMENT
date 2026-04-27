@@ -102,6 +102,8 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly payModalOpen = signal(false);
   readonly payTarget = signal<Member | null>(null);
   readonly payEntryMode = signal<'standard' | 'pendingOnly'>('standard');
+  /** True while a markPaid() call is in flight — blocks double/triple submit. */
+  readonly paymentSubmitting = signal(false);
   readonly historyModalOpen = signal(false);
   readonly historyMember = signal<Member | null>(null);
   readonly historyPayments = signal<Payment[]>([]);
@@ -1161,13 +1163,24 @@ ${pgName}`;
     this.payModalOpen.set(true);
   }
 
-  closePay(): void {
+  /**
+   * Close the pay modal.
+   * - User-initiated closes (Cancel button, X button) pass `force=false`
+   *   and are blocked while a payment write is in flight.
+   * - System-initiated closes from `submitPay()` after success pass `force=true`
+   *   so the modal always closes the moment the payment lands.
+   */
+  closePay(force = false): void {
+    if (!force && this.paymentSubmitting()) return;
     this.payModalOpen.set(false);
     this.payTarget.set(null);
     this.payEntryMode.set('standard');
   }
 
   async submitPay(): Promise<void> {
+    // Guard: drop any rapid/double/triple submits while a request is in flight.
+    if (this.paymentSubmitting()) return;
+
     if (this.payForm.invalid) {
       this.payForm.markAllAsTouched();
       return;
@@ -1215,6 +1228,10 @@ ${pgName}`;
         : enteredAmount;
       const pendingAfterPayment = v.isPartialPayment ? computedPending : 0;
 
+    // ── Phase 1: write the payment. paymentSubmitting is true ONLY for this
+    //    phase so any rapid-fire taps land in the early-return at the top.
+    this.paymentSubmitting.set(true);
+    let recorded = false;
     try {
       await this.paymentsApi.markPaid({
         memberId: m.memberId,
@@ -1229,14 +1246,29 @@ ${pgName}`;
         priorPendingAmount: priorPending,
         memberPlanAmount: effectivePlanAmount,
       });
+      recorded = true;
+    } catch (error) {
+      console.error('Record payment failed:', error);
+      this.toast.error('Could not record payment');
+    } finally {
+      this.paymentSubmitting.set(false);
+    }
 
-      this.toast.success(v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded');
-      const paymentText = paymentAmount.toLocaleString('en-IN');
-      this.notifyOwnerAction(
-        v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded',
-        `${m.firstName} paid INR ${paymentText}.`,
-      );
-      this.closePay();
+    if (!recorded) return;
+
+    // ── Phase 2: success path. Close modal IMMEDIATELY (force) so the user
+    //    gets instant feedback and can no longer interact with the form.
+    this.toast.success(v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded');
+    const paymentText = paymentAmount.toLocaleString('en-IN');
+    this.notifyOwnerAction(
+      v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded',
+      `${m.firstName} paid INR ${paymentText}.`,
+    );
+    this.closePay(true);
+
+    // ── Phase 3: receipt prompt. Isolated so receipt failures never surface
+    //    as "Could not record payment" — the payment already landed.
+    try {
       await this.promptSendReceiptNow(m, {
         amount: paymentAmount,
         method: v.method,
@@ -1244,9 +1276,8 @@ ${pgName}`;
         pendingAmount: pendingAfterPayment,
         pendingBeforeAmount: priorPending,
       });
-    } catch (error) {
-      console.error('Record payment failed:', error);
-      this.toast.error('Could not record payment');
+    } catch (receiptError) {
+      console.error('Receipt prompt failed:', receiptError);
     }
   }
 

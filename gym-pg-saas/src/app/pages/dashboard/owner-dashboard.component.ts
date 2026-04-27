@@ -878,9 +878,9 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       console.error('❌ No owner ID found');
       return;
     }
-    
+
     this.currentOwnerId = uid;
-    
+
     try {
       await this.cache.loadAllData(uid);
       // Low-cost check using already loaded members (no extra listener/polling here).
@@ -888,6 +888,13 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     } catch (error) {
       console.error('❌ Error loading dashboard data:', error);
       this.toast.error('Failed to load data');
+    } finally {
+      // Always flip loading off after the load attempt completes. Without this,
+      // a "cache-hot" revisit (e.g. mobile PWA navigating back to /dashboard)
+      // leaves `loading=true` forever — DataCacheService short-circuits when
+      // data is already cached and never re-emits the `isLoading` signal, so
+      // the constructor effect that flips loading off never re-runs.
+      this.loading.set(false);
     }
   }
 

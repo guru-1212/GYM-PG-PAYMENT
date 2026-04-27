@@ -55,7 +55,14 @@ export class NotificationService {
     if (Notification.permission === 'granted' || Notification.permission === 'denied') return;
     if (localStorage.getItem(this.permissionAskedKey) === '1') return;
     localStorage.setItem(this.permissionAskedKey, '1');
-    void Notification.requestPermission();
+    // Some mobile browsers reject `requestPermission()` outside a user gesture.
+    // Suppress that rejection so it never bubbles up into the caller (e.g. the
+    // dashboard's ngOnInit during sign-in).
+    try {
+      void Notification.requestPermission().catch(() => {});
+    } catch {
+      /* noop */
+    }
   }
 
   private async initializeNotifications(): Promise<void> {
@@ -82,14 +89,16 @@ export class NotificationService {
   }
 
   private async requestNotificationPermission(): Promise<NotificationPermission> {
-    if ('Notification' in window) {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        // console.log('Notification permission granted');
-      }
-      return permission;
+    if (!('Notification' in window)) return 'denied';
+    // Permission is sometimes already 'granted' or 'denied' from a prior session.
+    // Avoid prompting again; the OS-level prompt only fires the first time anyway.
+    if (Notification.permission !== 'default') return Notification.permission;
+    try {
+      return await Notification.requestPermission();
+    } catch {
+      // Mobile browsers may reject if not called from a user gesture.
+      return 'denied';
     }
-    return 'denied';
   }
 
   private async getFCMToken(): Promise<void> {
@@ -299,45 +308,55 @@ export class NotificationService {
   }
 
   private showSystemNotification(notificationData: NotificationData): void {
-    // console.log('showSystemNotification called:', notificationData);
-    // console.log('Notification.permission:', Notification.permission);
-    // console.log('Notification supported:', typeof Notification !== 'undefined');
-    
-    if ('Notification' in window && Notification.permission === 'granted') {
-      // console.log('Creating system notification...');
-      const notification = new Notification(notificationData.title, {
-        body: notificationData.body,
-        icon: notificationData.icon || '/icons/icon-192.png',
-        tag: notificationData.tag,
-        data: notificationData.data,
-        requireInteraction: notificationData.requireInteraction || false,
-        badge: '/icons/icon-192.png',
-        silent: false
-      });
-      // console.log('System notification created:', notification);
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'granted') return;
 
-      // Handle notification click - navigate to relevant page
-      notification.onclick = (event) => {
-        event.preventDefault();
-        window.focus();
-        notification.close();
-        
-        // Navigate based on notification type
-        if (notificationData.data && notificationData.data['type'] === 'member-approval') {
-          window.location.href = '/members?filter=pending';
-        } else if (notificationData.data && notificationData.data['type'] === 'payment-due') {
-          window.location.href = `/members/${notificationData.data['memberId']}`;
-        }
-      };
+    void this.showViaServiceWorker(notificationData.title, {
+      body: notificationData.body,
+      icon: notificationData.icon || '/icons/icon-192.png',
+      tag: notificationData.tag,
+      data: notificationData.data,
+      requireInteraction: notificationData.requireInteraction || false,
+      badge: '/icons/icon-192.png',
+      silent: false,
+    });
+  }
 
-      // Auto-close after 8 seconds if not important
-      if (!notificationData.requireInteraction) {
+  /**
+   * Display a notification via the active ServiceWorkerRegistration.
+   *
+   * Why not `new Notification(...)`?
+   *   On Android Chrome (and most mobile PWA contexts), constructing a
+   *   `Notification` directly throws:
+   *     TypeError: Failed to construct 'Notification':
+   *     Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.
+   *
+   *   Routing every notification through the registered SW works on both
+   *   desktop and mobile, and lets the SW's existing `notificationclick`
+   *   handler take care of navigation (see firebase-messaging-sw.js).
+   *
+   * Errors are swallowed because notification display is a side-effect — a
+   * failure here must NEVER bubble up into auth, snapshot listeners, or any
+   * other callers (which previously broke sign-in on mobile).
+   */
+  private async showViaServiceWorker(title: string, options: NotificationOptions): Promise<void> {
+    try {
+      if (!('serviceWorker' in navigator)) return;
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, options);
+
+      // Auto-close non-critical notifications after 8s — same behaviour as the
+      // old `new Notification` code path.
+      if (!options.requireInteraction && options.tag) {
+        const tag = options.tag;
         setTimeout(() => {
-          notification.close();
+          registration.getNotifications({ tag }).then((list) => {
+            list.forEach((n) => n.close());
+          });
         }, 8000);
       }
-    } else {
-      // console.log('showSystemNotification failed - permission not granted or not supported');
+    } catch (err) {
+      console.warn('Notification display failed (suppressed):', err);
     }
   }
 
@@ -376,27 +395,16 @@ export class NotificationService {
   }
 
   showNotification(title: string, body: string, dedupKey?: string): void {
-    // console.log('showNotification called:', { title, body, dedupKey });
-    // console.log('Notification.permission:', Notification.permission);
-    // console.log('Notification supported:', typeof Notification !== 'undefined');
-    
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
-      // console.log('Notification not supported');
-      return;
-    }
-    if (Notification.permission !== 'granted') {
-      // console.log('Permission not granted:', Notification.permission);
-      return;
-    }
-    if (dedupKey && this.wasShown(dedupKey)) {
-      // console.log('Dedup key already shown:', dedupKey);
-      return;
-    }
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'granted') return;
+    if (dedupKey && this.wasShown(dedupKey)) return;
 
-    // console.log('Creating notification...');
-    const notification = new Notification(title, { body, icon: '/favicon.ico' });
-    // console.log('Notification created:', notification);
-    
+    void this.showViaServiceWorker(title, {
+      body,
+      icon: '/favicon.ico',
+      tag: dedupKey,
+    });
+
     if (dedupKey) this.markShown(dedupKey);
   }
 
