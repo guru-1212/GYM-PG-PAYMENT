@@ -43,9 +43,25 @@
           <p><strong>Receipt Number:</strong> {{ receiptData.receiptNumber }}</p>
           <p><strong>Member:</strong> {{ receiptData.receiptData.memberName }}</p>
           <p><strong>Amount:</strong> ₹{{ receiptData.receiptData.amount.toLocaleString('en-IN') }}</p>
+          <p><strong>Pending Amount:</strong> ₹{{ (receiptData.receiptData.pendingAmount || 0).toLocaleString('en-IN') }}</p>
+          @if ((receiptData.receiptData.pendingAmount || 0) > 0) {
+            <p style="margin-top: 8px; color: #9a3412; font-weight: 600;">
+              Pending amount ₹{{ (receiptData.receiptData.pendingAmount || 0).toLocaleString('en-IN') }} will be charged in next cycle.
+            </p>
+          }
           <p><strong>Month:</strong> {{ receiptData.receiptData.monthText }}</p>
           <p><strong>Payment Date:</strong> {{ paymentDate | date: 'mediumDate' }}</p>
           <p><strong>Payment Method:</strong> {{ receiptData.receiptData.paymentMethod.charAt(0).toUpperCase() + receiptData.receiptData.paymentMethod.slice(1) }}</p>
+          @if ((receiptData.receiptData.pendingPaidAmount || 0) > 0) {
+            <div style="margin-top: 12px; border-radius: 10px; border: 1px solid #facc15; background: #fef9c3; padding: 10px 12px;">
+              <p style="margin: 0; color: #713f12; font-size: 13px; font-weight: 700;">
+                Old pending paid ({{ receiptData.receiptData.pendingMonthText || receiptData.receiptData.monthText }})
+              </p>
+              <p style="margin: 4px 0 0 0; color: #854d0e; font-size: 16px; font-weight: 800;">
+                ₹{{ (receiptData.receiptData.pendingPaidAmount || 0).toLocaleString('en-IN') }}
+              </p>
+            </div>
+          }
         </div>
 
         <button 

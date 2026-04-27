@@ -101,6 +101,7 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   readonly payModalOpen = signal(false);
   readonly payTarget = signal<Member | null>(null);
+  readonly payEntryMode = signal<'standard' | 'pendingOnly'>('standard');
   readonly historyModalOpen = signal(false);
   readonly historyMember = signal<Member | null>(null);
   readonly historyPayments = signal<Payment[]>([]);
@@ -402,7 +403,13 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly receiptConfirmTarget = signal<ReceiptCandidate | null>(null);
   readonly receiptConfirmAmount = signal<number>(0);
   readonly receiptConfirmSending = signal<boolean>(false);
-  private receiptConfirmOptions: { amount?: number; method?: PaymentMethod; paymentDate?: Date } | null = null;
+  private receiptConfirmOptions: {
+    amount?: number;
+    method?: PaymentMethod;
+    paymentDate?: Date;
+    pendingAmount?: number;
+    pendingBeforeAmount?: number;
+  } | null = null;
   private receiptConfirmResolver: ((ok: boolean) => void) | null = null;
 
   readonly payForm = this.fb.nonNullable.group({
@@ -441,11 +448,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       const currentPayingControl = this.payForm.get('currentPayingAmount');
       if (!pendingAmountControl || !currentPayingControl) return;
 
-      if (isPartial) {
-        currentPayingControl.setValidators([Validators.required, Validators.min(1)]);
-      } else {
-        currentPayingControl.setValidators([Validators.min(0)]);
-      }
+      this.updateCurrentPayingValidators(!!isPartial);
       this.syncPayFormPending();
       pendingAmountControl.setValidators([]);
       pendingAmountControl.updateValueAndValidity();
@@ -453,6 +456,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     }) ?? null;
 
     this.payForm.get('currentPayingAmount')?.valueChanges.subscribe(() => this.syncPayFormPending());
+    this.payForm.get('amount')?.valueChanges.subscribe(() => this.syncPayFormPending());
 
     // Add-member partial payment controls: validate paid amount only when split payment is enabled.
     this.memberForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial) => {
@@ -917,6 +921,8 @@ export class MembersComponent implements OnInit, OnDestroy {
             amount: paidAmount,
             method: v.paymentMethod,
             paymentDate: new Date(),
+            pendingAmount,
+            pendingBeforeAmount: 0,
           });
         }
       }
@@ -1127,11 +1133,20 @@ ${pgName}`;
     }
   }
 
+  openPayPendingOnly(m: Member): void {
+    this.openPayInternal(m, 'pendingOnly');
+  }
+
   openPay(m: Member): void {
+    this.openPayInternal(m, 'standard');
+  }
+
+  private openPayInternal(m: Member, mode: 'standard' | 'pendingOnly'): void {
     this.payTarget.set(m);
+    this.payEntryMode.set(mode);
     const pending = Math.max(0, Number(m.pendingAmount) || 0);
     const plan = Math.max(0, Number(m.amount) || 0);
-    const defaultAmount = plan;
+    const defaultAmount = mode === 'pendingOnly' && pending > 0 ? pending : plan;
     this.payForm.reset({
       amount: defaultAmount,
       currentPayingAmount: defaultAmount,
@@ -1142,12 +1157,14 @@ ${pgName}`;
       pendingAmount: Math.max(0, plan - defaultAmount),
     });
     this.syncPayFormPending();
+    this.updateCurrentPayingValidators(!!this.payForm.controls.isPartialPayment.value);
     this.payModalOpen.set(true);
   }
 
   closePay(): void {
     this.payModalOpen.set(false);
     this.payTarget.set(null);
+    this.payEntryMode.set('standard');
   }
 
   async submitPay(): Promise<void> {
@@ -1167,20 +1184,36 @@ ${pgName}`;
     }
 
     const v = this.payForm.getRawValue();
+
+    const priorPending = Math.max(0, Number(m.pendingAmount) || 0);
+    const planAmount = Math.max(0, Number(m.amount) || 0);
+
+    const enteredAmount = Math.max(0, Number(v.amount) || 0);
+    const currentPayingAmount = Math.max(0, Number(v.currentPayingAmount) || 0);
+    const isPendingOnly = this.payEntryMode() === 'pendingOnly' && priorPending > 0;
+    const effectiveRentAmount = isPendingOnly ? priorPending : enteredAmount;
+    const computedPending = Math.max(0, effectiveRentAmount - currentPayingAmount);
     if (v.isPartialPayment) {
       if (!Number.isFinite(Number(v.currentPayingAmount)) || Number(v.currentPayingAmount) <= 0) {
         this.toast.error('Enter current paying amount for partial payment');
         return;
       }
+      if (currentPayingAmount > effectiveRentAmount) {
+        this.toast.error('Enter a valid current paying amount');
+        return;
+      }
     }
-
-    const priorPending = Math.max(0, Number(m.pendingAmount) || 0);
-    const planAmount = Math.max(0, Number(m.amount) || 0);
-
-    const totalRentAmount = Math.max(0, Number(m.amount) || 0);
-    const currentPayingAmount = Math.max(0, Number(v.currentPayingAmount) || 0);
-    const computedPending = Math.max(0, totalRentAmount - currentPayingAmount);
-    const paymentAmount = v.isPartialPayment ? currentPayingAmount : totalRentAmount;
+      const paymentAmount = v.isPartialPayment
+      ? currentPayingAmount
+      : isPendingOnly
+        ? priorPending
+        : enteredAmount + priorPending;
+    const effectivePlanAmount = v.isPartialPayment
+      ? planAmount
+      : isPendingOnly
+        ? planAmount
+        : enteredAmount;
+      const pendingAfterPayment = v.isPartialPayment ? computedPending : 0;
 
     try {
       await this.paymentsApi.markPaid({
@@ -1194,7 +1227,7 @@ ${pgName}`;
         moveDueOnPartial: v.isPartialPayment ? v.moveDueToNextCycle : false,
         pendingAmount: v.isPartialPayment ? computedPending : 0,
         priorPendingAmount: priorPending,
-        memberPlanAmount: planAmount,
+        memberPlanAmount: effectivePlanAmount,
       });
 
       this.toast.success(v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded');
@@ -1208,6 +1241,8 @@ ${pgName}`;
         amount: paymentAmount,
         method: v.method,
         paymentDate: new Date(),
+        pendingAmount: pendingAfterPayment,
+        pendingBeforeAmount: priorPending,
       });
     } catch (error) {
       console.error('Record payment failed:', error);
@@ -1216,14 +1251,51 @@ ${pgName}`;
   }
 
   pendingFromPayForm(): number {
-    const total = Math.max(0, Number(this.payTarget()?.amount) || 0);
+    const isPendingOnly = this.payEntryMode() === 'pendingOnly';
+    const total = isPendingOnly
+      ? this.payTargetPendingAmount()
+      : Math.max(0, Number(this.payForm.controls.amount.value) || 0);
     const paying = Math.max(0, Number(this.payForm.controls.currentPayingAmount.value) || 0);
     return Math.max(0, total - paying);
+  }
+
+  payTargetPendingAmount(): number {
+    return Math.max(0, Number(this.payTarget()?.pendingAmount) || 0);
+  }
+
+  payModeTotalAmount(): number {
+    const rentAmount = Math.max(0, Number(this.payForm.controls.amount.value) || 0);
+    const pendingAmount = this.payTargetPendingAmount();
+    if (this.payEntryMode() === 'pendingOnly') {
+      return pendingAmount;
+    }
+    return pendingAmount > 0 ? rentAmount + pendingAmount : rentAmount;
+  }
+
+  payCurrentAllowedMax(): number {
+    if (this.payEntryMode() === 'pendingOnly') {
+      return this.payTargetPendingAmount();
+    }
+    return Math.max(0, Number(this.payForm.controls.amount.value) || 0);
+  }
+
+  showMoveDueOnPartialOption(): boolean {
+    return this.pendingFromPayForm() > 1;
   }
 
   private syncPayFormPending(): void {
     const nextPending = this.pendingFromPayForm();
     this.payForm.controls.pendingAmount.setValue(nextPending, { emitEvent: false });
+  }
+
+  private updateCurrentPayingValidators(isPartial: boolean): void {
+    const currentPayingControl = this.payForm.get('currentPayingAmount');
+    if (!currentPayingControl) return;
+    if (isPartial) {
+      currentPayingControl.setValidators([Validators.required, Validators.min(1)]);
+    } else {
+      currentPayingControl.setValidators([Validators.min(0)]);
+    }
   }
 
   /** Immediate success feedback: short "ting" + desktop notification (if allowed). */
@@ -1543,7 +1615,13 @@ ${pgName}`;
 
   private async promptSendReceiptNow(
     m: ReceiptCandidate,
-    options?: { amount?: number; method?: PaymentMethod; paymentDate?: Date },
+    options?: {
+      amount?: number;
+      method?: PaymentMethod;
+      paymentDate?: Date;
+      pendingAmount?: number;
+      pendingBeforeAmount?: number;
+    },
   ): Promise<void> {
     if (!this.canSendReceipt(m)) return;
     this.receiptConfirmTarget.set(m);
@@ -1586,7 +1664,13 @@ ${pgName}`;
 
   async sendReceipt(
     m: ReceiptCandidate,
-    options?: { amount?: number; method?: PaymentMethod; paymentDate?: Date },
+    options?: {
+      amount?: number;
+      method?: PaymentMethod;
+      paymentDate?: Date;
+      pendingAmount?: number;
+      pendingBeforeAmount?: number;
+    },
   ): Promise<void> {
     if (!this.canSendReceipt(m)) {
       this.toast.error('Valid mobile number is required');
@@ -1595,10 +1679,23 @@ ${pgName}`;
 
     try {
       const paymentDate = options?.paymentDate ?? new Date();
-      const fallbackPendingAmount = Math.max(0, Number(m.pendingAmount) || 0);
+      const fallbackPendingAmount = Math.max(0, Number(options?.pendingAmount ?? 0) || 0);
+      const fallbackPendingBeforeAmount = Math.max(
+        0,
+        Number(options?.pendingBeforeAmount ?? m.pendingAmount) || 0,
+      );
       const fallbackPaidAmount =
         Math.max(0, Number(m.amount || 0) - fallbackPendingAmount) || Number(m.amount || 0);
       const estimatedPaidAmount = Math.max(0, Number(options?.amount) || fallbackPaidAmount);
+      const memberForReceipt: ReceiptCandidate & {
+        pendingBeforeAmount?: number;
+        pendingAfterAmount?: number;
+      } = {
+        ...m,
+        pendingAmount: fallbackPendingBeforeAmount,
+        pendingBeforeAmount: fallbackPendingBeforeAmount,
+        pendingAfterAmount: fallbackPendingAmount,
+      };
 
       const ownerProfile = this.auth.profile();
       const businessName = ownerProfile?.businessName?.trim() || ownerProfile?.name || 'PayBook';
@@ -1623,7 +1720,7 @@ ${pgName}`;
       };
 
       // Generate receipt link
-      const { url, expiresAt } = await this.receiptService.generateReceiptLink(m, payment, receiptNo);
+      const { url, expiresAt } = await this.receiptService.generateReceiptLink(memberForReceipt, payment, receiptNo);
 
       // Create WhatsApp message
       const msg = `Hi ${m.firstName} ${m.lastName || ''}

@@ -29,6 +29,10 @@ export interface ReceiptLinkData {
     paymentMethod: string;
     businessName: string;
     monthText: string;
+    pendingAmount?: number;
+    pendingPaidAmount?: number;
+    pendingMonthText?: string;
+    pendingCarryForwardText?: string;
   };
   createdAt: Timestamp;
   expiresAt: Timestamp;
@@ -46,7 +50,11 @@ export interface ReceiptPublicView {
 type ReceiptMemberSource = Pick<
   Member,
   'memberId' | 'ownerId' | 'firstName' | 'lastName' | 'mobile' | 'amount' | 'pendingAmount'
->;
+> &
+  Partial<Pick<Member, 'dueDate'>> & {
+    pendingBeforeAmount?: number;
+    pendingAfterAmount?: number;
+  };
 
 @Injectable({ providedIn: 'root' })
 export class MemberReceiptService {
@@ -117,20 +125,46 @@ export class MemberReceiptService {
       month: 'long',
       year: 'numeric',
     });
+    const pendingBefore = Math.max(
+      0,
+      Number(member.pendingBeforeAmount ?? member.pendingAmount) || 0,
+    );
+    const pendingAfter = Math.max(0, Number(member.pendingAfterAmount ?? 0) || 0);
+    const pendingPaidAmount = Math.min(Math.max(0, Number(payment.amount) || 0), pendingBefore);
+    const pendingMonthDate = member.dueDate ? this.toDate(member.dueDate) : null;
+    const pendingMonthText =
+      pendingPaidAmount > 0
+        ? (pendingMonthDate || paymentDate).toLocaleDateString('en-IN', {
+            month: 'long',
+            year: 'numeric',
+          })
+        : undefined;
+
+    const receiptData: ReceiptLinkData['receiptData'] = {
+      memberName: `${member.firstName} ${member.lastName || ''}`.trim(),
+      amount: payment.amount || 0,
+      paymentDate,
+      paymentMethod: payment.method || 'cash',
+      businessName: profile.businessName || profile.name || 'PayBook',
+      monthText,
+      pendingAmount: pendingAfter,
+      ...(pendingPaidAmount > 0 ? { pendingPaidAmount } : {}),
+      ...(pendingPaidAmount > 0 && pendingMonthText ? { pendingMonthText } : {}),
+      ...(pendingAfter > 0
+        ? {
+            pendingCarryForwardText: `Pending amount INR ${pendingAfter.toLocaleString(
+              'en-IN',
+            )} will be charged in next cycle.`,
+          }
+        : {}),
+    };
 
     const linkData: ReceiptLinkData = {
       memberId: member.memberId,
       ownerId,
       paymentId: payment.paymentId || '',
       receiptNumber,
-      receiptData: {
-        memberName: `${member.firstName} ${member.lastName || ''}`.trim(),
-        amount: payment.amount || 0,
-        paymentDate,
-        paymentMethod: payment.method || 'cash',
-        businessName: profile.businessName || profile.name || 'PayBook',
-        monthText,
-      },
+      receiptData,
       createdAt: Timestamp.fromDate(new Date()),
       expiresAt: Timestamp.fromDate(expiresAt),
     };
@@ -175,6 +209,9 @@ export class MemberReceiptService {
     const margin = 14;
     const contentW = pageW - margin * 2;
     const amountText = `INR ${Math.max(0, Number(receiptData.amount) || 0).toLocaleString('en-IN')}`;
+    const pendingAmount = Math.max(0, Number(receiptData.pendingAmount) || 0);
+    const pendingPaidAmount = Math.max(0, Number(receiptData.pendingPaidAmount) || 0);
+    const pendingMonthText = receiptData.pendingMonthText?.trim() || '';
     const paymentMethod =
       receiptData.paymentMethod.charAt(0).toUpperCase() + receiptData.paymentMethod.slice(1).toLowerCase();
 
@@ -228,7 +265,7 @@ export class MemberReceiptService {
     // Payment details block
     const payY = 100;
     doc.setFillColor(248, 250, 252);
-    doc.roundedRect(margin, payY, contentW, 58, 2, 2, 'F');
+    doc.roundedRect(margin, payY, contentW, 66, 2, 2, 'F');
     doc.setTextColor(30, 41, 59);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
@@ -241,17 +278,55 @@ export class MemberReceiptService {
     doc.setTextColor(51, 65, 85);
     doc.text('Payment Method', margin + 4, payY + 20);
     doc.text('Payment Date', margin + 4, payY + 28);
-    // doc.text('Owner ID', margin + 4, payY + 36);
-    doc.text('Generated On', margin + 4, payY + 44);
+    doc.text('Pending Amount', margin + 4, payY + 36);
+    doc.text('Generated On', margin + 4, payY + 52);
 
     doc.setTextColor(15, 23, 42);
     doc.text(paymentMethod, margin + 54, payY + 20);
     doc.text(paymentDate.toLocaleDateString('en-IN'), margin + 54, payY + 28);
-    doc.text(linkData.ownerId, margin + 54, payY + 36);
-    doc.text(new Date().toLocaleString('en-IN'), margin + 54, payY + 44);
+    doc.text(`INR ${pendingAmount.toLocaleString('en-IN')}`, margin + 54, payY + 36);
+    doc.text(new Date().toLocaleString('en-IN'), margin + 54, payY + 52);
+
+    // Old pending highlight (only when previous-cycle pending is cleared in this payment)
+    const pendingY = 166;
+    if (pendingPaidAmount > 0) {
+      doc.setFillColor(254, 240, 138);
+      doc.roundedRect(margin, pendingY, contentW, 20, 2, 2, 'F');
+      doc.setTextColor(113, 63, 18);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text(
+        `OLD PENDING PAID (${pendingMonthText || receiptData.monthText})`,
+        margin + 5,
+        pendingY + 8,
+      );
+      doc.setFontSize(13);
+      doc.text(
+        `INR ${pendingPaidAmount.toLocaleString('en-IN')}`,
+        margin + contentW - 5,
+        pendingY + 14,
+        { align: 'right' },
+      );
+    }
+
+    // Pending carry-forward note (when pending remains after payment)
+    const carryY = pendingPaidAmount > 0 ? 192 : 166;
+    if (pendingAmount > 0) {
+      doc.setFillColor(255, 237, 213);
+      doc.roundedRect(margin, carryY, contentW, 16, 2, 2, 'F');
+      doc.setTextColor(154, 52, 18);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.text(
+        receiptData.pendingCarryForwardText ||
+          `Pending amount INR ${pendingAmount.toLocaleString('en-IN')} will be charged in next cycle.`,
+        margin + 4,
+        carryY + 10,
+      );
+    }
 
     // Total amount highlight
-    const totalY = 166;
+    const totalY = pendingPaidAmount > 0 ? (pendingAmount > 0 ? 212 : 192) : (pendingAmount > 0 ? 186 : 166);
     doc.setFillColor(15, 23, 42);
     doc.roundedRect(margin, totalY, contentW, 24, 2, 2, 'F');
     doc.setTextColor(148, 163, 184);
@@ -263,7 +338,7 @@ export class MemberReceiptService {
     doc.text(amountText, margin + contentW - 5, totalY + 16, { align: 'right' });
 
     // Footer notes
-    const noteY = 205;
+    const noteY = pendingPaidAmount > 0 ? (pendingAmount > 0 ? 248 : 230) : (pendingAmount > 0 ? 224 : 205);
     doc.setTextColor(51, 65, 85);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
