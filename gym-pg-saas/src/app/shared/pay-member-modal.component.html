@@ -1,0 +1,120 @@
+<app-modal [open]="open" title="Mark as paid" [closable]="!paySubmitting()" (closed)="onModalClose()">
+  @if (member; as m) {
+    <form [formGroup]="payForm" (ngSubmit)="onSubmit()" class="space-y-4">
+      <p class="text-sm text-slate-600">
+        Recording payment for <span class="font-semibold text-slate-900">{{ m.firstName }} {{ m.lastName }}</span>
+      </p>
+      <p class="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        @if (getMemberDueDate(); as dueDate) {
+          @if ((m.pendingAmount || 0) > 0 && !payForm.controls.isPartialPayment.value) {
+            Outstanding balance:
+            <span class="font-semibold text-slate-900">₹{{ (m.pendingAmount || 0) | number: '1.0-0' }}</span>. This payment
+            applies to that balance first and does <span class="font-semibold">not</span> move the next
+            {{ dueLabel }} unless the amount is at least
+            <span class="font-semibold text-slate-900"
+              >₹{{ ((m.pendingAmount || 0) + (m.amount || 0)) | number: '1.0-0' }}</span>
+            (balance + plan ₹{{ (m.amount || 0) | number: '1.0-0' }}) in one payment. Otherwise clear the balance now, then record
+            another payment for the plan amount to renew.
+          } @else if (payForm.controls.isPartialPayment.value) {
+            You are recording a split payment. Enter how much will remain owed after this payment.
+          } @else {
+            Next {{ dueLabel }} will be one billing period after the current due date ({{
+              dueDate | date: 'mediumDate'
+            }}), not from today.
+          }
+        } @else {
+          <span class="text-red-600">Error: Invalid due date. Please refresh and try again.</span>
+        }
+      </p>
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Total rent amount (₹)</label>
+        <input
+          type="number"
+          [value]="m.amount || 0"
+          class="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-base text-slate-700"
+          readonly
+        />
+      </div>
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-700">Method</label>
+        <select formControlName="method" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base">
+          <option value="cash">Cash</option>
+          <option value="upi">UPI</option>
+          <option value="card">Card</option>
+        </select>
+        @if (payForm.controls.method.touched && payForm.controls.method.invalid) {
+          <p class="mt-1 text-sm text-red-600">Payment method is required</p>
+        }
+      </div>
+      @if (isGym) {
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Plan for this payment</label>
+          <select formControlName="subscriptionType" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base capitalize">
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly (3 months)</option>
+            <option value="yearly">Yearly (12 months)</option>
+          </select>
+          @if (payForm.controls.subscriptionType.touched && payForm.controls.subscriptionType.invalid) {
+            <p class="mt-1 text-sm text-red-600">Subscription type is required</p>
+          }
+        </div>
+      }
+      <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
+        <input type="checkbox" formControlName="isPartialPayment" class="h-4 w-4" />
+        <span class="text-sm font-medium text-slate-700">Partial payment done</span>
+      </label>
+      @if (payForm.controls.isPartialPayment.value) {
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Current paying amount (₹)</label>
+          <input
+            type="number"
+            formControlName="currentPayingAmount"
+            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+            min="1"
+            [max]="m.amount || 0"
+          />
+          @if (payForm.controls.currentPayingAmount.touched && payForm.controls.currentPayingAmount.invalid) {
+            <p class="mt-1 text-sm text-red-600">Enter a valid current paying amount</p>
+          }
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Pending amount (₹)</label>
+          <input
+            type="number"
+            [value]="pendingFromPayForm()"
+            readonly
+            class="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-base text-slate-700"
+          />
+          <p class="mt-1 text-xs text-slate-500">Pending is auto calculated from total rent - current paying.</p>
+        </div>
+        <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+          <input type="checkbox" formControlName="moveDueToNextCycle" class="h-4 w-4" />
+          <span class="text-sm font-medium text-indigo-800">Move due date to next cycle even with pending</span>
+        </label>
+      }
+      <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          class="rounded-xl border border-slate-200 px-5 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+          [disabled]="paySubmitting()"
+          (click)="onCancel()"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          [disabled]="payForm.invalid || paySubmitting()"
+          [class.opacity-50]="payForm.invalid || paySubmitting()"
+          [class.cursor-not-allowed]="payForm.invalid || paySubmitting()"
+          class="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-400"
+        >
+          @if (paySubmitting()) {
+            Saving…
+          } @else {
+            {{ payForm.controls.isPartialPayment.value ? 'Partial payment done' : 'Confirm payment' }}
+          }
+        </button>
+      </div>
+    </form>
+  }
+</app-modal>

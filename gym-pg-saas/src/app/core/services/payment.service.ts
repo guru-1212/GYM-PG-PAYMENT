@@ -20,6 +20,19 @@ import { coerceFirestoreDate, dateToTimestamp, isDateInCalendarMonth, nextDueAft
 import { FirebaseAppService } from './firebase-app.service';
 import { MemberService } from './member.service';
 
+/**
+ * What `markPaid()` actually wrote to the member document. Returned to callers
+ * so they can apply the same patch to their local cache for an instant UI update.
+ */
+export interface MarkPaidResult {
+  /** New pendingAmount on the member after the payment is applied. */
+  pendingAmount: number;
+  /** New due date on the member; only set when the billing cycle advanced. */
+  dueDate?: Date;
+  /** Subscription type recorded with this payment (if any). */
+  subscriptionType?: SubscriptionType;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PaymentService {
   private readonly fb = inject(FirebaseAppService);
@@ -151,6 +164,9 @@ export class PaymentService {
    * not advance the billing cycle. The due date moves forward only if there is no prior balance,
    * or the payment clears the balance and the amount above the balance is at least the plan fee
    * (`memberPlanAmount`).
+   *
+   * Returns the changes applied to the member doc so callers can patch their local cache
+   * immediately (optimistic update) without waiting for the Firestore listener to fire.
    */
   async markPaid(params: {
     memberId: string;
@@ -166,7 +182,7 @@ export class PaymentService {
     priorPendingAmount?: number;
     /** Recurring plan amount (`member.amount`); used to allow renew in same txn after balance cleared. */
     memberPlanAmount?: number;
-  }): Promise<void> {
+  }): Promise<MarkPaidResult> {
     const payDate = new Date();
     const nextDue = nextDueAfterPaid(params.currentDueDate, params.subscriptionType);
     const pendingFromForm = Math.max(0, Number(params.pendingAmount) || 0);
@@ -188,12 +204,17 @@ export class PaymentService {
     });
 
     if (isPartialPayment) {
+      const dueDate = moveDueOnPartial ? nextDue : undefined;
       await this.members.updateBillingState(params.memberId, {
-        dueDate: moveDueOnPartial ? nextDue : undefined,
+        dueDate,
         subscriptionType: params.subscriptionType ?? undefined,
         pendingAmount: pendingFromForm,
       });
-      return;
+      return {
+        pendingAmount: pendingFromForm,
+        dueDate,
+        subscriptionType: params.subscriptionType ?? undefined,
+      };
     }
 
     if (priorPending > 0) {
@@ -206,7 +227,10 @@ export class PaymentService {
           subscriptionType: params.subscriptionType ?? undefined,
           pendingAmount: newPending,
         });
-        return;
+        return {
+          pendingAmount: newPending,
+          subscriptionType: params.subscriptionType ?? undefined,
+        };
       }
 
       const renewsThisTxn = planAmount > 0 && excess >= planAmount;
@@ -215,7 +239,10 @@ export class PaymentService {
           subscriptionType: params.subscriptionType ?? undefined,
           pendingAmount: 0,
         });
-        return;
+        return {
+          pendingAmount: 0,
+          subscriptionType: params.subscriptionType ?? undefined,
+        };
       }
 
       await this.members.updateBillingState(params.memberId, {
@@ -223,7 +250,11 @@ export class PaymentService {
         subscriptionType: params.subscriptionType ?? undefined,
         pendingAmount: 0,
       });
-      return;
+      return {
+        pendingAmount: 0,
+        dueDate: nextDue,
+        subscriptionType: params.subscriptionType ?? undefined,
+      };
     }
 
     await this.members.updateBillingState(params.memberId, {
@@ -231,6 +262,11 @@ export class PaymentService {
       subscriptionType: params.subscriptionType ?? undefined,
       pendingAmount: 0,
     });
+    return {
+      pendingAmount: 0,
+      dueDate: nextDue,
+      subscriptionType: params.subscriptionType ?? undefined,
+    };
   }
 
   paymentDate(p: Payment): Date | null {

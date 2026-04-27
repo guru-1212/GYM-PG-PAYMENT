@@ -205,6 +205,21 @@ export class DataCacheService {
   }
 
   /**
+   * Apply an immediate (optimistic) patch to a single member in the cached list.
+   *
+   * This is used right after a write succeeds so the UI reflects the new state
+   * instantly, without waiting for the Firestore real-time listener to fire.
+   * The listener will later overwrite this with the server-authoritative state
+   * (which should be identical), so there's no risk of stale data persisting.
+   */
+  patchMemberLocal(memberId: string, patch: Partial<Member>): void {
+    if (!memberId) return;
+    this._members.update((list) =>
+      list.map((m) => (m.memberId === memberId ? { ...m, ...patch } : m)),
+    );
+  }
+
+  /**
    * Manual refresh - force re-fetch all data from Firestore
    * Used when user clicks "Refresh Data" button
    */

@@ -3,30 +3,59 @@ import { Component, computed, effect, inject, OnDestroy, OnInit, signal } from '
 import { jsPDF } from 'jspdf';
 import { Member } from '../../core/models/member.model';
 import { Payment } from '../../core/models/payment.model';
+import { PgLayout } from '../../core/models/pg-layout.model';
 import { AuthService } from '../../core/services/auth.service';
-import { TranslationService } from '../../core/services/translation.service';
-import { MemberService } from '../../core/services/member.service';
+import { DataCacheService } from '../../core/services/data-cache.service';
 import { PaymentService } from '../../core/services/payment.service';
-import { dueUiStatus, endOfToday, timestampToDate } from '../../core/utils/date.utils';
+import { TranslationService } from '../../core/services/translation.service';
+import {
+  calendarDaysBetween,
+  dueUiStatus,
+  endOfToday,
+  startOfDay,
+  startOfToday,
+  timestampToDate,
+} from '../../core/utils/date.utils';
+import { formatPgRoomLabel } from '../../core/utils/pg-layout-display.utils';
+import { PayMemberModalComponent } from '../../shared/pay-member-modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+
+/** Filter options for the "Collect payment" members table at the top of the page. */
+type CollectFilter = 'all' | 'pending' | 'overdue' | 'dueSoon' | 'paid';
 
 @Component({
   selector: 'app-payments-page',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, NgClass, TranslatePipe],
+  imports: [DatePipe, DecimalPipe, NgClass, PayMemberModalComponent, TranslatePipe],
   templateUrl: './payments-page.component.html',
 })
 export class PaymentsPageComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
-  private readonly membersApi = inject(MemberService);
+  private readonly cache = inject(DataCacheService);
   private readonly paymentsApi = inject(PaymentService);
   private readonly i18n = inject(TranslationService);
 
   readonly members = signal<Member[]>([]);
+  readonly pgLayout = signal<PgLayout | null>(null);
   readonly payments = signal<Payment[]>([]);
   readonly methodFilter = signal<string>('');
   readonly fromDate = signal<string>('');
   readonly toDate = signal<string>('');
+
+  /* ---------- "Collect payment" section state ---------- */
+  readonly collectSearch = signal<string>('');
+  readonly collectFilter = signal<CollectFilter>('all');
+  readonly collectPage = signal<number>(1);
+  readonly collectPageSize = signal<number>(10);
+
+  /* ---------- shared pay modal state ---------- */
+  readonly payTarget = signal<Member | null>(null);
+  readonly payModalOpen = signal<boolean>(false);
+
+  /** Computed: true when the owner runs a gym (drives subscription-type UI). */
+  readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
+  readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
+  readonly canRecordPaymentsAction = computed(() => this.auth.hasPermission('canRecordPayments'));
 
   // Pagination — summary lists (due today / overdue / paid ahead)
   readonly itemsPerPage = 10;
@@ -115,6 +144,81 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
     });
   });
 
+  /* ===================  COLLECT PAYMENT  ===================
+   * Same UX as the Members table: search, status filter, status pill, and a
+   * Mark-Paid action that opens the shared <app-pay-member-modal>.
+   * --------------------------------------------------------- */
+
+  /** Counts shown in the filter pills. */
+  readonly collectCounts = computed(() => {
+    const list = this.members().filter((m) => m.status === 'active');
+    let pending = 0;
+    let overdue = 0;
+    let dueSoon = 0;
+    let paid = 0;
+    for (const m of list) {
+      const d = timestampToDate(m.dueDate);
+      const status = d ? dueUiStatus(d) : null;
+      const tone = this.rowTone(m);
+      if ((m.pendingAmount || 0) > 0) pending += 1;
+      if (status === 'overdue') overdue += 1;
+      if (this.isDueSoon(m)) dueSoon += 1;
+      if (tone === 'green') paid += 1;
+    }
+    return { all: list.length, pending, overdue, dueSoon, paid };
+  });
+
+  readonly collectFilteredMembers = computed(() => {
+    const search = this.collectSearch().trim().toLowerCase();
+    const filter = this.collectFilter();
+    return this.members()
+      .filter((m) => m.status === 'active')
+      .filter((m) => {
+        if (search) {
+          const hay = `${m.firstName} ${m.lastName} ${m.mobile || ''}`.toLowerCase();
+          if (!hay.includes(search)) return false;
+        }
+        if (filter === 'all') return true;
+        const d = timestampToDate(m.dueDate);
+        const status = d ? dueUiStatus(d) : null;
+        if (filter === 'pending') return (m.pendingAmount || 0) > 0;
+        if (filter === 'overdue') return status === 'overdue';
+        if (filter === 'dueSoon') return this.isDueSoon(m);
+        if (filter === 'paid') return this.rowTone(m) === 'green';
+        return true;
+      })
+      .sort((a, b) => {
+        // Sort by urgency: overdue first, then due-today/soon, then paid ahead.
+        const da = timestampToDate(a.dueDate)?.getTime() ?? 0;
+        const db = timestampToDate(b.dueDate)?.getTime() ?? 0;
+        return da - db;
+      });
+  });
+
+  readonly paginatedCollectMembers = computed(() => {
+    const list = this.collectFilteredMembers();
+    const page = this.collectPage();
+    const size = this.collectPageSize();
+    const start = (page - 1) * size;
+    return list.slice(start, start + size);
+  });
+
+  readonly collectTotalPages = computed(() => {
+    const len = this.collectFilteredMembers().length;
+    const size = this.collectPageSize();
+    return len === 0 ? 0 : Math.ceil(len / size);
+  });
+
+  readonly collectRange = computed(() => {
+    const total = this.collectFilteredMembers().length;
+    const size = this.collectPageSize();
+    const page = this.collectPage();
+    if (total === 0) return { from: 0, to: 0, total: 0 };
+    const from = (page - 1) * size + 1;
+    const to = Math.min(page * size, total);
+    return { from, to, total };
+  });
+
   // Paginated data computed signals
   readonly paginatedDueToday = computed(() => {
     const data = this.dueToday();
@@ -191,10 +295,20 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
     return { from, to, total };
   });
 
-  private unsubM: (() => void) | null = null;
   private unsubP: (() => void) | null = null;
 
   constructor() {
+    // Sync members + layout from the shared cache. Going through the cache lets
+    // optimistic updates from the shared <app-pay-member-modal> propagate here
+    // immediately (the modal calls `cache.patchMemberLocal` after a successful
+    // markPaid), so the "Collect payment" table refreshes without a round-trip.
+    effect(() => {
+      this.members.set(this.cache.members());
+    });
+    effect(() => {
+      this.pgLayout.set(this.cache.layout());
+    });
+
     effect(() => {
       const len = this.filteredPayments().length;
       const size = this.paymentsPageSize();
@@ -207,22 +321,119 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
       if (cur > pages) this.paymentsTablePage.set(pages);
       if (cur < 1) this.paymentsTablePage.set(1);
     });
+
+    // Keep the "Collect payment" pagination in valid range as filters change.
+    effect(() => {
+      const total = this.collectTotalPages();
+      const cur = this.collectPage();
+      if (total === 0) {
+        if (cur !== 1) this.collectPage.set(1);
+        return;
+      }
+      if (cur > total) this.collectPage.set(total);
+      if (cur < 1) this.collectPage.set(1);
+    });
   }
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     const id = this.auth.profile()?.ownerId;
     if (!id) return;
-    this.unsubM = this.membersApi.watchMembersForOwner(id, (list) => this.members.set(list));
+    try {
+      await this.cache.loadMembers(id);
+      await this.cache.loadLayout(id);
+    } catch (error) {
+      console.error('❌ Error loading payments-page data:', error);
+    }
     this.unsubP = this.paymentsApi.watchPaymentsForOwner(id, (list) => this.payments.set(list));
   }
 
   ngOnDestroy(): void {
-    this.unsubM?.();
     this.unsubP?.();
   }
 
   nameForPayment(p: Payment): string {
     return this.memberNameById().get(p.memberId) || 'Member';
+  }
+
+  /* ---------- COLLECT PAYMENT helpers ---------- */
+
+  /** Status colour bucket used by the row pill — same logic as the Members page. */
+  rowTone(m: Member): 'green' | 'red' | 'amber' | 'slate' {
+    if ((m.pendingAmount || 0) > 0) return 'amber';
+    const due = timestampToDate(m.dueDate);
+    if (!due) return 'slate';
+    const today = startOfToday();
+    if (startOfDay(due) < today) return 'red';
+    if (due > endOfToday()) return 'green';
+    return 'amber';
+  }
+
+  /** Within five upcoming days OR overdue — same definition as the members table. */
+  isDueSoon(m: Member): boolean {
+    const due = timestampToDate(m.dueDate);
+    if (!due) return false;
+    const diff = calendarDaysBetween(startOfToday(), startOfDay(due));
+    return diff <= 5;
+  }
+
+  /** Same display label as the members table due-status column. */
+  dueStatusLabel(m: Member): string {
+    const due = timestampToDate(m.dueDate);
+    if (!due) return '—';
+    const today = startOfToday();
+    const diff = calendarDaysBetween(today, startOfDay(due));
+    if (diff < 0) {
+      const n = Math.abs(diff);
+      return n === 1 ? 'Overdue by 1 day' : `Overdue by ${n} days`;
+    }
+    if (diff === 0) return 'Due today';
+    if (diff === 1) return '1 day left';
+    return `${diff} days left`;
+  }
+
+  /** Pretty-formatted PG room label (e.g. "1F-201"); empty when not a PG owner. */
+  memberPgRoomLabel(m: Member): string {
+    if (!this.isPg()) return '';
+    const floor = Number(m.floorNumber);
+    const room = Number(m.roomNumber);
+    if (!Number.isFinite(floor) || !Number.isFinite(room)) return '';
+    return formatPgRoomLabel(floor, room);
+  }
+
+  openPay(m: Member): void {
+    if (!this.canRecordPaymentsAction()) return;
+    this.payTarget.set(m);
+    this.payModalOpen.set(true);
+  }
+
+  closePay(): void {
+    this.payModalOpen.set(false);
+    this.payTarget.set(null);
+  }
+
+  setCollectFilter(filter: CollectFilter): void {
+    if (this.collectFilter() === filter) return;
+    this.collectFilter.set(filter);
+    this.collectPage.set(1);
+  }
+
+  onCollectSearchChange(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.collectSearch.set(value);
+    this.collectPage.set(1);
+  }
+
+  onCollectPageSizeChange(event: Event): void {
+    const raw = Number((event.target as HTMLSelectElement).value);
+    if (![10, 25, 50].includes(raw)) return;
+    this.collectPageSize.set(raw);
+    this.collectPage.set(1);
+  }
+
+  goToCollectPage(page: number): void {
+    const total = this.collectTotalPages();
+    if (total < 1 || page < 1 || page > total) return;
+    this.collectPage.set(page);
   }
 
   async downloadPaymentsPdf(): Promise<void> {

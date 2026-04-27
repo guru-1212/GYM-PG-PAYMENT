@@ -33,12 +33,13 @@ import { MEMBER_IMPORT_PROGRESS_MESSAGES } from '../../core/utils/member-import-
 import { parsePgImportSeat, pgSheetSubscriptionError } from '../../core/utils/pg-sheet-import.utils';
 import { applyDigitsOnlyFromInput, optionalDigitsLen, positiveAmount, dueDateAfterJoinDate } from '../../core/utils/validators';
 import { ModalComponent } from '../../shared/modal.component';
+import { PayMemberModalComponent } from '../../shared/pay-member-modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
 @Component({
   selector: 'app-members',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, ModalComponent, TranslatePipe],
+  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, ModalComponent, PayMemberModalComponent, TranslatePipe],
   templateUrl: './members.component.html',
   styles: [`
     .seat-assign-highlight {
@@ -138,13 +139,6 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly hasSeatLayout = computed(
     () => this.isPg() && (this.pgLayout()?.floors?.length ?? 0) > 0,
   );
-
-  /** Safely get the due date for a member, with fallback handling */
-  getPayTargetDueDate(): Date | null {
-    const m = this.payTarget();
-    if (!m) return null;
-    return timestampToDate(m.dueDate);
-  }
 
   /** Safely get the formatted due date for a member in the members list */
   getMemberDueDate(m: Member | null): Date | null {
@@ -394,20 +388,9 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly shareLinkBusy = signal<boolean>(false);
   readonly shareLinkCopied = signal<boolean>(false);
 
-  readonly payForm = this.fb.nonNullable.group({
-    amount: [0, [Validators.required, positiveAmount()]],
-    currentPayingAmount: [0, [Validators.min(0)]],
-    method: this.fb.nonNullable.control<PaymentMethod>('cash', Validators.required),
-    subscriptionType: this.fb.nonNullable.control<SubscriptionType>('monthly', Validators.required),
-    isPartialPayment: this.fb.nonNullable.control(false),
-    moveDueToNextCycle: this.fb.nonNullable.control(false),
-    pendingAmount: [0], // No validators initially - will be added conditionally
-  });
-
   private unsub: (() => void) | null = null;
   private querySub: Subscription | null = null;
   private currentOwnerId: string | null = null;
-  private payFormSubscription: Subscription | null = null;
 
   constructor() {
     // Sync cache signals to component signals
@@ -423,25 +406,6 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.memberForm.get('joinDate')?.valueChanges.subscribe(() => {
       this.memberForm.get('dueDate')?.updateValueAndValidity();
     });
-
-    // Set up conditional validation for pendingAmount based on isPartialPayment
-    this.payFormSubscription = this.payForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial) => {
-      const pendingAmountControl = this.payForm.get('pendingAmount');
-      const currentPayingControl = this.payForm.get('currentPayingAmount');
-      if (!pendingAmountControl || !currentPayingControl) return;
-
-      if (isPartial) {
-        currentPayingControl.setValidators([Validators.required, Validators.min(1)]);
-      } else {
-        currentPayingControl.setValidators([Validators.min(0)]);
-      }
-      this.syncPayFormPending();
-      pendingAmountControl.setValidators([]);
-      pendingAmountControl.updateValueAndValidity();
-      currentPayingControl.updateValueAndValidity();
-    }) ?? null;
-
-    this.payForm.get('currentPayingAmount')?.valueChanges.subscribe(() => this.syncPayFormPending());
 
     // Add-member partial payment controls: validate paid amount only when split payment is enabled.
     this.memberForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial) => {
@@ -516,7 +480,6 @@ export class MembersComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.historyUnsub?.();
     this.querySub?.unsubscribe();
-    this.payFormSubscription?.unsubscribe();
     this.clearImportProgressUi();
   }
 
@@ -770,6 +733,9 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   async saveMember(): Promise<void> {
+    // Guard against rapid double-clicks on Save (which can also record a partial payment).
+    if (this.memberSavingBusy()) return;
+
     if (this.memberForm.invalid) {
       this.memberForm.markAllAsTouched();
       return;
@@ -1099,92 +1065,16 @@ ${pgName}`;
   }
 
   openPay(m: Member): void {
+    // The shared `<app-pay-member-modal>` resets its form internally whenever
+    // the modal opens with a (new) member, so the parent only needs to set
+    // the target and toggle visibility.
     this.payTarget.set(m);
-    const pending = Math.max(0, Number(m.pendingAmount) || 0);
-    const plan = Math.max(0, Number(m.amount) || 0);
-    const defaultAmount = plan;
-    this.payForm.reset({
-      amount: defaultAmount,
-      currentPayingAmount: defaultAmount,
-      method: 'cash',
-      subscriptionType: m.subscriptionType ?? 'monthly',
-      isPartialPayment: false,
-      moveDueToNextCycle: false,
-      pendingAmount: Math.max(0, plan - defaultAmount),
-    });
-    this.syncPayFormPending();
     this.payModalOpen.set(true);
   }
 
   closePay(): void {
     this.payModalOpen.set(false);
     this.payTarget.set(null);
-  }
-
-  async submitPay(): Promise<void> {
-    if (this.payForm.invalid) {
-      this.payForm.markAllAsTouched();
-      return;
-    }
-
-    const m = this.payTarget();
-    const owner = this.auth.profile();
-    if (!m || !owner) return;
-
-    const due = timestampToDate(m.dueDate);
-    if (!due) {
-      this.toast.error('Invalid due date');
-      return;
-    }
-
-    const v = this.payForm.getRawValue();
-    if (v.isPartialPayment) {
-      if (!Number.isFinite(Number(v.currentPayingAmount)) || Number(v.currentPayingAmount) <= 0) {
-        this.toast.error('Enter current paying amount for partial payment');
-        return;
-      }
-    }
-
-    const priorPending = Math.max(0, Number(m.pendingAmount) || 0);
-    const planAmount = Math.max(0, Number(m.amount) || 0);
-
-    const totalRentAmount = Math.max(0, Number(m.amount) || 0);
-    const currentPayingAmount = Math.max(0, Number(v.currentPayingAmount) || 0);
-    const computedPending = Math.max(0, totalRentAmount - currentPayingAmount);
-    const paymentAmount = v.isPartialPayment ? currentPayingAmount : totalRentAmount;
-
-    try {
-      await this.paymentsApi.markPaid({
-        memberId: m.memberId,
-        ownerId: owner.ownerId,
-        amount: paymentAmount,
-        method: v.method,
-        currentDueDate: due,
-        subscriptionType: this.isGym() ? v.subscriptionType : undefined,
-        isPartialPayment: v.isPartialPayment,
-        moveDueOnPartial: v.isPartialPayment ? v.moveDueToNextCycle : false,
-        pendingAmount: v.isPartialPayment ? computedPending : 0,
-        priorPendingAmount: priorPending,
-        memberPlanAmount: planAmount,
-      });
-
-      this.toast.success(v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded');
-      this.closePay();
-    } catch (error) {
-      console.error('Record payment failed:', error);
-      this.toast.error('Could not record payment');
-    }
-  }
-
-  pendingFromPayForm(): number {
-    const total = Math.max(0, Number(this.payTarget()?.amount) || 0);
-    const paying = Math.max(0, Number(this.payForm.controls.currentPayingAmount.value) || 0);
-    return Math.max(0, total - paying);
-  }
-
-  private syncPayFormPending(): void {
-    const nextPending = this.pendingFromPayForm();
-    this.payForm.controls.pendingAmount.setValue(nextPending, { emitEvent: false });
   }
 
   openHistory(m: Member): void {
