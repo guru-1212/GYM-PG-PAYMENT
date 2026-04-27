@@ -1,11 +1,14 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import {
+  ConfirmationResult,
+  RecaptchaVerifier,
   User,
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
+  signInWithPhoneNumber,
   signOut,
 } from 'firebase/auth';
 import {
@@ -452,6 +455,141 @@ export class AuthService {
 
   /** Legacy no-op (older UI called this around phone OTP). */
   disposeOwnerSignUpPhone(): void {}
+
+  // ------------------- Mobile OTP password reset -------------------
+
+  /** Holds the active reCAPTCHA so we can clean it up between retries. */
+  private phoneResetRecaptcha: RecaptchaVerifier | null = null;
+
+  /**
+   * Step 1 of mobile-OTP password reset.
+   *
+   * - Validates and normalises the phone to E.164.
+   * - Confirms the phone is registered (lookup in `ownerPhoneLoginAliases`).
+   * - Builds an *invisible* reCAPTCHA bound to `recaptchaContainerId`.
+   * - Calls Firebase Phone Auth to send the SMS OTP.
+   *
+   * Returns the `ConfirmationResult` the caller must pass to `confirmPhoneResetOtp`.
+   */
+  async startPhonePasswordReset(
+    rawPhone: string,
+    recaptchaContainerId: string,
+  ): Promise<ConfirmationResult> {
+    const phoneE164 = normalizeOwnerPhone(rawPhone);
+    if (!phoneE164) {
+      const err = new Error('Invalid mobile number');
+      (err as { code?: string }).code = 'auth/invalid-phone-number';
+      throw err;
+    }
+    const aliasEmail = await this.getLoginEmailFromPhoneAliasDoc(digitsOnly(phoneE164));
+    if (!aliasEmail) {
+      const err = new Error('Phone not registered.');
+      (err as { code?: string }).code = 'auth/phone-not-registered';
+      throw err;
+    }
+
+    // Phone Auth requires a fresh, signed-out state. If a previous user is
+    // still around (e.g. supervisor logged in), bail out cleanly.
+    if (this.fb.auth.currentUser) {
+      try {
+        await signOut(this.fb.auth);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    this.disposePhoneResetRecaptcha();
+    const verifier = new RecaptchaVerifier(this.fb.auth, recaptchaContainerId, {
+      size: 'invisible',
+    });
+    this.phoneResetRecaptcha = verifier;
+    // Diagnostic: helps debug "OTP not received" issues. Look for these logs in
+    // the browser console (filter: "[PhoneReset]"). The promise below resolves
+    // as soon as Firebase queues the SMS — it does NOT confirm carrier delivery.
+    const opts = this.fb.app.options;
+    console.info('[PhoneReset][send]', {
+      phoneE164,
+      firebaseProjectId: opts.projectId,
+      firebaseAuthDomain: opts.authDomain,
+      attemptedAt: new Date().toISOString(),
+      origin: typeof window !== 'undefined' ? window.location.origin : '(no-window)',
+    });
+    try {
+      const confirmation = await signInWithPhoneNumber(this.fb.auth, phoneE164, verifier);
+      console.info('[PhoneReset][queued]', {
+        phoneE164,
+        verificationIdTail: String(confirmation.verificationId || '').slice(-6),
+        note: 'SMS was accepted by Firebase. If it never arrives: check Firebase Console → Authentication → Users (was a phone user created?), Authentication → Settings → SMS region policy, and add a Test phone number to confirm wiring.',
+      });
+      return confirmation;
+    } catch (e) {
+      console.error('[PhoneReset][failed]', {
+        phoneE164,
+        code: e && typeof e === 'object' && 'code' in e ? (e as { code: string }).code : '',
+        message:
+          e && typeof e === 'object' && 'message' in e
+            ? (e as { message: string }).message
+            : String(e),
+      });
+      this.disposePhoneResetRecaptcha();
+      throw e;
+    }
+  }
+
+  /**
+   * Step 2: confirm the 6-digit OTP. On success the user is signed in as a
+   * temporary phone-auth identity (UID is *not* the owner's UID).
+   */
+  async confirmPhoneResetOtp(
+    confirmation: ConfirmationResult,
+    code: string,
+  ): Promise<void> {
+    await confirmation.confirm(String(code || '').trim());
+    await this.fb.auth.authStateReady();
+  }
+
+  /**
+   * Step 3: ask the Cloud Function to update the owner's email/password
+   * account using the verified phone identity, then sign out.
+   *
+   * Server enforces the security checks (verified phone match, strong password).
+   */
+  async finishPhonePasswordReset(newPassword: string): Promise<void> {
+    await this.fb.auth.authStateReady();
+    if (!this.fb.auth.currentUser) {
+      const err = new Error('OTP session expired. Please request a new code.');
+      (err as { code?: string }).code = 'auth/unauthenticated';
+      throw err;
+    }
+    try {
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const fns = getFunctions(this.fb.app, 'us-central1');
+      const call = httpsCallable<{ newPassword: string }, { ok: true }>(
+        fns,
+        'resetOwnerPasswordWithPhoneOtp',
+      );
+      await call({ newPassword });
+    } finally {
+      this.disposePhoneResetRecaptcha();
+      try {
+        await signOut(this.fb.auth);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  /** Tear-down hook called by the forgot-password page on cancel/destroy. */
+  disposePhoneResetRecaptcha(): void {
+    if (this.phoneResetRecaptcha) {
+      try {
+        this.phoneResetRecaptcha.clear();
+      } catch {
+        /* ignore */
+      }
+      this.phoneResetRecaptcha = null;
+    }
+  }
 
   /**
    * Sign-up: createUserWithEmailAndPassword, then owners + ownerPhoneLoginAliases in one batch.

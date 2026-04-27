@@ -36,6 +36,13 @@ export const routes: Routes = [
   { path: '', pathMatch: 'full', component: HomeComponent },
   { path: 'login', canActivate: [loginGuard], component: LoginComponent },
   {
+    path: 'forgot-password',
+    loadComponent: () =>
+      import('./pages/forgot-password/forgot-password.component').then(
+        (m) => m.ForgotPasswordComponent,
+      ),
+  },
+  {
     path: 'pending-approval',
     canActivate: [authGuard, pendingApprovalGuard],
     component: PendingApprovalComponent,

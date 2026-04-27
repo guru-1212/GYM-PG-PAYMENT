@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { merge } from 'rxjs';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { normalizeOwnerPhone } from '../../core/utils/phone-auth.util';
 import { AuthService } from '../../core/services/auth.service';
@@ -29,7 +29,7 @@ type BeforeInstallPromptEvent = Event & {
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule, TranslatePipe, BrandLogoComponent],
+  imports: [ReactiveFormsModule, RouterLink, TranslatePipe, BrandLogoComponent],
   templateUrl: './login.component.html',
 })
 export class LoginComponent implements OnInit, OnDestroy {
@@ -49,7 +49,6 @@ export class LoginComponent implements OnInit, OnDestroy {
   readonly signInError = signal('');
   readonly showSignInPassword = signal(false);
   readonly showSignUpPassword = signal(false);
-  readonly showForgotPassword = signal(false);
   /** PG-only sign-up for now; restore `'gym'` when gym onboarding returns. */
   readonly businessTypeSignal = signal<'gym' | 'pg'>('pg');
 
@@ -65,10 +64,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     // forgot-password flow needs a strict email/phone (it sends a real email).
     identifier: ['', [Validators.required, signInIdentifierValidator]],
     password: ['', [Validators.required, Validators.minLength(6)]],
-  });
-
-  readonly forgotForm = this.fb.nonNullable.group({
-    identifier: ['', [Validators.required, emailOrPhoneIdentifierValidator]],
   });
 
   readonly signUpForm = this.fb.nonNullable.group({
@@ -137,7 +132,6 @@ export class LoginComponent implements OnInit, OnDestroy {
   setMode(m: 'signin' | 'signup'): void {
     this.mode.set(m);
     this.signInError.set('');
-    this.showForgotPassword.set(false);
     this.auth.disposeOwnerSignUpPhone();
   }
 
@@ -241,24 +235,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     }
   }
 
-  async onForgotPasswordSubmit(): Promise<void> {
-    if (this.forgotForm.invalid) {
-      this.forgotForm.markAllAsTouched();
-      return;
-    }
-    this.busy.set(true);
-    try {
-      await this.auth.sendOwnerPasswordReset(this.forgotForm.controls.identifier.value);
-      this.toast.success(this.i18n.t('login.resetEmailSentToast'), 14_000);
-      this.showForgotPassword.set(false);
-      this.forgotForm.reset();
-    } catch (e: unknown) {
-      this.toast.error(this.forgotPasswordErrorMessage(e));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
   private async redirectAfterProfile(p: { role: string; status: string }): Promise<void> {
     const role = p.role.toLowerCase().trim();
     const status = p.status.toLowerCase().trim();
@@ -328,29 +304,6 @@ export class LoginComponent implements OnInit, OnDestroy {
         return 'Network error. Check your connection and try again.';
       default:
         return this.msg(e, 'Sign in failed. Please try again.');
-    }
-  }
-
-  private forgotPasswordErrorMessage(e: unknown): string {
-    const code =
-      e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
-    // Temporary debug for reset-link troubleshooting.
-    if (code) {
-      console.info('[AuthDebug][PasswordReset][error]', {
-        code,
-        message: this.msg(e, ''),
-      });
-    }
-    switch (code) {
-      case 'auth/invalid-email':
-      case 'auth/invalid-phone-number':
-        return 'Enter a valid email or mobile number.';
-      case 'auth/user-not-found':
-        return 'No account found for this email or mobile.';
-      case 'auth/phone-not-registered':
-        return 'This mobile number is not registered.';
-      default:
-        return this.msg(e, 'Could not send reset email.');
     }
   }
 
@@ -431,16 +384,6 @@ function signInIdentifierValidator(control: AbstractControl): ValidationErrors |
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) ? null : { email: true };
   }
   return null;
-}
-
-/** Strict email-or-mobile validator for the password-reset form. */
-function emailOrPhoneIdentifierValidator(control: AbstractControl): ValidationErrors | null {
-  const raw = String(control.value ?? '').trim();
-  if (!raw) return { required: true };
-  if (raw.includes('@')) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw) ? null : { email: true };
-  }
-  return normalizeOwnerPhone(raw) ? null : { phone: true };
 }
 
 function ownerSignUpPhoneValidator(control: AbstractControl): ValidationErrors | null {

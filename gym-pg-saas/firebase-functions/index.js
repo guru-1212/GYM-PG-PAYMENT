@@ -414,6 +414,144 @@ exports.onChatMessageCreated = functions.firestore
     }
   });
 
+/**
+ * Reset an owner's email/password account using a Firebase Phone Auth identity.
+ *
+ * Flow expected on the client:
+ *   1. Client signs in via signInWithPhoneNumber + RecaptchaVerifier (OTP).
+ *   2. Client immediately calls this function while still signed-in as that
+ *      phone-auth user, passing the desired new password.
+ *
+ * Server enforces:
+ *   - request.auth must come from a phone-auth provider with a verified phone_number
+ *   - phone is registered (lookup in `ownerPhoneLoginAliases/{digits}` -> email)
+ *   - that email belongs to a real Firebase Auth user
+ *   - new password meets strong-password rules
+ *
+ * On success the email-account password is updated, and the temporary
+ * phone-auth user that called us is deleted so subsequent sign-ins use the
+ * normal email/password flow.
+ */
+function digitsOnly(input) {
+  return String(input || '').replace(/\D/g, '');
+}
+
+function isStrongPassword(pw) {
+  if (typeof pw !== 'string') return false;
+  if (pw.length < 8) return false;
+  if (!/[A-Z]/.test(pw)) return false;
+  if (!/[a-z]/.test(pw)) return false;
+  if (!/\d/.test(pw)) return false;
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(pw)) return false;
+  return true;
+}
+
+exports.resetOwnerPasswordWithPhoneOtp = functions
+  .runWith({ timeoutSeconds: 60, memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth || !context.auth.token) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Verify your mobile OTP first, then try again.',
+      );
+    }
+    const token = context.auth.token;
+    const phoneE164 = String(token.phone_number || '').trim();
+    if (!phoneE164 || !phoneE164.startsWith('+')) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'OTP did not return a verified phone number. Please retry the OTP step.',
+      );
+    }
+    // Require the calling identity to actually be a phone-auth identity (not
+    // a custom token re-using a phone claim).
+    const signInProvider = String(token.firebase && token.firebase.sign_in_provider || '');
+    if (signInProvider !== 'phone') {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'OTP verification is required to reset your password.',
+      );
+    }
+
+    const newPassword = String((data && data.newPassword) || '');
+    if (!isStrongPassword(newPassword)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Password must be at least 8 characters and include uppercase, lowercase, a digit, and a special symbol.',
+      );
+    }
+
+    const phoneDigits = digitsOnly(phoneE164);
+    if (phoneDigits.length < 10) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Verified phone number is invalid.',
+      );
+    }
+
+    const db = admin.firestore();
+    const aliasSnap = await db.collection('ownerPhoneLoginAliases').doc(phoneDigits).get();
+    if (!aliasSnap.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'This mobile number is not registered. Please sign up first.',
+      );
+    }
+    const aliasEmail = String((aliasSnap.data() || {}).email || '').trim().toLowerCase();
+    if (!aliasEmail.includes('@')) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Account is missing a login email. Contact support.',
+      );
+    }
+
+    let ownerUser;
+    try {
+      ownerUser = await admin.auth().getUserByEmail(aliasEmail);
+    } catch (e) {
+      functions.logger.error('resetOwnerPasswordWithPhoneOtp getUserByEmail failed', e, {
+        aliasEmail,
+      });
+      throw new functions.https.HttpsError(
+        'not-found',
+        'No account found for this mobile number.',
+      );
+    }
+
+    // Don't accidentally update the temporary phone-auth user itself.
+    if (ownerUser.uid === context.auth.uid) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Could not match a password account for this mobile.',
+      );
+    }
+
+    try {
+      await admin.auth().updateUser(ownerUser.uid, { password: newPassword });
+    } catch (e) {
+      functions.logger.error('resetOwnerPasswordWithPhoneOtp updateUser failed', e, {
+        ownerUid: ownerUser.uid,
+      });
+      const code = e && e.code === 'auth/weak-password' ? 'invalid-argument' : 'internal';
+      const msg =
+        e && e.code === 'auth/weak-password'
+          ? 'Firebase rejected the password as too weak. Please choose a stronger one.'
+          : 'Could not update the password. Please try again.';
+      throw new functions.https.HttpsError(code, msg);
+    }
+
+    // Best-effort: drop the temporary phone-auth user so it doesn't linger.
+    try {
+      await admin.auth().deleteUser(context.auth.uid);
+    } catch (e) {
+      functions.logger.warn('resetOwnerPasswordWithPhoneOtp deleteUser cleanup failed', e, {
+        tempUid: context.auth.uid,
+      });
+    }
+
+    return { ok: true };
+  });
+
 exports.onOwnerBroadcastCreated = functions.firestore
   .document('owners/{ownerId}/broadcasts/{broadcastId}')
   .onCreate(async (snap, context) => {

@@ -132,36 +132,12 @@
             {{ 'login.signInBtn' | t }}
           </button>
         </form>
-          <button
-            type="button"
-            class="w-full text-center text-sm font-medium text-indigo-700 underline-offset-2 hover:underline"
-            (click)="showForgotPassword.set(!showForgotPassword())"
+          <a
+            routerLink="/forgot-password"
+            class="block w-full text-center text-sm font-medium text-indigo-700 underline-offset-2 hover:underline"
           >
             {{ 'login.forgotPassword' | t }}
-          </button>
-          @if (showForgotPassword()) {
-            <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-              <p class="mb-3 text-xs text-slate-600">{{ 'login.resetPasswordHint' | t }}</p>
-              <form [formGroup]="forgotForm" (ngSubmit)="onForgotPasswordSubmit()" class="space-y-3">
-                <input
-                  type="text"
-                  formControlName="identifier"
-                  class="saas-input w-full"
-                  [placeholder]="'login.mobileOrEmailPlaceholder' | t"
-                />
-                @if (forgotForm.controls.identifier.touched && forgotForm.controls.identifier.invalid) {
-                  <p class="text-sm text-red-600">{{ 'login.identifierInvalid' | t }}</p>
-                }
-                <button
-                  type="submit"
-                  class="saas-btn-primary flex w-full items-center justify-center gap-2 py-3 text-sm disabled:opacity-60"
-                  [disabled]="busy()"
-                >
-                  {{ 'login.sendResetEmail' | t }}
-                </button>
-              </form>
-            </div>
-          }
+          </a>
         </div>
       } @else {
         <form [formGroup]="signUpForm" (ngSubmit)="onSignUpSubmit()" class="space-y-4">
