@@ -93,194 +93,327 @@
       }
     </div>
   } @else {
-    <section class="saas-card hidden overflow-hidden md:block">
-      <div class="overflow-x-auto">
-        <table class="saas-table min-w-full text-left text-sm">
-          <thead>
-            <tr>
-              <th class="px-4 py-3">Name</th>
-              <th class="px-4 py-3">Mobile</th>
-              <th class="px-4 py-3">Plan</th>
-              @if (isPg()) {
-                <th class="px-4 py-3">Room</th>
-              }
-              <th class="px-4 py-3">{{ dueLabel() }}</th>
-              <th class="px-4 py-3">Time left</th>
-              <th class="px-4 py-3">Status</th>
-              <th class="px-4 py-3 text-center">Active</th>
-              <th class="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            @for (m of membersPagedList(); track m.memberId; let odd = $odd) {
-              <tr
-                class="cursor-pointer transition-colors duration-200 hover:bg-indigo-50/70"
-                [class.bg-slate-50]="odd"
-                (click)="openDetails(m)"
-              >
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-2">
-                    @if (m.profilePhotoUrl) {
-                      <img
-                        [src]="m.profilePhotoUrl"
-                        alt="Profile"
-                        class="h-8 w-8 flex-shrink-0 rounded-full border border-slate-200 object-cover"
-                      />
-                    }
-                    <div>
-                      <div class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</div>
-                      @if (hasPendingSelfOnboardingReview(m)) {
-                        <div class="mt-0.5">
-                          <span class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-800">
-                            Awaiting your review
-                          </span>
-                        </div>
-                      } @else if (needsSelfOnboarding(m)) {
-                        <div class="mt-0.5">
-                          <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-                            Profile incomplete
-                          </span>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                  @if (isPartialPaymentPending(m)) {
-                    <div class="mt-1.5 flex flex-wrap items-center gap-2">
-                      <span
-                        class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-900"
-                        >Pending payment</span
-                      >
-                      @if (canRecordPaymentsAction()) {
-                        <button
-                          type="button"
-                          class="text-xs font-semibold text-emerald-700 underline decoration-emerald-400/80 underline-offset-2 hover:text-emerald-900"
-                          (click)="openPayPendingOnly(m); $event.stopPropagation()"
-                        >
-                          Mark as paid
-                        </button>
-                      }
-                    </div>
-                  }
-                </td>
-                <td class="px-4 py-3.5 text-slate-600">{{ m.mobile || '—' }}</td>
-                <td class="px-4 py-3.5 capitalize text-slate-600">{{ m.subscriptionType || 'monthly' }}</td>
+    <div class="mb-3 hidden items-center justify-end md:flex">
+      <div class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+          [class.bg-indigo-50]="desktopMemberView() === 'card'"
+          [class.text-indigo-700]="desktopMemberView() === 'card'"
+          [class.text-slate-600]="desktopMemberView() !== 'card'"
+          (click)="desktopMemberView.set('card')"
+        >
+          <span class="material-icons-outlined text-base">view_agenda</span>
+          Card View
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+          [class.bg-indigo-50]="desktopMemberView() === 'table'"
+          [class.text-indigo-700]="desktopMemberView() === 'table'"
+          [class.text-slate-600]="desktopMemberView() !== 'table'"
+          (click)="desktopMemberView.set('table')"
+        >
+          <span class="material-icons-outlined text-base">table_rows</span>
+          Table View
+        </button>
+      </div>
+    </div>
+
+    @if (desktopMemberView() === 'table') {
+      <section class="saas-card hidden overflow-hidden md:block">
+        <div class="overflow-x-auto">
+          <table class="saas-table min-w-full text-left text-sm">
+            <thead>
+              <tr>
+                <th class="px-4 py-3">Name</th>
+                <th class="px-4 py-3">Mobile</th>
+                <th class="px-4 py-3">Plan</th>
                 @if (isPg()) {
-                  <td class="px-4 py-3.5 text-slate-600">
-                    @if (m.roomNumber) {
-                      <span class="font-medium text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded text-xs">
-                        {{ memberPgRoomLabel(m) }}
-                      </span>
-                    } @else {
-                      <span class="text-slate-400">—</span>
-                    }
-                  </td>
+                  <th class="px-4 py-3">Room</th>
                 }
-                <td class="px-4 py-3.5 text-slate-800">
-                  <div class="font-medium">{{ m.dueDate.toDate() | date: 'mediumDate' }}</div>
-                </td>
-                <td class="max-w-[200px] px-4 py-3.5 text-xs text-slate-700 sm:text-sm">
-                  {{ dueStatusLabel(m) }}
-                </td>
-                <td class="px-4 py-3.5">
-                  @if (isPartialPaymentPending(m) && isDueSoonWithinFiveDays(m)) {
-                    <div class="flex flex-wrap items-center gap-1.5">
-                      <span class="status-pill-due-soon whitespace-nowrap">{{ dueSoonWithinFiveDaysPillLabel(m) }}</span>
-                      <span class="text-xs font-semibold text-red-600">₹{{ (m.pendingAmount || 0) | number: '1.0-0' }} pending</span>
+                <th class="px-4 py-3">{{ dueLabel() }}</th>
+                <th class="px-4 py-3">Time left</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3 text-center">Active</th>
+                <th class="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              @for (m of membersPagedList(); track m.memberId; let odd = $odd) {
+                <tr
+                  class="cursor-pointer transition-colors duration-200 hover:bg-indigo-50/70"
+                  [class.bg-slate-50]="odd"
+                  (click)="openDetails(m)"
+                >
+                  <td class="px-4 py-3.5">
+                    <div class="flex items-center gap-2">
+                      @if (m.profilePhotoUrl) {
+                        <img
+                          [src]="m.profilePhotoUrl"
+                          alt="Profile"
+                          class="h-8 w-8 flex-shrink-0 rounded-full border border-slate-200 object-cover"
+                        />
+                      }
+                      <div>
+                        <div class="font-medium text-slate-900">{{ m.firstName }} {{ m.lastName }}</div>
+                        @if (hasPendingSelfOnboardingReview(m)) {
+                          <div class="mt-0.5">
+                            <span class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-800">
+                              Awaiting your review
+                            </span>
+                          </div>
+                        } @else if (needsSelfOnboarding(m)) {
+                          <div class="mt-0.5">
+                            <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                              Profile incomplete
+                            </span>
+                          </div>
+                        }
+                      </div>
                     </div>
-                  } @else if (isPartialPaymentPending(m)) {
-                    <span class="text-xs font-semibold text-red-600">₹{{ (m.pendingAmount || 0) | number: '1.0-0' }} pending</span>
-                  } @else if (rowTone(m) === 'red') {
-                    <span class="status-pill-overdue">OVD</span>
-                  } @else if (isDueSoonWithinFiveDays(m)) {
-                    <span class="status-pill-due-soon whitespace-nowrap">{{ dueSoonWithinFiveDaysPillLabel(m) }}</span>
-                  } @else if (rowTone(m) === 'green') {
-                    <span class="status-pill-paid">PAID</span>
-                  } @else {
-                    <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">—</span>
-                  }
-                  @if (isPartialPaymentPending(m)) {
-                    <div class="mt-1.5 text-[11px] font-medium text-slate-600">
-                      Paid ₹{{ partialPaidAmount(m) | number: '1.0-0' }}
-                    </div>
-                  }
-                </td>
-                <td class="px-4 py-3.5 text-center" (click)="$event.stopPropagation()">
-                  <label class="inline-flex cursor-pointer items-center">
-                    <input
-                      type="checkbox"
-                      class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                      [checked]="m.status === 'active'"
-                      (change)="toggleMemberStatus(m, $any($event.target).checked)"
-                    />
-                  </label>
-                </td>
-                <td class="px-4 py-3.5" (click)="$event.stopPropagation()">
-                  <div class="flex items-center justify-end gap-2">
-                    @if (m.status === 'active' && rowTone(m) !== 'green' && canRecordPaymentsAction()) {
-                      <button
-                        type="button"
-                        title="Mark Paid"
-                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
-                        (click)="openPay(m)"
-                      >
-                        <span class="material-icons-outlined text-base">check_circle</span>
-                      </button>
-                    }
-                    @if (rowTone(m) === 'green') {
-                      <button
-                        type="button"
-                        title="Send Receipt"
-                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
-                        (click)="sendReceipt(m)"
-                      >
-                        <span class="material-icons-outlined text-base">receipt</span>
-                      </button>
-                    }
-                    @if (whatsappLink(m); as wa) {
-                      <a
-                        [href]="wa"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Send Reminder"
-                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
-                      >
-                        <span class="material-icons-outlined text-base">campaign</span>
-                      </a>
-                    }
-                    @if (needsSelfOnboarding(m) && canShareOnboardingLinkAction()) {
-                      <div class="flex flex-col items-center gap-0.5">
-                        <button
-                          type="button"
-                          [disabled]="!canShareOnboardingLink(m)"
-                          [title]="canShareOnboardingLink(m) ? 'Share onboarding link' : 'Add a 10-digit mobile number to share'"
-                          class="flex h-9 w-9 items-center justify-center rounded-lg border border-purple-200 bg-purple-50 text-purple-700 transition-all hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
-                          (click)="openShareLink(m)"
+                    @if (isPartialPaymentPending(m)) {
+                      <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                        <span
+                          class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-900"
+                          >Pending payment</span
                         >
-                          <span class="material-icons-outlined text-base">share</span>
-                        </button>
-                        @if ((m.onboardingLinkShareCount || 0) > 0) {
-                          <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-[9px] font-semibold text-white">{{ m.onboardingLinkShareCount }}</span>
+                        @if (canRecordPaymentsAction()) {
+                          <button
+                            type="button"
+                            class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
+                            (click)="openPayPendingOnly(m); $event.stopPropagation()"
+                          >
+                            Collect Due
+                          </button>
                         }
                       </div>
                     }
-                    @if (canEditMembersAction()) {
-                      <button
-                        type="button"
-                        title="Edit Member"
-                        class="flex h-9 w-9 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
-                        (click)="openEdit(m)"
-                      >
-                        <span class="material-icons-outlined text-base">edit</span>
-                      </button>
+                  </td>
+                  <td class="px-4 py-3.5 text-slate-600">{{ m.mobile || '—' }}</td>
+                  <td class="px-4 py-3.5 capitalize text-slate-600">{{ m.subscriptionType || 'monthly' }}</td>
+                  @if (isPg()) {
+                    <td class="px-4 py-3.5 text-slate-600">
+                      @if (m.roomNumber) {
+                        <span class="font-medium text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded text-xs">
+                          {{ memberPgRoomLabel(m) }}
+                        </span>
+                      } @else {
+                        <span class="text-slate-400">—</span>
+                      }
+                    </td>
+                  }
+                  <td class="px-4 py-3.5 text-slate-800">
+                    <div class="font-medium">{{ m.dueDate.toDate() | date: 'mediumDate' }}</div>
+                  </td>
+                  <td class="max-w-[200px] px-4 py-3.5 text-xs text-slate-700 sm:text-sm">
+                    {{ dueStatusLabel(m) }}
+                  </td>
+                  <td class="px-4 py-3.5">
+                    @if (isPartialPaymentPending(m) && isDueSoonWithinFiveDays(m)) {
+                      <div class="flex flex-wrap items-center gap-1.5">
+                        <span class="status-pill-due-soon whitespace-nowrap">{{ dueSoonWithinFiveDaysPillLabel(m) }}</span>
+                        <span class="text-xs font-semibold text-red-600">₹{{ (m.pendingAmount || 0) | number: '1.0-0' }} pending</span>
+                      </div>
+                    } @else if (isPartialPaymentPending(m)) {
+                      <span class="text-xs font-semibold text-red-600">₹{{ (m.pendingAmount || 0) | number: '1.0-0' }} pending</span>
+                    } @else if (rowTone(m) === 'red') {
+                      <span class="status-pill-overdue">OVD</span>
+                    } @else if (isDueSoonWithinFiveDays(m)) {
+                      <span class="status-pill-due-soon whitespace-nowrap">{{ dueSoonWithinFiveDaysPillLabel(m) }}</span>
+                    } @else if (rowTone(m) === 'green') {
+                      <span class="status-pill-paid">PAID</span>
+                    } @else {
+                      <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">—</span>
                     }
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    </section>
+                    @if (isPartialPaymentPending(m)) {
+                      <div class="mt-1.5 text-[11px] font-medium text-slate-600">
+                        Paid ₹{{ partialPaidAmount(m) | number: '1.0-0' }}
+                      </div>
+                    }
+                  </td>
+                  <td class="px-4 py-3.5 text-center" (click)="$event.stopPropagation()">
+                    <label class="inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        [checked]="m.status === 'active'"
+                        (change)="toggleMemberStatus(m, $any($event.target).checked)"
+                      />
+                    </label>
+                  </td>
+                  <td class="px-4 py-3.5" (click)="$event.stopPropagation()">
+                    <div class="flex items-center justify-end gap-2">
+                      @if (m.status === 'active' && rowTone(m) !== 'green' && canRecordPaymentsAction()) {
+                        <button
+                          type="button"
+                          title="Collect Rent"
+                          class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-100 hover:shadow-md"
+                          (click)="openPay(m)"
+                        >
+                          <span class="material-icons-outlined text-base">check_circle</span>
+                          <span>Collect Rent</span>
+                        </button>
+                      }
+                      @if (rowTone(m) === 'green') {
+                        <button
+                          type="button"
+                          title="Send Receipt"
+                          class="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                          (click)="sendReceipt(m)"
+                        >
+                          <span class="material-icons-outlined text-base">receipt</span>
+                        </button>
+                      }
+                      @if (whatsappLink(m); as wa) {
+                        <a
+                          [href]="wa"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Send Reminder"
+                          class="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                        >
+                          <span class="material-icons-outlined text-base">campaign</span>
+                        </a>
+                      }
+                      @if (needsSelfOnboarding(m) && canShareOnboardingLinkAction()) {
+                        <div class="flex flex-col items-center gap-0.5">
+                          <button
+                            type="button"
+                            [disabled]="!canShareOnboardingLink(m)"
+                            [title]="canShareOnboardingLink(m) ? 'Share onboarding link' : 'Add a 10-digit mobile number to share'"
+                            class="flex h-9 w-9 items-center justify-center rounded-lg border border-purple-200 bg-purple-50 text-purple-700 transition-all hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
+                            (click)="openShareLink(m)"
+                          >
+                            <span class="material-icons-outlined text-base">share</span>
+                          </button>
+                          @if ((m.onboardingLinkShareCount || 0) > 0) {
+                            <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-[9px] font-semibold text-white">{{ m.onboardingLinkShareCount }}</span>
+                          }
+                        </div>
+                      }
+                      @if (canEditMembersAction()) {
+                        <button
+                          type="button"
+                          title="Edit Member"
+                          class="flex h-9 w-9 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                          (click)="openEdit(m)"
+                        >
+                          <span class="material-icons-outlined text-base">edit</span>
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    } @else {
+      <section class="hidden md:block">
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          @for (m of membersPagedList(); track m.memberId) {
+            <article class="saas-card cursor-pointer space-y-3 p-4 transition hover:-translate-y-0.5 hover:shadow-md" (click)="openDetails(m)">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="truncate text-base font-semibold text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
+                  @if (isPartialPaymentPending(m)) {
+                    <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                      <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-900">
+                        Pending payment
+                      </span>
+                      @if (canRecordPaymentsAction()) {
+                        <button
+                          type="button"
+                          class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
+                          (click)="openPayPendingOnly(m); $event.stopPropagation()"
+                        >
+                          Collect Due
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+                @if (isPartialPaymentPending(m)) {
+                  <span class="text-xs font-semibold text-red-600">₹{{ (m.pendingAmount || 0) | number: '1.0-0' }} pending</span>
+                } @else if (rowTone(m) === 'red') {
+                  <span class="status-pill-overdue">OVD</span>
+                } @else if (isDueSoonWithinFiveDays(m)) {
+                  <span class="status-pill-due-soon whitespace-nowrap">{{ dueSoonWithinFiveDaysPillLabel(m) }}</span>
+                } @else if (rowTone(m) === 'green') {
+                  <span class="status-pill-paid">PAID</span>
+                } @else {
+                  <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">—</span>
+                }
+              </div>
+
+              <div class="grid grid-cols-2 gap-y-1.5 text-sm">
+                <p class="text-slate-500">Mobile</p>
+                <p class="justify-self-end text-slate-700">{{ m.mobile || '—' }}</p>
+                <p class="text-slate-500">Plan</p>
+                <p class="justify-self-end capitalize text-slate-700">{{ m.subscriptionType || 'monthly' }}</p>
+                @if (isPg()) {
+                  <p class="text-slate-500">Room</p>
+                  <p class="justify-self-end text-slate-700">{{ memberPgRoomLabel(m) }}</p>
+                }
+                <p class="text-slate-500">{{ dueLabel() }}</p>
+                <p class="justify-self-end text-slate-700">{{ m.dueDate.toDate() | date: 'mediumDate' }}</p>
+                <p class="text-slate-500">Time left</p>
+                <p class="justify-self-end text-slate-700">{{ dueStatusLabel(m) }}</p>
+              </div>
+
+              @if (isPartialPaymentPending(m)) {
+                <p class="text-xs font-medium text-slate-600">Paid ₹{{ partialPaidAmount(m) | number: '1.0-0' }}</p>
+              }
+
+              <div class="flex items-center justify-between border-t border-slate-100 pt-2.5" (click)="$event.stopPropagation()">
+                <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  <input
+                    type="checkbox"
+                    class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    [checked]="m.status === 'active'"
+                    (change)="toggleMemberStatus(m, $any($event.target).checked)"
+                  />
+                  Active
+                </label>
+                <div class="flex flex-wrap items-center justify-end gap-1.5">
+                  @if (m.status === 'active' && rowTone(m) !== 'green' && canRecordPaymentsAction()) {
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                      (click)="openPay(m)"
+                    >
+                      <span class="material-icons-outlined text-sm">check_circle</span>
+                      Collect Rent
+                    </button>
+                  }
+                  @if (rowTone(m) === 'green') {
+                    <button type="button" class="saas-btn-secondary px-2.5 py-1.5 text-[11px]" (click)="sendReceipt(m)">Receipt</button>
+                  }
+                  @if (whatsappLink(m); as wa) {
+                    <a [href]="wa" target="_blank" rel="noopener noreferrer" class="saas-btn-secondary px-2.5 py-1.5 text-[11px]">Reminder</a>
+                  }
+                  @if (needsSelfOnboarding(m) && canShareOnboardingLinkAction()) {
+                    <button
+                      type="button"
+                      class="saas-btn-secondary px-2.5 py-1.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-40"
+                      [disabled]="!canShareOnboardingLink(m)"
+                      (click)="openShareLink(m)"
+                    >
+                      Share
+                    </button>
+                  }
+                  @if (canEditMembersAction()) {
+                    <button type="button" class="saas-btn-secondary px-2.5 py-1.5 text-[11px]" (click)="openEdit(m)">Edit</button>
+                  }
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
 
     <div class="space-y-3 md:hidden">
       @for (m of membersPagedList(); track m.memberId) {
@@ -297,10 +430,10 @@
                   @if (canRecordPaymentsAction()) {
                     <button
                       type="button"
-                      class="text-xs font-semibold text-emerald-700 underline decoration-emerald-400/80 underline-offset-2 hover:text-emerald-900"
+                      class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
                       (click)="openPayPendingOnly(m); $event.stopPropagation()"
                     >
-                      Mark as paid
+                      Collect Due
                     </button>
                   }
                 </div>
@@ -342,7 +475,14 @@
           <div class="flex flex-wrap gap-2 pt-1" (click)="$event.stopPropagation()">
             @if (m.status === 'active' && rowTone(m) !== 'green') {
               @if (canRecordPaymentsAction()) {
-                <button type="button" class="saas-btn-primary px-3 py-2 text-xs" (click)="openPay(m)">Mark Paid</button>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                  (click)="openPay(m)"
+                >
+                  <span class="material-icons-outlined text-sm">check_circle</span>
+                  Collect Rent
+                </button>
               }
             }
             @if (rowTone(m) === 'green') {
@@ -695,10 +835,12 @@
           type="number"
           formControlName="amount"
           class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+          [class.bg-slate-100]="!!editingId()"
+          [class.text-slate-600]="!!editingId()"
           min="1"
           step="1"
         />
-        @if (memberForm.controls.amount.touched && memberForm.controls.amount.invalid) {
+        @if (!editingId() && memberForm.controls.amount.touched && memberForm.controls.amount.invalid) {
           <p class="mt-1 text-sm text-red-600">Enter a positive amount</p>
         }
       </div>
@@ -708,6 +850,8 @@
           type="number"
           formControlName="advancePaid"
           class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+          [class.bg-slate-100]="!!editingId()"
+          [class.text-slate-600]="!!editingId()"
           min="0"
           step="1"
         />
@@ -726,7 +870,11 @@
      
     </div>
     <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <label
+        class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2"
+        [class.cursor-pointer]="!editingId()"
+        [class.opacity-80]="!!editingId()"
+      >
         <input type="checkbox" formControlName="isPartialPayment" class="h-4 w-4" />
         <span class="text-sm font-medium text-slate-700">Split payment (partial payment done)</span>
       </label>
@@ -740,8 +888,10 @@
               formControlName="paidAmount"
               min="1"
               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+              [class.bg-slate-100]="!!editingId()"
+              [class.text-slate-600]="!!editingId()"
             />
-            @if (memberForm.controls.paidAmount.touched && memberForm.controls.paidAmount.invalid) {
+            @if (!editingId() && memberForm.controls.paidAmount.touched && memberForm.controls.paidAmount.invalid) {
               <p class="mt-1 text-sm text-red-600">Enter a valid current paying amount</p>
             }
           </div>
@@ -749,15 +899,26 @@
             <label class="mb-1 block text-sm font-medium text-slate-700">Pending amount (₹)</label>
             <input
               type="number"
-              [value]="pendingFromForm()"
+              [value]="memberModalPendingAmountDisplay()"
               readonly
               class="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-base text-slate-700"
             />
-            <p class="mt-1 text-xs text-slate-500">Pending is auto calculated from total - current paying.</p>
+            @if (editingId()) {
+              <p class="mt-1 text-xs text-slate-500">Saved pending balance for this member.</p>
+            } @else {
+              <p class="mt-1 text-xs text-slate-500">Pending is auto calculated from total - current paying.</p>
+            }
           </div>
         </div>
       }
     </div>
+    @if (editingId()) {
+      <p class="mt-2 text-sm font-medium text-red-600">
+        These fields are not editable (total amount, advance paid, current paying amount, pending amount). Use
+        <span class="font-semibold">Collect Rent</span>
+        on the members list to update payments and balances.
+      </p>
+    }
     <div class="grid gap-4 sm:grid-cols-2">
       <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">Join date</label>
@@ -854,74 +1015,76 @@
           }
         </div>
 
-        <div class="grid gap-3 sm:grid-cols-3">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Profile photo</label>
-            @if (profilePhotoPreview()) {
-              <div class="relative mb-2 h-28 w-28 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                <img [src]="profilePhotoPreview()" alt="Profile preview" class="h-full w-full object-cover" />
-                <button
-                  type="button"
-                  class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
-                  (click)="removeMemberPhoto('profile')"
-                  aria-label="Remove profile photo"
-                >
-                  <span class="material-icons-outlined text-base">delete</span>
-                </button>
-              </div>
-            }
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-              (change)="onMemberPhotoSelected('profile', $event)"
-            />
+        @if (!editingId()) {
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Profile photo</label>
+              @if (profilePhotoPreview()) {
+                <div class="relative mb-2 h-28 w-28 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                  <img [src]="profilePhotoPreview()" alt="Profile preview" class="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
+                    (click)="removeMemberPhoto('profile')"
+                    aria-label="Remove profile photo"
+                  >
+                    <span class="material-icons-outlined text-base">delete</span>
+                  </button>
+                </div>
+              }
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+                (change)="onMemberPhotoSelected('profile', $event)"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Front</label>
+              @if (aadhaarFrontPreview()) {
+                <div class="relative mb-2 h-28 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                  <img [src]="aadhaarFrontPreview()" alt="Aadhaar front preview" class="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
+                    (click)="removeMemberPhoto('aadhaarFront')"
+                    aria-label="Remove Aadhaar front"
+                  >
+                    <span class="material-icons-outlined text-base">delete</span>
+                  </button>
+                </div>
+              }
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+                (change)="onMemberPhotoSelected('aadhaarFront', $event)"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Back</label>
+              @if (aadhaarBackPreview()) {
+                <div class="relative mb-2 h-28 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                  <img [src]="aadhaarBackPreview()" alt="Aadhaar back preview" class="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
+                    (click)="removeMemberPhoto('aadhaarBack')"
+                    aria-label="Remove Aadhaar back"
+                  >
+                    <span class="material-icons-outlined text-base">delete</span>
+                  </button>
+                </div>
+              }
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+                (change)="onMemberPhotoSelected('aadhaarBack', $event)"
+              />
+            </div>
           </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Front</label>
-            @if (aadhaarFrontPreview()) {
-              <div class="relative mb-2 h-28 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                <img [src]="aadhaarFrontPreview()" alt="Aadhaar front preview" class="h-full w-full object-cover" />
-                <button
-                  type="button"
-                  class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
-                  (click)="removeMemberPhoto('aadhaarFront')"
-                  aria-label="Remove Aadhaar front"
-                >
-                  <span class="material-icons-outlined text-base">delete</span>
-                </button>
-              </div>
-            }
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-              (change)="onMemberPhotoSelected('aadhaarFront', $event)"
-            />
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Back</label>
-            @if (aadhaarBackPreview()) {
-              <div class="relative mb-2 h-28 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                <img [src]="aadhaarBackPreview()" alt="Aadhaar back preview" class="h-full w-full object-cover" />
-                <button
-                  type="button"
-                  class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
-                  (click)="removeMemberPhoto('aadhaarBack')"
-                  aria-label="Remove Aadhaar back"
-                >
-                  <span class="material-icons-outlined text-base">delete</span>
-                </button>
-              </div>
-            }
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-              (change)="onMemberPhotoSelected('aadhaarBack', $event)"
-            />
-          </div>
-        </div>
+        }
 
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">Notes</label>
@@ -1260,7 +1423,7 @@
   }
 </app-modal>
 
-<app-modal [open]="payModalOpen()" [closable]="!paymentSubmitting()" title="Mark as paid" (closed)="closePay()">
+<app-modal [open]="payModalOpen()" [closable]="!paymentSubmitting()" [title]="payEntryMode() === 'pendingOnly' ? 'Collect Due' : 'Collect Rent'" (closed)="closePay()">
   @if (payTarget(); as m) {
     <form [formGroup]="payForm" (ngSubmit)="submitPay()" class="space-y-4">
       <p class="text-sm text-slate-600">
@@ -1407,7 +1570,11 @@
             </svg>
             <span>Recording…</span>
           } @else {
-            {{ payForm.controls.isPartialPayment.value ? 'Partial payment done' : 'Confirm payment' }}
+            {{
+              payForm.controls.isPartialPayment.value
+                ? 'Save Partial Payment'
+                : (payEntryMode() === 'pendingOnly' ? 'Collect Due' : 'Collect Rent')
+            }}
           }
         </button>
       </div>

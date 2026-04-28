@@ -131,6 +131,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly payFilter = signal<'all' | 'paid' | 'overdue' | 'dueSoon' | 'partial' | 'pending'>('all');
   readonly sortKey = signal<'due' | 'name'>('due');
   readonly sortDir = signal<'asc' | 'desc'>('asc');
+  readonly desktopMemberView = signal<'table' | 'card'>('table');
   readonly dueSectionFilter = signal<'all' | 'dueToday' | 'overdue' | 'dueSoon'>('all');
   /** Deep link from dashboard: `?onboarding=review` shows only share-link submissions pending approval. */
   readonly onboardingReviewFilter = signal<'all' | 'review'>('all');
@@ -617,6 +618,31 @@ export class MembersComponent implements OnInit, OnDestroy {
     return Math.max(0, total - paid);
   }
 
+  /** Pending line in the modal: split-payment math when adding; saved balance when editing. */
+  memberModalPendingAmountDisplay(): number {
+    if (this.editingId() && this.memberEditBillingPreserve) {
+      return this.memberEditBillingPreserve.pendingAmount;
+    }
+    return this.pendingFromForm();
+  }
+
+  private setMemberModalBillingFieldsLocked(locked: boolean): void {
+    const c = this.memberForm.controls;
+    if (locked) {
+      c.amount.disable({ emitEvent: false });
+      c.advancePaid.disable({ emitEvent: false });
+      c.isPartialPayment.disable({ emitEvent: false });
+      c.paidAmount.disable({ emitEvent: false });
+      c.pendingAmount.disable({ emitEvent: false });
+    } else {
+      c.amount.enable({ emitEvent: false });
+      c.advancePaid.enable({ emitEvent: false });
+      c.isPartialPayment.enable({ emitEvent: false });
+      c.paidAmount.enable({ emitEvent: false });
+      c.pendingAmount.enable({ emitEvent: false });
+    }
+  }
+
   ngOnDestroy(): void {
     this.historyUnsub?.();
     this.querySub?.unsubscribe();
@@ -760,6 +786,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.resetOnboardingPhotoState();
     this.manualSeatEntryTriggered.set(false);
     this.manualSeatError.set(null);
+    this.setMemberModalBillingFieldsLocked(false);
     this.modalOpen.set(true);
   }
 
@@ -806,6 +833,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.aadhaarBackUrl.set(m.aadhaarBackUrl || '');
     this.manualSeatEntryTriggered.set(false);
     this.manualSeatError.set(null);
+    this.setMemberModalBillingFieldsLocked(true);
     this.modalOpen.set(true);
     this.memberForm.markAsPristine();
   }
@@ -814,6 +842,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.manualSeatEntryTriggered.set(false);
     this.manualSeatError.set(null);
     this.resetOnboardingPhotoState();
+    this.setMemberModalBillingFieldsLocked(false);
     this.modalOpen.set(false);
   }
 
@@ -1832,6 +1861,11 @@ ${pgName}`;
       roomNumber: String(room),
       bedNumber: String(bed),
     });
+    // Bed picker updates are programmatic; mark dirty so Edit -> Save persists.
+    this.memberForm.controls.floorNumber.markAsDirty();
+    this.memberForm.controls.roomNumber.markAsDirty();
+    this.memberForm.controls.bedNumber.markAsDirty();
+    this.memberForm.markAsDirty();
     this.syncSeatFieldsAfterDropdown();
     this.memberForm.controls.floorNumber.markAsTouched();
     this.memberForm.controls.roomNumber.markAsTouched();

@@ -46,6 +46,7 @@
         <span class="material-icons-outlined">dashboard</span>
         {{ 'nav.dashboard' | t }}
       </a>
+      <!-- Notifications nav hidden for now.
       @if (profile()?.ownerId) {
         <a
           routerLink="/notifications"
@@ -61,6 +62,7 @@
           }
         </a>
       }
+      -->
       @if (canViewMembers()) {
         <a
           routerLink="/members"
@@ -302,6 +304,7 @@
               <span class="material-icons-outlined">dashboard</span>
               {{ 'nav.home' | t }}
             </a>
+            <!-- Notifications nav hidden for now.
             @if (profile()?.ownerId) {
               <a
                 routerLink="/notifications"
@@ -318,6 +321,7 @@
                 }
               </a>
             }
+            -->
             @if (canViewMembers()) {
               <a
                 routerLink="/members"
