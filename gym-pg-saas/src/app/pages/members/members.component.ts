@@ -12,7 +12,10 @@ import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
 import { TranslationService } from '../../core/services/translation.service';
 import { MemberService } from '../../core/services/member.service';
-import { MemberOnboardingService } from '../../core/services/member-onboarding.service';
+import {
+  MemberOnboardingService,
+  type OnboardingPhotoKind,
+} from '../../core/services/member-onboarding.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { MemberReceiptService } from '../../core/services/member-receipt.service';
@@ -46,6 +49,9 @@ import {
 } from '../../core/utils/validators';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+
+const MEMBER_MODAL_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const MEMBER_MODAL_PHOTO_MIMES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
 @Component({
   selector: 'app-members',
@@ -432,10 +438,29 @@ export class MembersComponent implements OnInit, OnDestroy {
     pendingAmount: [0],
   });
 
-  /** Photo URLs on the member record (set when editing; member link adds/updates them). Owner modal does not upload photos. */
+  /** Photo URLs on the member record (Firebase download URLs after upload or when editing existing). */
   readonly profilePhotoUrl = signal<string>('');
   readonly aadhaarFrontUrl = signal<string>('');
   readonly aadhaarBackUrl = signal<string>('');
+  /** In-memory file chosen in the modal; uploaded on save via `uploadOwnerPhoto`. */
+  private readonly profilePhotoPendingFile = signal<File | null>(null);
+  private readonly aadhaarFrontPendingFile = signal<File | null>(null);
+  private readonly aadhaarBackPendingFile = signal<File | null>(null);
+  /** `blob:` preview URLs for pending files (revoked when replaced or reset). */
+  private readonly profilePhotoLocalPreview = signal<string | null>(null);
+  private readonly aadhaarFrontLocalPreview = signal<string | null>(null);
+  private readonly aadhaarBackLocalPreview = signal<string | null>(null);
+
+  readonly profilePhotoPreview = computed(
+    () => this.profilePhotoLocalPreview() ?? this.profilePhotoUrl() ?? '',
+  );
+  readonly aadhaarFrontPreview = computed(
+    () => this.aadhaarFrontLocalPreview() ?? this.aadhaarFrontUrl() ?? '',
+  );
+  readonly aadhaarBackPreview = computed(
+    () => this.aadhaarBackLocalPreview() ?? this.aadhaarBackUrl() ?? '',
+  );
+
   readonly memberSavingBusy = signal<boolean>(false);
 
   /**
@@ -598,6 +623,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.payFormSubscription?.unsubscribe();
     this.joinDateValueSub?.unsubscribe();
     this.clearImportProgressUi();
+    this.revokeAllMemberPhotoLocalPreviews();
   }
 
   /**
@@ -830,9 +856,113 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   private resetOnboardingPhotoState(): void {
+    this.revokeAllMemberPhotoLocalPreviews();
+    this.profilePhotoPendingFile.set(null);
+    this.aadhaarFrontPendingFile.set(null);
+    this.aadhaarBackPendingFile.set(null);
+    this.profilePhotoLocalPreview.set(null);
+    this.aadhaarFrontLocalPreview.set(null);
+    this.aadhaarBackLocalPreview.set(null);
     this.profilePhotoUrl.set('');
     this.aadhaarFrontUrl.set('');
     this.aadhaarBackUrl.set('');
+  }
+
+  private revokeAllMemberPhotoLocalPreviews(): void {
+    for (const u of [
+      this.profilePhotoLocalPreview(),
+      this.aadhaarFrontLocalPreview(),
+      this.aadhaarBackLocalPreview(),
+    ]) {
+      if (u?.startsWith('blob:')) URL.revokeObjectURL(u);
+    }
+  }
+
+  private revokeMemberPhotoLocalPreview(kind: OnboardingPhotoKind): void {
+    const u =
+      kind === 'profile'
+        ? this.profilePhotoLocalPreview()
+        : kind === 'aadhaarFront'
+          ? this.aadhaarFrontLocalPreview()
+          : this.aadhaarBackLocalPreview();
+    if (u?.startsWith('blob:')) URL.revokeObjectURL(u);
+  }
+
+  onMemberPhotoSelected(kind: OnboardingPhotoKind, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!(MEMBER_MODAL_PHOTO_MIMES as readonly string[]).includes(file.type)) {
+      this.toast.error('Only JPG / PNG / WEBP images are allowed.');
+      input.value = '';
+      return;
+    }
+    if (file.size > MEMBER_MODAL_PHOTO_MAX_BYTES) {
+      this.toast.error('Image too large. Use an image under 5 MB.');
+      input.value = '';
+      return;
+    }
+    this.revokeMemberPhotoLocalPreview(kind);
+    const objectUrl = URL.createObjectURL(file);
+    if (kind === 'profile') {
+      this.profilePhotoPendingFile.set(file);
+      this.profilePhotoLocalPreview.set(objectUrl);
+    } else if (kind === 'aadhaarFront') {
+      this.aadhaarFrontPendingFile.set(file);
+      this.aadhaarFrontLocalPreview.set(objectUrl);
+    } else {
+      this.aadhaarBackPendingFile.set(file);
+      this.aadhaarBackLocalPreview.set(objectUrl);
+    }
+    this.memberForm.markAsDirty();
+    input.value = '';
+  }
+
+  removeMemberPhoto(kind: OnboardingPhotoKind): void {
+    this.revokeMemberPhotoLocalPreview(kind);
+    if (kind === 'profile') {
+      this.profilePhotoPendingFile.set(null);
+      this.profilePhotoLocalPreview.set(null);
+      this.profilePhotoUrl.set('');
+    } else if (kind === 'aadhaarFront') {
+      this.aadhaarFrontPendingFile.set(null);
+      this.aadhaarFrontLocalPreview.set(null);
+      this.aadhaarFrontUrl.set('');
+    } else {
+      this.aadhaarBackPendingFile.set(null);
+      this.aadhaarBackLocalPreview.set(null);
+      this.aadhaarBackUrl.set('');
+    }
+    this.memberForm.markAsDirty();
+  }
+
+  /** Upload pending files from the add/edit modal; updates URL signals and clears pending state. */
+  private async uploadPendingOwnerPhotosIfAny(memberId: string): Promise<void> {
+    const tasks: Promise<void>[] = [];
+    const upload = (kind: OnboardingPhotoKind, file: File | null, setUrl: (u: string) => void) => {
+      if (!file) return;
+      tasks.push(
+        (async () => {
+          const url = await this.onboardingApi.uploadOwnerPhoto(memberId, kind, file);
+          setUrl(url);
+          this.revokeMemberPhotoLocalPreview(kind);
+          if (kind === 'profile') {
+            this.profilePhotoPendingFile.set(null);
+            this.profilePhotoLocalPreview.set(null);
+          } else if (kind === 'aadhaarFront') {
+            this.aadhaarFrontPendingFile.set(null);
+            this.aadhaarFrontLocalPreview.set(null);
+          } else {
+            this.aadhaarBackPendingFile.set(null);
+            this.aadhaarBackLocalPreview.set(null);
+          }
+        })(),
+      );
+    };
+    upload('profile', this.profilePhotoPendingFile(), (u) => this.profilePhotoUrl.set(u));
+    upload('aadhaarFront', this.aadhaarFrontPendingFile(), (u) => this.aadhaarFrontUrl.set(u));
+    upload('aadhaarBack', this.aadhaarBackPendingFile(), (u) => this.aadhaarBackUrl.set(u));
+    if (tasks.length) await Promise.all(tasks);
   }
 
   async toggleMemberStatus(m: Member, enabled: boolean): Promise<void> {
@@ -954,6 +1084,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       const id = this.editingId();
       let memberId = id;
       if (id) {
+        await this.uploadPendingOwnerPhotosIfAny(id);
         await this.membersApi.updateMember(id, {
           ...baseInput,
           profilePhotoUrl: this.profilePhotoUrl(),
@@ -966,7 +1097,26 @@ export class MembersComponent implements OnInit, OnDestroy {
         // CREATE: first create the doc (we need its id for storage paths), then upload
         // any photos and write the URLs back. If owner provided no images, we skip the
         // second update entirely and the legacy create path runs unchanged.
-        memberId = await this.membersApi.addMember(baseInput);
+        memberId = await this.membersApi.addMember({
+          ...baseInput,
+          profilePhotoUrl: this.profilePhotoUrl().trim(),
+          aadhaarFrontUrl: this.aadhaarFrontUrl().trim(),
+          aadhaarBackUrl: this.aadhaarBackUrl().trim(),
+        });
+        if (memberId) {
+          await this.uploadPendingOwnerPhotosIfAny(memberId);
+          const pu = this.profilePhotoUrl().trim();
+          const fu = this.aadhaarFrontUrl().trim();
+          const bu = this.aadhaarBackUrl().trim();
+          if (pu || fu || bu) {
+            await this.membersApi.updateMember(memberId, {
+              ...baseInput,
+              profilePhotoUrl: pu,
+              aadhaarFrontUrl: fu,
+              aadhaarBackUrl: bu,
+            });
+          }
+        }
         this.toast.success('Member added');
         this.notifyOwnerAction('Member added', `${v.firstName} added successfully.`);
         if (memberId && paidAmount > 0) {
