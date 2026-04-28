@@ -1,7 +1,7 @@
 {
-  "name": "PGT",
-  "short_name": "PGT",
-  "description": "PGT owner app",
+  "name": "Our PG Tracker",
+  "short_name": "Our PG Tracker",
+  "description": "Our PG Tracker — PG management software for rent tracking, tenant management, and room & bed allotment.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1D4ED8",
