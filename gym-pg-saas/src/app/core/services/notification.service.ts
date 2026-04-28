@@ -151,7 +151,7 @@ export class NotificationService {
       this.showSystemNotification({
         title: payload.notification?.title || 'New Notification',
         body: payload.notification?.body || '',
-        icon: payload.notification?.icon || '/icons/icon-192.png',
+        icon: payload.notification?.icon || '/icons/Brand_LOGO_New.png',
         tag: (payload as any).tag,
         data: payload.data,
         requireInteraction: true
@@ -218,7 +218,7 @@ export class NotificationService {
         this.showSystemNotification({
           title: '👤 New Member Approval Request',
           body: `${data['pendingApprovals']} member(s) waiting for your approval`,
-          icon: '/icons/icon-192.png',
+          icon: '/icons/Brand_LOGO_New.png',
           tag: 'member-approval',
           data: { type: 'member-approval', count: data['pendingApprovals'] },
           requireInteraction: true
@@ -236,7 +236,7 @@ export class NotificationService {
           this.showSystemNotification({
             title: '💳 Payment Due Alert',
             body: `${due.memberName} - Due today (${new Date(due.dueDate).toLocaleDateString()})`,
-            icon: '/icons/icon-192.png',
+            icon: '/icons/Brand_LOGO_New.png',
             tag: `due-${due.memberId}`,
             data: { type: 'payment-due', memberId: due.memberId },
             requireInteraction: true
@@ -266,7 +266,7 @@ export class NotificationService {
           this.showSystemNotification({
             title: 'New owner message',
             body: text ? `${senderName}: ${text}` : `${senderName} sent a message`,
-            icon: '/icons/icon-192.png',
+            icon: '/icons/Brand_LOGO_New.png',
             tag: `chat-${id}`,
             data: { type: 'admin-chat' },
             requireInteraction: true,
@@ -297,7 +297,7 @@ export class NotificationService {
           this.showSystemNotification({
             title,
             body,
-            icon: '/icons/icon-192.png',
+            icon: '/icons/Brand_LOGO_New.png',
             tag: `owner-app-${id}`,
             data: { type: 'owner-in-app' },
             requireInteraction: false,
@@ -313,11 +313,11 @@ export class NotificationService {
 
     void this.showViaServiceWorker(notificationData.title, {
       body: notificationData.body,
-      icon: notificationData.icon || '/icons/icon-192.png',
+      icon: notificationData.icon || '/icons/Brand_LOGO_New.png',
       tag: notificationData.tag,
       data: notificationData.data,
       requireInteraction: notificationData.requireInteraction || false,
-      badge: '/icons/icon-192.png',
+      badge: '/icons/Brand_LOGO_New.png',
       silent: false,
     });
   }
@@ -401,7 +401,7 @@ export class NotificationService {
 
     void this.showViaServiceWorker(title, {
       body,
-      icon: '/favicon.ico',
+      icon: '/icons/Brand_LOGO_New.png',
       tag: dedupKey,
     });
 
@@ -415,7 +415,7 @@ export class NotificationService {
       this.showSystemNotification({
         title: 'Payment Due Soon',
         body: `${memberName} has payment due on ${dueDate.toLocaleDateString()}`,
-        icon: '/icons/icon-192.png',
+        icon: '/icons/Brand_LOGO_New.png',
         tag: `due-${memberId}`,
         data: { type: 'payment-due', memberId },
         requireInteraction: true
@@ -432,7 +432,7 @@ export class NotificationService {
       this.showSystemNotification({
         title: 'New Approval Request',
         body: `${memberName} is requesting approval`,
-        icon: '/icons/icon-192.png',
+        icon: '/icons/Brand_LOGO_New.png',
         tag: `approval-${memberId}`,
         data: { type: 'member-approval', memberId },
         requireInteraction: true
@@ -449,7 +449,7 @@ export class NotificationService {
       this.showSystemNotification({
         title: 'Payment Received',
         body: `${memberName} paid ${amount}`,
-        icon: '/icons/icon-192.png',
+        icon: '/icons/Brand_LOGO_New.png',
         tag: 'payment-received',
         data: { type: 'payment-received' },
         requireInteraction: false

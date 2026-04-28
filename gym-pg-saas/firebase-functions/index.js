@@ -37,7 +37,7 @@ exports.onMemberCreated = functions.firestore
       notification: {
         title: '👤 New Member Approval Request',
         body: `${member.name} is requesting approval`,
-        icon: '/icons/icon-192.png'
+        icon: '/icons/Brand_LOGO_New.png'
       },
       data: {
         type: 'member-approval',
@@ -129,7 +129,7 @@ exports.checkPaymentDues = functions.pubsub
         notification: {
           title: '💳 Payment Due Alert',
           body: `${urgentDues.length} member(s) have payment due today or overdue`,
-          icon: '/icons/icon-192.png'
+          icon: '/icons/Brand_LOGO_New.png'
         },
         data: {
           type: 'payment-due-summary',
@@ -192,7 +192,7 @@ exports.onPaymentReceived = functions.firestore
       notification: {
         title: '💰 Payment Received',
         body: `${member.name} paid ₹${payment.amount}`,
-        icon: '/icons/icon-192.png'
+        icon: '/icons/Brand_LOGO_New.png'
       },
       data: {
         type: 'payment-received',
@@ -396,7 +396,7 @@ exports.onChatMessageCreated = functions.firestore
       notification: {
         title: senderRole === 'owner' ? 'New owner message' : 'New admin message',
         body: text ? `${senderName}: ${text.slice(0, 280)}` : `${senderName} sent a message`,
-        icon: '/icons/icon-192.png',
+        icon: '/icons/Brand_LOGO_New.png',
       },
       data: {
         type: 'owner-admin-chat',
@@ -570,7 +570,7 @@ exports.onOwnerBroadcastCreated = functions.firestore
       notification: {
         title,
         body: body.slice(0, 400),
-        icon: '/icons/icon-192.png',
+        icon: '/icons/Brand_LOGO_New.png',
       },
       data: {
         type: 'owner-broadcast',

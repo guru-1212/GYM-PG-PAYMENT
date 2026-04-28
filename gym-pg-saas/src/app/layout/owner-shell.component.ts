@@ -114,7 +114,10 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
           : seg === 'evening'
             ? 'shell.greetingEvening'
             : 'shell.greetingNight';
-    return { text: this.i18n.t(key), icon: ownerDayGreetingIcon(seg) };
+    const p = this.profile();
+    const displayName =
+      p?.name?.trim() || p?.businessName?.trim() || p?.email?.split('@')[0]?.trim() || '';
+    return { text: this.i18n.t(key), icon: ownerDayGreetingIcon(seg), displayName };
   });
 
   readonly planCountdown = computed(() => {

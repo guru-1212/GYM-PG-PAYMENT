@@ -11,7 +11,7 @@
           "/*.css",
           "/*.js",
           "/manifest.webmanifest",
-          "/favicon.png",
+          "/icons/Brand_LOGO_New.png",
           "/icons/*.png",
           "/firebase-messaging-sw.js"
         ]

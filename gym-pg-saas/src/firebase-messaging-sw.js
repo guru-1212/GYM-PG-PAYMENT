@@ -22,8 +22,8 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || 'New Notification';
   const notificationOptions = {
     body: payload.notification?.body || '',
-    icon: payload.notification?.icon || '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    icon: payload.notification?.icon || '/icons/Brand_LOGO_New.png',
+    badge: '/icons/Brand_LOGO_New.png',
     tag: payload.tag || 'default',
     data: payload.data,
     requireInteraction: true,
@@ -114,8 +114,8 @@ self.addEventListener('push', (event) => {
     const title = data.title || 'New Notification';
     const options = {
       body: data.body || '',
-      icon: data.icon || '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      icon: data.icon || '/icons/Brand_LOGO_New.png',
+      badge: '/icons/Brand_LOGO_New.png',
       tag: data.tag || 'default',
       data: data.data || {},
       requireInteraction: data.requireInteraction || false,

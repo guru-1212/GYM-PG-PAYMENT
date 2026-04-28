@@ -186,12 +186,25 @@
       <div class="min-w-0 flex-1 px-1 text-center">
         <p
           class="truncate text-[13px] font-semibold leading-tight tracking-tight text-slate-800 dark:text-slate-100 sm:text-sm"
-          [attr.title]="ownerHeaderGreeting().text"
+          [attr.title]="
+            ownerHeaderGreeting().displayName
+              ? ownerHeaderGreeting().text + ' — ' + ownerHeaderGreeting().displayName
+              : ownerHeaderGreeting().text
+          "
         >
           <span
             class="material-icons-outlined mr-0.5 align-[-3px] text-[17px] text-indigo-600 dark:text-indigo-400"
             aria-hidden="true"
-            >{{ ownerHeaderGreeting().icon }}</span>{{ ownerHeaderGreeting().text }}
+            >{{ ownerHeaderGreeting().icon }}</span
+          ><span>{{ ownerHeaderGreeting().text }}</span>
+          @if (ownerHeaderGreeting().displayName) {
+            <span class="mx-0.5 font-normal text-slate-500 dark:text-slate-400">—</span>
+            <span
+              class="material-icons-outlined mx-0.5 align-[-3px] text-[15px] text-indigo-500 dark:text-indigo-400"
+              aria-hidden="true"
+              >person</span
+            ><span>{{ ownerHeaderGreeting().displayName }}</span>
+          }
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-2">

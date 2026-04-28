@@ -688,76 +688,84 @@
         <p class="mt-1 text-xs text-slate-500">Next due after payment moves by this period from the current due date.</p>
       </div>
     }
-    <div class="grid gap-4 sm:grid-cols-3">
-      <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700">Total amount (₹)</label>
-        <input
-          type="number"
-          formControlName="amount"
-          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-          min="1"
-          step="1"
-        />
-        @if (memberForm.controls.amount.touched && memberForm.controls.amount.invalid) {
-          <p class="mt-1 text-sm text-red-600">Enter a positive amount</p>
-        }
-      </div>
-      <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700">Advance Paid (₹)</label>
-        <input
-          type="number"
-          formControlName="advancePaid"
-          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-          min="0"
-          step="1"
-        />
-      </div>
-      <div>
-        <label class="mb-1 block text-sm font-medium text-slate-700">Payment Method</label>
-        <select formControlName="paymentMethod" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base">
-          <option value="cash">Cash</option>
-          <option value="upi">UPI</option>
-          <option value="card">Card</option>
-        </select>
-        @if (memberForm.controls.paymentMethod.touched && memberForm.controls.paymentMethod.invalid) {
-          <p class="mt-1 text-sm text-red-600">Payment method is required</p>
-        }
-      </div>
-     
-    </div>
-    <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
-        <input type="checkbox" formControlName="isPartialPayment" class="h-4 w-4" />
-        <span class="text-sm font-medium text-slate-700">Split payment (partial payment done)</span>
-      </label>
-
-      @if (memberForm.controls.isPartialPayment.value) {
-        <div class="mt-3 grid gap-3 sm:grid-cols-2">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Current paying amount (₹)</label>
-            <input
-              type="number"
-              formControlName="paidAmount"
-              min="1"
-              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-            />
-            @if (memberForm.controls.paidAmount.touched && memberForm.controls.paidAmount.invalid) {
-              <p class="mt-1 text-sm text-red-600">Enter a valid current paying amount</p>
-            }
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Pending amount (₹)</label>
-            <input
-              type="number"
-              [value]="pendingFromForm()"
-              readonly
-              class="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-base text-slate-700"
-            />
-            <p class="mt-1 text-xs text-slate-500">Pending is auto calculated from total - current paying.</p>
-          </div>
+    @if (editingId()) {
+      <p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+        Plan amount, advance, and pending balance are not edited here. Use
+        <span class="font-semibold text-slate-800">Mark paid</span>
+        on the members list to record payments.
+      </p>
+    }
+    @if (!editingId()) {
+      <div class="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Total amount (₹)</label>
+          <input
+            type="number"
+            formControlName="amount"
+            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+            min="1"
+            step="1"
+          />
+          @if (memberForm.controls.amount.touched && memberForm.controls.amount.invalid) {
+            <p class="mt-1 text-sm text-red-600">Enter a positive amount</p>
+          }
         </div>
-      }
-    </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Advance Paid (₹)</label>
+          <input
+            type="number"
+            formControlName="advancePaid"
+            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+            min="0"
+            step="1"
+          />
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Payment Method</label>
+          <select formControlName="paymentMethod" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base">
+            <option value="cash">Cash</option>
+            <option value="upi">UPI</option>
+            <option value="card">Card</option>
+          </select>
+          @if (memberForm.controls.paymentMethod.touched && memberForm.controls.paymentMethod.invalid) {
+            <p class="mt-1 text-sm text-red-600">Payment method is required</p>
+          }
+        </div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+          <input type="checkbox" formControlName="isPartialPayment" class="h-4 w-4" />
+          <span class="text-sm font-medium text-slate-700">Split payment (partial payment done)</span>
+        </label>
+
+        @if (memberForm.controls.isPartialPayment.value) {
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Current paying amount (₹)</label>
+              <input
+                type="number"
+                formControlName="paidAmount"
+                min="1"
+                class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+              />
+              @if (memberForm.controls.paidAmount.touched && memberForm.controls.paidAmount.invalid) {
+                <p class="mt-1 text-sm text-red-600">Enter a valid current paying amount</p>
+              }
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">Pending amount (₹)</label>
+              <input
+                type="number"
+                [value]="pendingFromForm()"
+                readonly
+                class="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-base text-slate-700"
+              />
+              <p class="mt-1 text-xs text-slate-500">Pending is auto calculated from total - current paying.</p>
+            </div>
+          </div>
+        }
+      </div>
+    }
     <div class="grid gap-4 sm:grid-cols-2">
       <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">Join date</label>
@@ -824,8 +832,8 @@
       <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">More details (optional)</summary>
       <div class="space-y-4 border-t border-slate-200 bg-white px-4 py-4">
         <p class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
-          These fields are optional. Skip any of them and the member can fill them in
-          themselves later via a share link from the members list.
+          These fields are optional. The member can add profile and Aadhaar photos, plus any missing details, using the
+          <span class="font-semibold">profile completion link</span> you share from the members list — not here — so saving stays quick.
         </p>
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">Gender</label>
@@ -854,75 +862,6 @@
           }
         </div>
 
-        <div class="grid gap-3 sm:grid-cols-3">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Profile photo</label>
-            @if (profilePhotoPreview()) {
-              <div class="relative mb-2 h-28 w-28 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                <img [src]="profilePhotoPreview()" alt="Profile preview" class="h-full w-full object-cover" />
-                <button
-                  type="button"
-                  class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
-                  (click)="removeMemberPhoto('profile')"
-                  aria-label="Remove profile photo"
-                >
-                  <span class="material-icons-outlined text-base">delete</span>
-                </button>
-              </div>
-            }
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-              (change)="onMemberPhotoSelected('profile', $event)"
-            />
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Front</label>
-            @if (aadhaarFrontPreview()) {
-              <div class="relative mb-2 h-28 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                <img [src]="aadhaarFrontPreview()" alt="Aadhaar front preview" class="h-full w-full object-cover" />
-                <button
-                  type="button"
-                  class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
-                  (click)="removeMemberPhoto('aadhaarFront')"
-                  aria-label="Remove Aadhaar front"
-                >
-                  <span class="material-icons-outlined text-base">delete</span>
-                </button>
-              </div>
-            }
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-              (change)="onMemberPhotoSelected('aadhaarFront', $event)"
-            />
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium text-slate-700">Aadhaar – Back</label>
-            @if (aadhaarBackPreview()) {
-              <div class="relative mb-2 h-28 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                <img [src]="aadhaarBackPreview()" alt="Aadhaar back preview" class="h-full w-full object-cover" />
-                <button
-                  type="button"
-                  class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow"
-                  (click)="removeMemberPhoto('aadhaarBack')"
-                  aria-label="Remove Aadhaar back"
-                >
-                  <span class="material-icons-outlined text-base">delete</span>
-                </button>
-              </div>
-            }
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-              (change)="onMemberPhotoSelected('aadhaarBack', $event)"
-            />
-          </div>
-        </div>
-
         <div>
           <label class="mb-1 block text-sm font-medium text-slate-700">Notes</label>
           <textarea
@@ -945,9 +884,9 @@
       </button>
       <button
         type="submit"
-        [disabled]="memberSavingBusy()"
-        [class.opacity-50]="memberSavingBusy()"
-        [class.cursor-not-allowed]="memberSavingBusy()"
+        [disabled]="memberModalSaveDisabled()"
+        [class.opacity-50]="memberModalSaveDisabled()"
+        [class.cursor-not-allowed]="memberModalSaveDisabled()"
         class="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-400"
       >
         @if (memberSavingBusy()) {
@@ -1314,9 +1253,17 @@
             readonly
           />
         </div>
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+      }
+      @if (payEntryMode() !== 'pendingOnly') {
+        <div class="pay-collect-total-highlight text-base font-semibold text-emerald-950">
           Total amount to collect now:
-          <span class="font-semibold">₹{{ payModeTotalAmount() | number: '1.0-0' }}</span>
+          <span class="text-lg tabular-nums">₹{{ payModeTotalAmount() | number: '1.0-0' }}</span>
+          <span class="mt-1 block text-xs font-normal text-emerald-900/90">
+            Rent (₹{{ payFormRentNumeric() | number: '1.0-0' }})
+            @if (payTargetPendingAmount() > 0) {
+              + prior pending (₹{{ payTargetPendingAmount() | number: '1.0-0' }})
+            }
+          </span>
         </div>
       }
       <div>
@@ -1369,7 +1316,9 @@
             readonly
             class="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-base text-slate-700"
           />
-          <p class="mt-1 text-xs text-slate-500">Pending is auto calculated from total rent - current paying.</p>
+          <p class="mt-1 text-xs text-slate-500">
+            Remaining balance after this payment (total to collect now − current paying). Editable if they pay less than the full amount.
+          </p>
         </div>
         @if (showMoveDueOnPartialOption()) {
           <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">

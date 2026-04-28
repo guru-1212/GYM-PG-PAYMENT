@@ -270,7 +270,10 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
           : seg === 'evening'
             ? 'shell.greetingEvening'
             : 'shell.greetingNight';
-    return { text: this.i18n.t(key), icon: dashboardDayGreetingIcon(seg) };
+    const p = this.auth.profile();
+    const displayName =
+      p?.name?.trim() || p?.businessName?.trim() || p?.email?.split('@')[0]?.trim() || '';
+    return { text: this.i18n.t(key), icon: dashboardDayGreetingIcon(seg), displayName };
   });
 
   readonly subscriptionDaysRemaining = computed(() => {

@@ -81,6 +81,27 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
       100% { background-position: 100% 50%; }
     }
 
+    .pay-collect-total-highlight {
+      border-radius: 0.75rem;
+      padding: 0.75rem 1rem;
+      background: linear-gradient(120deg, #d1fae5, #a7f3d0, #6ee7b7, #34d399, #6ee7b7, #a7f3d0, #d1fae5);
+      background-size: 300% 300%;
+      animation: payCollectPulse 2s ease-in-out infinite, payCollectShift 3.5s linear infinite;
+      box-shadow:
+        0 0 0 2px rgba(16, 185, 129, 0.45),
+        0 0 18px rgba(5, 150, 105, 0.25);
+    }
+
+    @keyframes payCollectPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+
+    @keyframes payCollectShift {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+
   `],
 })
 export class MembersComponent implements OnInit, OnDestroy {
@@ -411,17 +432,17 @@ export class MembersComponent implements OnInit, OnDestroy {
     pendingAmount: [0],
   });
 
-  /* ---------- self-onboarding photo state (owner-side modal) ---------- */
-  readonly profilePhotoFile = signal<File | null>(null);
-  readonly aadhaarFrontFile = signal<File | null>(null);
-  readonly aadhaarBackFile = signal<File | null>(null);
+  /** Photo URLs on the member record (set when editing; member link adds/updates them). Owner modal does not upload photos. */
   readonly profilePhotoUrl = signal<string>('');
   readonly aadhaarFrontUrl = signal<string>('');
   readonly aadhaarBackUrl = signal<string>('');
-  readonly profilePhotoPreview = signal<string>('');
-  readonly aadhaarFrontPreview = signal<string>('');
-  readonly aadhaarBackPreview = signal<string>('');
   readonly memberSavingBusy = signal<boolean>(false);
+
+  /**
+   * Billing fields (plan amount, advance, pending) loaded when opening Edit.
+   * Save always reapplies these on update so the edit modal cannot record payments or change balances.
+   */
+  private memberEditBillingPreserve: { amount: number; advancePaid: number; pendingAmount: number } | null = null;
 
   /* ---------- share-link (member onboarding) state ---------- */
   readonly shareLinkOpen = signal<boolean>(false);
@@ -473,6 +494,16 @@ export class MembersComponent implements OnInit, OnDestroy {
       if (!pendingAmountControl || !currentPayingControl) return;
 
       this.updateCurrentPayingValidators(!!isPartial);
+      if (isPartial) {
+        const total = this.payModeTotalAmount();
+        currentPayingControl.setValue(total, { emitEvent: false });
+      } else {
+        const rent = Math.max(0, Number(this.payForm.controls.amount.value) || 0);
+        const pendingOnly =
+          this.payEntryMode() === 'pendingOnly' && this.payTargetPendingAmount() > 0;
+        const resetVal = pendingOnly ? this.payTargetPendingAmount() : rent;
+        currentPayingControl.setValue(resetVal, { emitEvent: false });
+      }
       this.syncPayFormPending();
       pendingAmountControl.setValidators([]);
       pendingAmountControl.updateValueAndValidity();
@@ -480,7 +511,16 @@ export class MembersComponent implements OnInit, OnDestroy {
     }) ?? null;
 
     this.payForm.get('currentPayingAmount')?.valueChanges.subscribe(() => this.syncPayFormPending());
-    this.payForm.get('amount')?.valueChanges.subscribe(() => this.syncPayFormPending());
+    this.payForm.get('amount')?.valueChanges.subscribe(() => {
+      if (this.payForm.controls.isPartialPayment.value) {
+        const maxP = this.payModeTotalAmount();
+        const paying = Math.max(0, Number(this.payForm.controls.currentPayingAmount.value) || 0);
+        if (paying > maxP) {
+          this.payForm.controls.currentPayingAmount.setValue(maxP, { emitEvent: false });
+        }
+      }
+      this.syncPayFormPending();
+    });
 
     // Add-member partial payment controls: validate paid amount only when split payment is enabled.
     this.memberForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial) => {
@@ -652,6 +692,7 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   openAdd(): void {
     this.editingId.set(null);
+    this.memberEditBillingPreserve = null;
     this.moreOpen.set(false);
     this.memberForm.controls.joinDate.setValidators([
       Validators.required,
@@ -698,11 +739,14 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   openEdit(m: Member): void {
     this.editingId.set(m.memberId);
+    this.memberEditBillingPreserve = {
+      amount: Number(m.amount) || 0,
+      advancePaid: Math.max(0, Number(m.advancePaid) || 0),
+      pendingAmount: Math.max(0, Number(m.pendingAmount) || 0),
+    };
     this.memberForm.controls.joinDate.setValidators([Validators.required, Validators.pattern(/^\d{4}-\d{2}-\d{2}$/)]);
     this.memberForm.controls.joinDate.updateValueAndValidity({ emitEvent: false });
-    this.moreOpen.set(
-      !!(m.gender || m.aadhaarLast4 || m.notes || m.profilePhotoUrl || m.aadhaarFrontUrl || m.aadhaarBackUrl),
-    );
+    this.moreOpen.set(!!(m.gender || m.aadhaarLast4 || m.notes));
     const jd = timestampToDate(m.joinDate);
     const joinStr = jd ? this.toInputDate(jd) : '';
     const dd = timestampToDate(m.dueDate);
@@ -723,9 +767,9 @@ export class MembersComponent implements OnInit, OnDestroy {
       dueDate: dueStr,
       amount: m.amount,
       advancePaid: Math.max(0, Number(m.advancePaid) || 0),
-      isPartialPayment: (Number(m.pendingAmount) || 0) > 0,
-      paidAmount: Math.max(0, Number(m.amount) - Math.max(0, Number(m.pendingAmount) || 0)),
-      pendingAmount: Number(m.pendingAmount) || 0,
+      isPartialPayment: false,
+      paidAmount: 0,
+      pendingAmount: 0,
       paymentMethod: 'cash', // Default to cash for existing members
       status: m.status,
       subscriptionType: m.subscriptionType || 'monthly',
@@ -734,12 +778,10 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.profilePhotoUrl.set(m.profilePhotoUrl || '');
     this.aadhaarFrontUrl.set(m.aadhaarFrontUrl || '');
     this.aadhaarBackUrl.set(m.aadhaarBackUrl || '');
-    this.profilePhotoPreview.set(m.profilePhotoUrl || '');
-    this.aadhaarFrontPreview.set(m.aadhaarFrontUrl || '');
-    this.aadhaarBackPreview.set(m.aadhaarBackUrl || '');
     this.manualSeatEntryTriggered.set(false);
     this.manualSeatError.set(null);
     this.modalOpen.set(true);
+    this.memberForm.markAsPristine();
   }
 
   closeModal(): void {
@@ -787,61 +829,10 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.memberForm.patchValue({ dueDate: dueIso }, { emitEvent: true });
   }
 
-  /** Reset all the photo-upload signals back to empty / clean. */
   private resetOnboardingPhotoState(): void {
-    this.profilePhotoFile.set(null);
-    this.aadhaarFrontFile.set(null);
-    this.aadhaarBackFile.set(null);
     this.profilePhotoUrl.set('');
     this.aadhaarFrontUrl.set('');
     this.aadhaarBackUrl.set('');
-    this.profilePhotoPreview.set('');
-    this.aadhaarFrontPreview.set('');
-    this.aadhaarBackPreview.set('');
-  }
-
-  /** File input handler — preview locally and stash the File for upload at save time. */
-  onMemberPhotoSelected(kind: 'profile' | 'aadhaarFront' | 'aadhaarBack', event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files && input.files.length ? input.files[0] : null;
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      this.toast.error('Please choose an image file (JPG / PNG / WEBP).');
-      input.value = '';
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      this.toast.error('Image must be smaller than 5 MB.');
-      input.value = '';
-      return;
-    }
-    const previewUrl = URL.createObjectURL(file);
-    if (kind === 'profile') {
-      this.profilePhotoFile.set(file);
-      this.profilePhotoPreview.set(previewUrl);
-    } else if (kind === 'aadhaarFront') {
-      this.aadhaarFrontFile.set(file);
-      this.aadhaarFrontPreview.set(previewUrl);
-    } else {
-      this.aadhaarBackFile.set(file);
-      this.aadhaarBackPreview.set(previewUrl);
-    }
-  }
-
-  removeMemberPhoto(kind: 'profile' | 'aadhaarFront' | 'aadhaarBack'): void {
-    if (kind === 'profile') {
-      this.profilePhotoFile.set(null);
-      this.profilePhotoUrl.set('');
-      this.profilePhotoPreview.set('');
-    } else if (kind === 'aadhaarFront') {
-      this.aadhaarFrontFile.set(null);
-      this.aadhaarFrontUrl.set('');
-      this.aadhaarFrontPreview.set('');
-    } else {
-      this.aadhaarBackFile.set(null);
-      this.aadhaarBackUrl.set('');
-      this.aadhaarBackPreview.set('');
-    }
   }
 
   async toggleMemberStatus(m: Member, enabled: boolean): Promise<void> {
@@ -855,12 +846,23 @@ export class MembersComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Add member: normal Save. Edit member: Save only after something changed (no accidental no-op submit). */
+  memberModalSaveDisabled(): boolean {
+    if (this.memberSavingBusy()) return true;
+    if (this.memberForm.invalid) return true;
+    if (this.editingId() && !this.memberForm.dirty) return true;
+    return false;
+  }
+
   async saveMember(): Promise<void> {
     // Guard against rapid double-clicks on Save (which can also record a partial payment).
     if (this.memberSavingBusy()) return;
 
     if (this.memberForm.invalid) {
       this.memberForm.markAllAsTouched();
+      return;
+    }
+    if (this.editingId() && !this.memberForm.dirty) {
       return;
     }
     const v = this.memberForm.getRawValue();
@@ -874,19 +876,45 @@ export class MembersComponent implements OnInit, OnDestroy {
     }
     const join = new Date(v.joinDate + 'T12:00:00');
     const due = new Date(v.dueDate + 'T12:00:00');
-    const newAmount = Number(v.amount);
-    const isCreate = !this.editingId();
-    const isPartial = !!v.isPartialPayment;
-    const paidAmount = isPartial ? Number(v.paidAmount) : (isCreate ? newAmount : 0);
-    const pendingAmount = isPartial ? Math.max(0, newAmount - paidAmount) : 0;
-    if (isPartial) {
-      if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
-        this.toast.error('Enter a valid current paying amount');
-        return;
-      }
-      if (paidAmount > newAmount) {
-        this.toast.error('Current paying amount cannot be greater than total amount');
-        return;
+    const editId = this.editingId();
+
+    let newAmount: number;
+    let paidAmount: number;
+    let pendingAmount: number;
+    let advancePaidVal: number;
+
+    if (editId) {
+      const snap =
+        this.memberEditBillingPreserve ??
+        (() => {
+          const m = this.members().find((x) => x.memberId === editId);
+          return m
+            ? {
+                amount: Number(m.amount) || 0,
+                advancePaid: Math.max(0, Number(m.advancePaid) || 0),
+                pendingAmount: Math.max(0, Number(m.pendingAmount) || 0),
+              }
+            : { amount: 0, advancePaid: 0, pendingAmount: 0 };
+        })();
+      newAmount = snap.amount;
+      advancePaidVal = snap.advancePaid;
+      pendingAmount = snap.pendingAmount;
+      paidAmount = 0;
+    } else {
+      newAmount = Number(v.amount);
+      advancePaidVal = Math.max(0, Number(v.advancePaid) || 0);
+      const isPartial = !!v.isPartialPayment;
+      paidAmount = isPartial ? Number(v.paidAmount) : newAmount;
+      pendingAmount = isPartial ? Math.max(0, newAmount - paidAmount) : 0;
+      if (isPartial) {
+        if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
+          this.toast.error('Enter a valid current paying amount');
+          return;
+        }
+        if (paidAmount > newAmount) {
+          this.toast.error('Current paying amount cannot be greater than total amount');
+          return;
+        }
       }
     }
     // The "Aadhaar number" field accepts up to 12 digits. We store both:
@@ -895,11 +923,6 @@ export class MembersComponent implements OnInit, OnDestroy {
     const aadhaarRaw = (v.aadhaarLast4 || '').replace(/\D/g, '');
     const aadhaarNumberFull = aadhaarRaw.length === 12 ? aadhaarRaw : '';
     const aadhaarTail = aadhaarRaw.length >= 4 ? aadhaarRaw.slice(-4) : aadhaarRaw;
-
-    const profileFile = this.profilePhotoFile();
-    const aadhaarFrontFile = this.aadhaarFrontFile();
-    const aadhaarBackFile = this.aadhaarBackFile();
-    const hasAnyNewFile = !!(profileFile || aadhaarFrontFile || aadhaarBackFile);
 
     const baseInput = {
       firstName: v.firstName,
@@ -917,11 +940,11 @@ export class MembersComponent implements OnInit, OnDestroy {
       joinDate: join,
       dueDate: due,
       amount: newAmount,
-      advancePaid: Math.max(0, Number(v.advancePaid) || 0),
+      advancePaid: advancePaidVal,
       paidAmount,
       pendingAmount,
       paymentMethod: v.paymentMethod,
-      recordPaymentOnUpdate: !isCreate && isPartial,
+      recordPaymentOnUpdate: false,
       status: v.status,
       subscriptionType: this.isGym() ? v.subscriptionType : undefined,
     };
@@ -931,24 +954,11 @@ export class MembersComponent implements OnInit, OnDestroy {
       const id = this.editingId();
       let memberId = id;
       if (id) {
-        // EDIT: upload first (if any new files), then update with URLs.
-        let profilePhotoUrl = this.profilePhotoUrl();
-        let aadhaarFrontUrl = this.aadhaarFrontUrl();
-        let aadhaarBackUrl = this.aadhaarBackUrl();
-        if (profileFile) {
-          profilePhotoUrl = await this.onboardingApi.uploadOwnerPhoto(id, 'profile', profileFile);
-        }
-        if (aadhaarFrontFile) {
-          aadhaarFrontUrl = await this.onboardingApi.uploadOwnerPhoto(id, 'aadhaarFront', aadhaarFrontFile);
-        }
-        if (aadhaarBackFile) {
-          aadhaarBackUrl = await this.onboardingApi.uploadOwnerPhoto(id, 'aadhaarBack', aadhaarBackFile);
-        }
         await this.membersApi.updateMember(id, {
           ...baseInput,
-          profilePhotoUrl,
-          aadhaarFrontUrl,
-          aadhaarBackUrl,
+          profilePhotoUrl: this.profilePhotoUrl(),
+          aadhaarFrontUrl: this.aadhaarFrontUrl(),
+          aadhaarBackUrl: this.aadhaarBackUrl(),
         });
         this.toast.success('Member updated');
         this.notifyOwnerAction('Member updated', `${v.firstName} profile updated successfully.`);
@@ -957,28 +967,6 @@ export class MembersComponent implements OnInit, OnDestroy {
         // any photos and write the URLs back. If owner provided no images, we skip the
         // second update entirely and the legacy create path runs unchanged.
         memberId = await this.membersApi.addMember(baseInput);
-        if (hasAnyNewFile && memberId) {
-          let profilePhotoUrl = '';
-          let aadhaarFrontUrl = '';
-          let aadhaarBackUrl = '';
-          if (profileFile) {
-            profilePhotoUrl = await this.onboardingApi.uploadOwnerPhoto(memberId, 'profile', profileFile);
-          }
-          if (aadhaarFrontFile) {
-            aadhaarFrontUrl = await this.onboardingApi.uploadOwnerPhoto(memberId, 'aadhaarFront', aadhaarFrontFile);
-          }
-          if (aadhaarBackFile) {
-            aadhaarBackUrl = await this.onboardingApi.uploadOwnerPhoto(memberId, 'aadhaarBack', aadhaarBackFile);
-          }
-          await this.membersApi.updateMember(memberId, {
-            ...baseInput,
-            paidAmount: 0, // already recorded in addMember; don't double-charge
-            recordPaymentOnUpdate: false,
-            profilePhotoUrl,
-            aadhaarFrontUrl,
-            aadhaarBackUrl,
-          });
-        }
         this.toast.success('Member added');
         this.notifyOwnerAction('Member added', `${v.firstName} added successfully.`);
         if (memberId && paidAmount > 0) {
@@ -1000,6 +988,7 @@ export class MembersComponent implements OnInit, OnDestroy {
           });
         }
       }
+      this.memberEditBillingPreserve = null;
       this.closeModal();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
@@ -1276,14 +1265,18 @@ ${pgName}`;
     const enteredAmount = Math.max(0, Number(v.amount) || 0);
     const currentPayingAmount = Math.max(0, Number(v.currentPayingAmount) || 0);
     const isPendingOnly = this.payEntryMode() === 'pendingOnly' && priorPending > 0;
-    const effectiveRentAmount = isPendingOnly ? priorPending : enteredAmount;
-    const computedPending = Math.max(0, effectiveRentAmount - currentPayingAmount);
+    const totalCollectibleStandard = isPendingOnly
+      ? priorPending
+      : priorPending > 0
+        ? enteredAmount + priorPending
+        : enteredAmount;
+    const computedPending = Math.max(0, totalCollectibleStandard - currentPayingAmount);
     if (v.isPartialPayment) {
       if (!Number.isFinite(Number(v.currentPayingAmount)) || Number(v.currentPayingAmount) <= 0) {
         this.toast.error('Enter current paying amount for partial payment');
         return;
       }
-      if (currentPayingAmount > effectiveRentAmount) {
+      if (currentPayingAmount > totalCollectibleStandard) {
         this.toast.error('Enter a valid current paying amount');
         return;
       }
@@ -1355,12 +1348,16 @@ ${pgName}`;
   }
 
   pendingFromPayForm(): number {
-    const isPendingOnly = this.payEntryMode() === 'pendingOnly';
-    const total = isPendingOnly
-      ? this.payTargetPendingAmount()
-      : Math.max(0, Number(this.payForm.controls.amount.value) || 0);
     const paying = Math.max(0, Number(this.payForm.controls.currentPayingAmount.value) || 0);
-    return Math.max(0, total - paying);
+    const isPendingOnly = this.payEntryMode() === 'pendingOnly';
+    if (isPendingOnly) {
+      const total = this.payTargetPendingAmount();
+      return Math.max(0, total - paying);
+    }
+    const rent = Math.max(0, Number(this.payForm.controls.amount.value) || 0);
+    const priorPending = this.payTargetPendingAmount();
+    const totalCollectible = priorPending > 0 ? rent + priorPending : rent;
+    return Math.max(0, totalCollectible - paying);
   }
 
   payTargetPendingAmount(): number {
@@ -1376,11 +1373,13 @@ ${pgName}`;
     return pendingAmount > 0 ? rentAmount + pendingAmount : rentAmount;
   }
 
-  payCurrentAllowedMax(): number {
-    if (this.payEntryMode() === 'pendingOnly') {
-      return this.payTargetPendingAmount();
-    }
+  /** Rent field in Mark as paid (standard mode); used in the total breakdown line. */
+  payFormRentNumeric(): number {
     return Math.max(0, Number(this.payForm.controls.amount.value) || 0);
+  }
+
+  payCurrentAllowedMax(): number {
+    return this.payModeTotalAmount();
   }
 
   showMoveDueOnPartialOption(): boolean {

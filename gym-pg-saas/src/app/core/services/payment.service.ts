@@ -73,8 +73,26 @@ export class PaymentService {
     return 0;
   }
 
+  /**
+   * Newest first for the Payments UI: when the row was recorded (`createdAt`),
+   * then business `date`, then doc id. Matches "recent activity" even when `date` is backdated.
+   */
+  private sortPaymentsNewestFirst(list: Payment[]): void {
+    list.sort((a, b) => {
+      const ca = coerceFirestoreDate(a.createdAt)?.getTime() ?? 0;
+      const cb = coerceFirestoreDate(b.createdAt)?.getTime() ?? 0;
+      if (cb !== ca) return cb - ca;
+      const da = coerceFirestoreDate(a.date)?.getTime() ?? 0;
+      const db = coerceFirestoreDate(b.date)?.getTime() ?? 0;
+      if (db !== da) return db - da;
+      return b.paymentId.localeCompare(a.paymentId);
+    });
+  }
+
   watchPaymentsForOwner(ownerId: string, callback: (payments: Payment[]) => void): Unsubscribe {
-    // OPTIMIZATION: Limit to 500 most recent payments per owner for cost reduction
+    // Use orderBy('date') — composite index is already deployed in most projects.
+    // Rows are then sorted client-side (see sortPaymentsNewestFirst) so "just recorded"
+    // appears above same-day older writes when appropriate.
     const q = query(
       collection(this.fb.db, 'payments'),
       where('ownerId', '==', ownerId),
@@ -89,6 +107,7 @@ export class PaymentService {
           const data = d.data() as Payment;
           list.push({ ...data, paymentId: d.id });
         });
+        this.sortPaymentsNewestFirst(list);
         callback(list);
       },
       (error) => {
@@ -152,6 +171,7 @@ export class PaymentService {
     return onSnapshot(q, (snap) => {
       const list: Payment[] = [];
       snap.forEach((d) => list.push({ ...(d.data() as Payment), paymentId: d.id }));
+      this.sortPaymentsNewestFirst(list);
       callback(list);
     });
   }
