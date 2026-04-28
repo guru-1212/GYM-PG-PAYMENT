@@ -436,6 +436,12 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
     this.collectPage.set(page);
   }
 
+  /** Helvetica in jsPDF does not render ₹ (U+20B9); use ASCII for PDF rows only. */
+  private formatAmountForPdf(amount: number): string {
+    const n = Math.max(0, Number(amount) || 0);
+    return `Rs ${n.toLocaleString('en-IN')}`;
+  }
+
   async downloadPaymentsPdf(): Promise<void> {
     const payments = this.filteredPayments();
     const now = new Date();
@@ -508,6 +514,10 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
       doc.text(trimmed, x, y, { maxWidth });
     };
 
+    const rowAmountPdf = (text: string, x: number): void => {
+      doc.text(text, x, y);
+    };
+
     for (const payment of payments) {
       if (y + rowHeight * 2 > pageHeight - margin) {
         startPage();
@@ -515,12 +525,15 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
 
       rowText(payment.date.toDate().toLocaleDateString('en-IN'), columns[0], columns[1] - columns[0] - 2);
       rowText(this.nameForPayment(payment), columns[1], columns[2] - columns[1] - 2);
-      rowText(`₹${payment.amount.toLocaleString('en-IN')}`, columns[2], columns[3] - columns[2] - 2);
+      rowAmountPdf(this.formatAmountForPdf(payment.amount), columns[2]);
       rowText(payment.method.toUpperCase(), columns[3], columns[4] - columns[3] - 2);
       rowText(payment.paymentId.slice(-8), columns[4], columns[5] - columns[4] - 2); // Show last 8 chars of ID
       rowText(payment.createdAt.toDate().toLocaleDateString('en-IN'), columns[5], columns[6] - columns[5] - 2);
       rowText(payment.isPartialPayment ? 'Yes' : 'No', columns[6], columns[7] - columns[6] - 2);
-      rowText(payment.pendingAmount ? `₹${payment.pendingAmount.toLocaleString('en-IN')}` : '-', columns[7], pageWidth - columns[7] - margin);
+      rowAmountPdf(
+        payment.pendingAmount ? this.formatAmountForPdf(payment.pendingAmount) : '-',
+        columns[7],
+      );
       y += rowHeight;
     }
 

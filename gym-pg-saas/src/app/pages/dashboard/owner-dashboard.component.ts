@@ -1050,13 +1050,24 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
         pendingBeforeAmount,
         pendingAfterAmount,
       };
+      const latestPayment = await this.paymentsApi.getLatestPaymentForMember(m.memberId).catch(() => null);
+      const resolvedMethod: PaymentMethod =
+        latestPayment?.method === 'cash' ||
+        latestPayment?.method === 'upi' ||
+        latestPayment?.method === 'card'
+          ? latestPayment.method
+          : 'cash';
+      const paymentIdForReceipt =
+        latestPayment?.paymentId && String(latestPayment.paymentId).length > 0
+          ? latestPayment.paymentId
+          : `payment-${Date.now()}`;
       const payment: Payment = {
-        paymentId: `payment-${Date.now()}`,
+        paymentId: paymentIdForReceipt,
         memberId: m.memberId,
         ownerId: this.auth.profile()?.ownerId || '',
         amount: estimatedPaidAmount,
         date: Timestamp.fromDate(paymentDate),
-        method: 'cash' as PaymentMethod,
+        method: resolvedMethod,
         createdAt: Timestamp.fromDate(paymentDate),
       };
       const { url, expiresAt } = await this.receiptService.generateReceiptLink(

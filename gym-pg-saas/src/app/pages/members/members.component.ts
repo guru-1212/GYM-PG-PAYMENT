@@ -1929,14 +1929,30 @@ ${pgName}`;
         paymentDate.getDate(),
       ).padStart(2, '0')}-${m.memberId.slice(0, 6).toUpperCase()}`;
 
-      // Create a mock payment object for the receipt service
+      const latestPayment = await this.paymentsApi.getLatestPaymentForMember(m.memberId).catch(() => null);
+      const methodFromOptions = options?.method;
+      const resolvedMethod: PaymentMethod =
+        methodFromOptions === 'cash' || methodFromOptions === 'upi' || methodFromOptions === 'card'
+          ? methodFromOptions
+          : latestPayment?.method === 'cash' ||
+              latestPayment?.method === 'upi' ||
+              latestPayment?.method === 'card'
+            ? latestPayment.method
+            : 'cash';
+
+      const paymentIdForReceipt =
+        latestPayment?.paymentId && String(latestPayment.paymentId).length > 0
+          ? latestPayment.paymentId
+          : `payment-${Date.now()}`;
+
+      // Payment row for receipt (method matches owner payments table when not passed explicitly)
       const payment: Payment = {
-        paymentId: `payment-${Date.now()}`,
+        paymentId: paymentIdForReceipt,
         memberId: m.memberId,
         ownerId: this.auth.profile()?.ownerId || '',
         amount: estimatedPaidAmount,
         date: Timestamp.fromDate(paymentDate),
-        method: options?.method || ('cash' as PaymentMethod),
+        method: resolvedMethod,
         createdAt: Timestamp.fromDate(paymentDate),
       };
 
