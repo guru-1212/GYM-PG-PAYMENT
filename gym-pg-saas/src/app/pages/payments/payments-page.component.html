@@ -4,6 +4,333 @@
     <p class="text-sm text-slate-600 sm:text-base">{{ 'payments.subtitle' | t }}</p>
   </header>
 
+  <!-- ========================  COLLECT PAYMENT  ========================
+       Disabled per client request — the same Mark-Paid action is now exposed
+       directly inside the summary cards (Due Today / Overdue / Paid ahead)
+       below via the green tick-circle icon next to each member.
+       Re-enable by changing the outer `@if (false)` back to `@if (true)`.
+  -->
+  @if (false) {
+  @if (canRecordPaymentsAction()) {
+    <section class="saas-card overflow-hidden">
+      <!-- Header bar -->
+      <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 dark:border-slate-700/70">
+        <div>
+          <h2 class="text-base font-semibold text-slate-900 sm:text-lg">Collect payment</h2>
+          <p class="text-xs text-slate-500 sm:text-sm">
+            Record a payment for any active member without leaving this page.
+          </p>
+        </div>
+        <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-200">
+          <span class="material-icons-outlined text-base">groups</span>
+          {{ collectCounts().all }} active
+        </span>
+      </div>
+
+      <!-- Toolbar: search + status pills + page size -->
+      <div class="space-y-3 border-b border-slate-100 px-4 py-4 dark:border-slate-700/70">
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div class="space-y-1 lg:col-span-2">
+            <label for="collectSearch" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Search member
+            </label>
+            <div class="relative">
+              <span class="material-icons-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-slate-400">search</span>
+              <input
+                id="collectSearch"
+                type="text"
+                placeholder="Name or mobile…"
+                [value]="collectSearch()"
+                (input)="onCollectSearchChange($event)"
+                class="saas-input w-full pl-9 pr-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <div class="space-y-1">
+            <label for="collectPageSize" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Rows per page
+            </label>
+            <select
+              id="collectPageSize"
+              class="saas-input w-full px-3 py-2 text-sm"
+              [value]="collectPageSize()"
+              (change)="onCollectPageSizeChange($event)"
+            >
+              <option [value]="10">10</option>
+              <option [value]="25">25</option>
+              <option [value]="50">50</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</span>
+          <div class="flex flex-wrap gap-1.5 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80">
+            <button
+              type="button"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+              [ngClass]="collectFilter() === 'all'
+                ? 'bg-white text-indigo-700 shadow-sm dark:bg-slate-900 dark:text-indigo-300'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'"
+              (click)="setCollectFilter('all')"
+            >
+              All
+              <span class="ml-1 text-slate-400 dark:text-slate-500">· {{ collectCounts().all }}</span>
+            </button>
+            <button
+              type="button"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+              [ngClass]="collectFilter() === 'pending'
+                ? 'bg-white text-amber-700 shadow-sm dark:bg-slate-900 dark:text-amber-300'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'"
+              (click)="setCollectFilter('pending')"
+            >
+              Partial pending
+              <span class="ml-1 text-slate-400 dark:text-slate-500">· {{ collectCounts().pending }}</span>
+            </button>
+            <button
+              type="button"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+              [ngClass]="collectFilter() === 'overdue'
+                ? 'bg-white text-red-700 shadow-sm dark:bg-slate-900 dark:text-red-300'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'"
+              (click)="setCollectFilter('overdue')"
+            >
+              Overdue
+              <span class="ml-1 text-slate-400 dark:text-slate-500">· {{ collectCounts().overdue }}</span>
+            </button>
+            <button
+              type="button"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+              [ngClass]="collectFilter() === 'dueSoon'
+                ? 'bg-white text-amber-700 shadow-sm dark:bg-slate-900 dark:text-amber-300'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'"
+              (click)="setCollectFilter('dueSoon')"
+            >
+              Due soon
+              <span class="ml-1 text-slate-400 dark:text-slate-500">· {{ collectCounts().dueSoon }}</span>
+            </button>
+            <button
+              type="button"
+              class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+              [ngClass]="collectFilter() === 'paid'
+                ? 'bg-white text-emerald-700 shadow-sm dark:bg-slate-900 dark:text-emerald-300'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100'"
+              (click)="setCollectFilter('paid')"
+            >
+              Paid ahead
+              <span class="ml-1 text-slate-400 dark:text-slate-500">· {{ collectCounts().paid }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop / tablet table (>= md) -->
+      <div class="hidden md:block">
+        <div class="overflow-x-auto">
+          <table class="saas-table min-w-full text-left text-sm">
+            <thead>
+              <tr>
+                <th class="px-4 py-3 font-semibold">Member</th>
+                <th class="px-4 py-3 font-semibold">Mobile</th>
+                <th class="px-4 py-3 font-semibold">Plan</th>
+                @if (isPg()) {
+                  <th class="px-4 py-3 font-semibold">Room</th>
+                }
+                <th class="px-4 py-3 font-semibold">{{ dueLabel() }}</th>
+                <th class="px-4 py-3 font-semibold">Status</th>
+                <th class="px-4 py-3 text-right font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
+              @for (m of paginatedCollectMembers(); track m.memberId) {
+                <tr>
+                  <td class="px-4 py-3.5">
+                    <div class="flex items-center gap-3">
+                      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold uppercase text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300">
+                        {{ (m.firstName || 'M').charAt(0) }}
+                      </span>
+                      <div class="min-w-0">
+                        <p class="truncate font-medium text-slate-900 dark:text-slate-100">
+                          {{ m.firstName }} {{ m.lastName }}
+                        </p>
+                        @if ((m.pendingAmount || 0) > 0) {
+                          <span class="mt-0.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                            Pending payment
+                          </span>
+                        }
+                      </div>
+                    </div>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3.5 text-slate-600">{{ m.mobile || '—' }}</td>
+                  <td class="whitespace-nowrap px-4 py-3.5 capitalize text-slate-600">
+                    {{ m.subscriptionType || 'monthly' }}
+                  </td>
+                  @if (isPg()) {
+                    <td class="px-4 py-3.5">
+                      @if (memberPgRoomLabel(m); as label) {
+                        @if (label) {
+                          <span class="rounded bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                            {{ label }}
+                          </span>
+                        } @else {
+                          <span class="text-slate-400">—</span>
+                        }
+                      } @else {
+                        <span class="text-slate-400">—</span>
+                      }
+                    </td>
+                  }
+                  <td class="whitespace-nowrap px-4 py-3.5 text-slate-800">
+                    <div class="font-medium">{{ m.dueDate.toDate() | date: 'mediumDate' }}</div>
+                    <div class="text-xs text-slate-500">{{ dueStatusLabel(m) }}</div>
+                  </td>
+                  <td class="whitespace-nowrap px-4 py-3.5">
+                    @if ((m.pendingAmount || 0) > 0) {
+                      <span class="text-xs font-semibold text-red-600">
+                        ₹{{ m.pendingAmount | number: '1.0-0' }} pending
+                      </span>
+                    } @else if (rowTone(m) === 'red') {
+                      <span class="status-pill-overdue">OVD</span>
+                    } @else if (isDueSoon(m)) {
+                      <span class="status-pill-due-soon whitespace-nowrap">{{ dueStatusLabel(m) }}</span>
+                    } @else if (rowTone(m) === 'green') {
+                      <span class="status-pill-paid">PAID</span>
+                    } @else {
+                      <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">—</span>
+                    }
+                  </td>
+                  <td class="px-4 py-3.5">
+                    <div class="flex items-center justify-end gap-2">
+                      @if (rowTone(m) !== 'green' || (m.pendingAmount || 0) > 0) {
+                        <button
+                          type="button"
+                          title="Mark Paid"
+                          class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                          (click)="openPay(m)"
+                        >
+                          <span class="material-icons-outlined text-base">check_circle</span>
+                          Mark paid
+                        </button>
+                      } @else {
+                        <span class="text-xs text-slate-400">No action</span>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td [attr.colspan]="isPg() ? 7 : 6" class="px-4 py-12 text-center">
+                    <span class="material-icons-outlined mx-auto block text-5xl text-slate-300 dark:text-slate-600">groups</span>
+                    <p class="mt-2 text-sm text-slate-500">No matching members.</p>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Mobile cards (< md) -->
+      <ul class="divide-y divide-slate-100 md:hidden dark:divide-slate-700/60">
+        @for (m of paginatedCollectMembers(); track m.memberId) {
+          <li class="flex items-start gap-3 px-4 py-3">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold uppercase text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300">
+              {{ (m.firstName || 'M').charAt(0) }}
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="truncate font-semibold text-slate-900 dark:text-slate-100">
+                    {{ m.firstName }} {{ m.lastName }}
+                  </p>
+                  <p class="text-xs text-slate-500">📞 {{ m.mobile || '—' }}</p>
+                  <p class="mt-0.5 text-xs capitalize text-slate-500">
+                    {{ m.subscriptionType || 'monthly' }}
+                    @if (isPg() && memberPgRoomLabel(m); as label) {
+                      @if (label) {
+                        <span class="ml-1 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">{{ label }}</span>
+                      }
+                    }
+                  </p>
+                </div>
+                <div class="text-right">
+                  @if ((m.pendingAmount || 0) > 0) {
+                    <span class="whitespace-nowrap text-xs font-semibold text-red-600">
+                      ₹{{ m.pendingAmount | number: '1.0-0' }}
+                    </span>
+                  } @else if (rowTone(m) === 'red') {
+                    <span class="status-pill-overdue">OVD</span>
+                  } @else if (isDueSoon(m)) {
+                    <span class="status-pill-due-soon whitespace-nowrap">{{ dueStatusLabel(m) }}</span>
+                  } @else if (rowTone(m) === 'green') {
+                    <span class="status-pill-paid">PAID</span>
+                  }
+                </div>
+              </div>
+              <div class="mt-1 text-xs text-slate-600">
+                {{ dueLabel() }}: {{ m.dueDate.toDate() | date: 'mediumDate' }}
+                <span class="text-slate-400">·</span>
+                {{ dueStatusLabel(m) }}
+              </div>
+              @if (rowTone(m) !== 'green' || (m.pendingAmount || 0) > 0) {
+                <button
+                  type="button"
+                  class="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  (click)="openPay(m)"
+                >
+                  <span class="material-icons-outlined text-base">check_circle</span>
+                  Mark paid
+                </button>
+              }
+            </div>
+          </li>
+        } @empty {
+          <li class="px-4 py-12 text-center">
+            <span class="material-icons-outlined mx-auto block text-5xl text-slate-300 dark:text-slate-600">groups</span>
+            <p class="mt-2 text-sm text-slate-500">No matching members.</p>
+          </li>
+        }
+      </ul>
+
+      <!-- Pagination -->
+      @if (collectRange(); as range) {
+        @if (range.total > 0) {
+          <div class="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700/70">
+            <p class="text-xs text-slate-600 sm:text-sm">
+              Showing {{ range.from }}–{{ range.to }} of {{ range.total }}
+            </p>
+            @if (collectTotalPages() > 1) {
+              <div class="flex flex-wrap items-center justify-center gap-1 sm:justify-end">
+                <button
+                  type="button"
+                  class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  [disabled]="collectPage() === 1"
+                  (click)="goToCollectPage(collectPage() - 1)"
+                >
+                  ← Prev
+                </button>
+                <span class="px-3 text-xs font-semibold text-slate-700">
+                  {{ collectPage() }} / {{ collectTotalPages() }}
+                </span>
+                <button
+                  type="button"
+                  class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  [disabled]="collectPage() === collectTotalPages()"
+                  (click)="goToCollectPage(collectPage() + 1)"
+                >
+                  Next →
+                </button>
+              </div>
+            }
+          </div>
+        }
+      }
+    </section>
+  }
+  }
+  <!-- ====================  END COLLECT PAYMENT (disabled)  ==================== -->
+
   <!-- ========================  SUMMARY CARDS  ======================== -->
   <div class="grid gap-3 sm:gap-4 md:grid-cols-3">
     <!-- Due today -->
@@ -35,9 +362,22 @@
             <span class="truncate font-medium text-slate-900">
               {{ m.firstName }} {{ m.lastName }}
             </span>
-            <span class="shrink-0 font-semibold text-amber-800">
-              ₹{{ m.amount | number: '1.0-0' }}
-            </span>
+            <div class="flex shrink-0 items-center gap-2">
+              <span class="font-semibold text-amber-800">
+                ₹{{ m.amount | number: '1.0-0' }}
+              </span>
+              @if (canRecordPaymentsAction()) {
+                <button
+                  type="button"
+                  title="Mark as paid"
+                  aria-label="Mark as paid"
+                  class="flex h-7 w-7 items-center justify-center rounded-full text-emerald-600 transition-colors hover:bg-emerald-100 hover:text-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  (click)="openPay(m)"
+                >
+                  <span class="material-icons-outlined text-[20px] leading-none">check_circle</span>
+                </button>
+              }
+            </div>
           </li>
         } @empty {
           <li class="rounded-lg bg-white/40 px-3 py-2 text-amber-900/80">
@@ -101,9 +441,22 @@
             <span class="truncate font-medium text-slate-900">
               {{ m.firstName }} {{ m.lastName }}
             </span>
-            <span class="shrink-0 text-xs text-red-800">
-              {{ m.dueDate.toDate() | date: 'mediumDate' }}
-            </span>
+            <div class="flex shrink-0 items-center gap-2">
+              <span class="text-xs text-red-800">
+                {{ m.dueDate.toDate() | date: 'mediumDate' }}
+              </span>
+              @if (canRecordPaymentsAction()) {
+                <button
+                  type="button"
+                  title="Mark as paid"
+                  aria-label="Mark as paid"
+                  class="flex h-7 w-7 items-center justify-center rounded-full text-emerald-600 transition-colors hover:bg-emerald-100 hover:text-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  (click)="openPay(m)"
+                >
+                  <span class="material-icons-outlined text-[20px] leading-none">check_circle</span>
+                </button>
+              }
+            </div>
           </li>
         } @empty {
           <li class="rounded-lg bg-white/40 px-3 py-2 text-red-900/80">
@@ -170,9 +523,22 @@
             <span class="truncate font-medium text-slate-900">
               {{ m.firstName }} {{ m.lastName }}
             </span>
-            <span class="shrink-0 text-xs text-emerald-800">
-              {{ m.dueDate.toDate() | date: 'mediumDate' }}
-            </span>
+            <div class="flex shrink-0 items-center gap-2">
+              <span class="text-xs text-emerald-800">
+                {{ m.dueDate.toDate() | date: 'mediumDate' }}
+              </span>
+              @if (canRecordPaymentsAction()) {
+                <button
+                  type="button"
+                  title="Mark as paid"
+                  aria-label="Mark as paid"
+                  class="flex h-7 w-7 items-center justify-center rounded-full text-emerald-700 transition-colors hover:bg-emerald-100 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  (click)="openPay(m)"
+                >
+                  <span class="material-icons-outlined text-[20px] leading-none">check_circle</span>
+                </button>
+              }
+            </div>
           </li>
         } @empty {
           <li class="rounded-lg bg-white/40 px-3 py-2 text-emerald-900/80">
@@ -692,3 +1058,12 @@
     }
   </section>
 </div>
+
+<!-- Shared "Mark as paid" modal — same UX as the Members table. -->
+<app-pay-member-modal
+  [open]="payModalOpen()"
+  [member]="payTarget()"
+  [isGym]="isGym()"
+  [dueLabel]="dueLabel()"
+  (closed)="closePay()"
+/>

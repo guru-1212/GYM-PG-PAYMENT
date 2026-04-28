@@ -147,7 +147,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     () => this.isPg() && (this.pgLayout()?.floors?.length ?? 0) > 0,
   );
 
-  /** Safely get the due date for a member, with fallback handling */
+  /** Due date for the member currently in the pay modal (if any). */
   getPayTargetDueDate(): Date | null {
     const m = this.payTarget();
     if (!m) return null;
@@ -382,6 +382,16 @@ export class MembersComponent implements OnInit, OnDestroy {
     ),
   });
 
+  readonly payForm = this.fb.nonNullable.group({
+    amount: [0, [Validators.required, positiveAmount()]],
+    currentPayingAmount: [0, [Validators.min(0)]],
+    method: this.fb.nonNullable.control<PaymentMethod>('cash', Validators.required),
+    subscriptionType: this.fb.nonNullable.control<SubscriptionType>('monthly', Validators.required),
+    isPartialPayment: this.fb.nonNullable.control(false),
+    moveDueToNextCycle: this.fb.nonNullable.control(false),
+    pendingAmount: [0],
+  });
+
   /* ---------- self-onboarding photo state (owner-side modal) ---------- */
   readonly profilePhotoFile = signal<File | null>(null);
   readonly aadhaarFrontFile = signal<File | null>(null);
@@ -414,16 +424,6 @@ export class MembersComponent implements OnInit, OnDestroy {
   } | null = null;
   private receiptConfirmResolver: ((ok: boolean) => void) | null = null;
 
-  readonly payForm = this.fb.nonNullable.group({
-    amount: [0, [Validators.required, positiveAmount()]],
-    currentPayingAmount: [0, [Validators.min(0)]],
-    method: this.fb.nonNullable.control<PaymentMethod>('cash', Validators.required),
-    subscriptionType: this.fb.nonNullable.control<SubscriptionType>('monthly', Validators.required),
-    isPartialPayment: this.fb.nonNullable.control(false),
-    moveDueToNextCycle: this.fb.nonNullable.control(false),
-    pendingAmount: [0], // No validators initially - will be added conditionally
-  });
-
   private unsub: (() => void) | null = null;
   private querySub: Subscription | null = null;
   private currentOwnerId: string | null = null;
@@ -445,7 +445,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     });
 
     // Set up conditional validation for pendingAmount based on isPartialPayment
-    this.payFormSubscription = this.payForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial) => {
+    this.payFormSubscription = this.payForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial: boolean) => {
       const pendingAmountControl = this.payForm.get('pendingAmount');
       const currentPayingControl = this.payForm.get('currentPayingAmount');
       if (!pendingAmountControl || !currentPayingControl) return;
@@ -787,6 +787,9 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   async saveMember(): Promise<void> {
+    // Guard against rapid double-clicks on Save (which can also record a partial payment).
+    if (this.memberSavingBusy()) return;
+
     if (this.memberForm.invalid) {
       this.memberForm.markAllAsTouched();
       return;
