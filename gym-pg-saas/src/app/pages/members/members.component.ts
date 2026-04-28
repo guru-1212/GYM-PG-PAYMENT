@@ -6,7 +6,7 @@ import { jsPDF } from 'jspdf';
 import { Subscription } from 'rxjs';
 import { Timestamp } from 'firebase/firestore';
 import { Member, SubscriptionType } from '../../core/models/member.model';
-import { PgLayout } from '../../core/models/pg-layout.model';
+import { PgFloorLayout, PgLayout, PgRoomLayout } from '../../core/models/pg-layout.model';
 import { Payment, PaymentMethod } from '../../core/models/payment.model';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
@@ -44,6 +44,10 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
   imports: [ReactiveFormsModule, DatePipe, DecimalPipe, ModalComponent, TranslatePipe],
   templateUrl: './members.component.html',
   styles: [`
+    select.pg-seat-select option:disabled {
+      color: rgb(185 28 28);
+    }
+
     .seat-assign-highlight {
       position: relative;
       border-color: #facc15 !important;
@@ -146,6 +150,12 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly hasSeatLayout = computed(
     () => this.isPg() && (this.pgLayout()?.floors?.length ?? 0) > 0,
   );
+
+  /** Floors from seat map, stable numeric order (for add/edit dropdowns). */
+  readonly pgFloorsOrdered = computed((): PgFloorLayout[] => {
+    const floors = this.pgLayout()?.floors ?? [];
+    return [...floors].sort((a, b) => Number(a.floorNumber) - Number(b.floorNumber));
+  });
 
   /** Due date for the member currently in the pay modal (if any). */
   getPayTargetDueDate(): Date | null {
@@ -1461,6 +1471,121 @@ ${pgName}`;
     return this.occupiedBedKeys().has(key);
   }
 
+  /** Every bed in the room is taken (respects editing member: their bed is not “occupied”). */
+  isRoomFullyOccupied(floorNum: number, roomNum: number): boolean {
+    const f = Math.trunc(Number(floorNum));
+    const r = Math.trunc(Number(roomNum));
+    if (!Number.isFinite(f) || !Number.isFinite(r) || r <= 0) return false;
+    const floorObj = this.pgLayout()?.floors?.find((x) => Math.trunc(Number(x.floorNumber)) === f);
+    const roomObj = floorObj?.rooms?.find((x) => Math.trunc(Number(x.roomNumber)) === r);
+    const n = Math.trunc(Number(roomObj?.beds));
+    if (!Number.isFinite(n) || n <= 0) return true;
+    for (let b = 1; b <= n; b++) {
+      if (!this.isBedOccupied(f, r, b)) return false;
+    }
+    return true;
+  }
+
+  /** Every room on the floor is fully occupied (no assignable bed left on that floor). */
+  isFloorFullyOccupied(floor: PgFloorLayout): boolean {
+    const rooms = floor.rooms ?? [];
+    if (rooms.length === 0) return false;
+    const f = Math.trunc(Number(floor.floorNumber));
+    return rooms.every((room) => this.isRoomFullyOccupied(f, Math.trunc(Number(room.roomNumber))));
+  }
+
+  /** Parsed floor when the control has a value (empty string means no selection, not ground `0`). */
+  seatFloorFormNum(): number | null {
+    const raw = (this.memberForm.controls.floorNumber.value ?? '').toString().trim();
+    if (raw === '') return null;
+    const f = Math.trunc(Number(raw));
+    return Number.isFinite(f) ? f : null;
+  }
+
+  seatRoomFormNum(): number | null {
+    const raw = (this.memberForm.controls.roomNumber.value ?? '').toString().trim();
+    if (raw === '') return null;
+    const r = Math.trunc(Number(raw));
+    return Number.isFinite(r) && r > 0 ? r : null;
+  }
+
+  roomsForSelectedFloor(): PgRoomLayout[] {
+    const f = this.seatFloorFormNum();
+    if (f === null) return [];
+    return this.roomsForFloorNumber(f);
+  }
+
+  selectedRoomBedCount(): number {
+    const f = this.seatFloorFormNum();
+    const r = this.seatRoomFormNum();
+    if (f === null || r === null) return 0;
+    const floorObj = this.pgLayout()?.floors?.find((x) => Math.trunc(Number(x.floorNumber)) === f);
+    const roomObj = floorObj?.rooms?.find((x) => Math.trunc(Number(x.roomNumber)) === r);
+    const n = Math.trunc(Number(roomObj?.beds));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  bedIndicesForSelectedRoom(): number[] {
+    const n = this.selectedRoomBedCount();
+    return n > 0 ? Array.from({ length: n }, (_, i) => i + 1) : [];
+  }
+
+  onSeatFloorSelectChange(): void {
+    if (!this.hasSeatLayout()) return;
+    const f = this.seatFloorFormNum();
+    if (f === null) {
+      this.memberForm.patchValue({ roomNumber: '', bedNumber: '' }, { emitEvent: false });
+      this.syncSeatFieldsAfterDropdown();
+      return;
+    }
+    const rooms = this.roomsForFloorNumber(f);
+    const r = this.seatRoomFormNum();
+    const roomOk = r !== null && rooms.some((x) => Math.trunc(Number(x.roomNumber)) === r);
+    if (!roomOk) {
+      this.memberForm.patchValue({ roomNumber: '', bedNumber: '' }, { emitEvent: false });
+    } else {
+      this.clearBedIfInvalidForRoom(f, r);
+    }
+    this.syncSeatFieldsAfterDropdown();
+  }
+
+  onSeatRoomSelectChange(): void {
+    if (!this.hasSeatLayout()) return;
+    const f = this.seatFloorFormNum();
+    const r = this.seatRoomFormNum();
+    if (f !== null && r !== null) {
+      this.clearBedIfInvalidForRoom(f, r);
+    }
+    this.syncSeatFieldsAfterDropdown();
+  }
+
+  onSeatBedSelectChange(): void {
+    if (!this.hasSeatLayout()) return;
+    this.syncSeatFieldsAfterDropdown();
+  }
+
+  private roomsForFloorNumber(floorNum: number): PgRoomLayout[] {
+    const floorObj = this.pgLayout()?.floors?.find((x) => Math.trunc(Number(x.floorNumber)) === floorNum);
+    const rooms = floorObj?.rooms ?? [];
+    return [...rooms].sort((a, b) => Number(a.roomNumber) - Number(b.roomNumber));
+  }
+
+  private clearBedIfInvalidForRoom(floorNum: number, roomNum: number): void {
+    const roomObj = this.roomsForFloorNumber(floorNum).find((x) => Math.trunc(Number(x.roomNumber)) === roomNum);
+    const maxBeds = Math.trunc(Number(roomObj?.beds));
+    const b = Math.trunc(Number(this.memberForm.controls.bedNumber.value));
+    if (!Number.isFinite(maxBeds) || maxBeds <= 0 || !Number.isFinite(b) || b < 1 || b > maxBeds) {
+      this.memberForm.patchValue({ bedNumber: '' }, { emitEvent: false });
+    }
+  }
+
+  private syncSeatFieldsAfterDropdown(): void {
+    const v = this.memberForm.getRawValue();
+    this.applyRoomRentToMemberAmount(v.floorNumber, v.roomNumber);
+    this.manualSeatEntryTriggered.set(false);
+    this.manualSeatError.set(this.getSeatAvailabilityIssue(v.floorNumber, v.roomNumber, v.bedNumber));
+  }
+
   formatRoomNumber(floorNumber: number, roomNumber: number): string {
     return formatPgRoomLabel(floorNumber, roomNumber);
   }
@@ -1499,12 +1624,11 @@ ${pgName}`;
       roomNumber: String(room),
       bedNumber: String(bed),
     });
-    this.applyRoomRentToMemberAmount(floor, room);
+    this.syncSeatFieldsAfterDropdown();
     this.memberForm.controls.floorNumber.markAsTouched();
     this.memberForm.controls.roomNumber.markAsTouched();
     this.memberForm.controls.bedNumber.markAsTouched();
     this.manualSeatEntryTriggered.set(false);
-    this.manualSeatError.set(null);
     this.closeBedPicker();
   }
 
