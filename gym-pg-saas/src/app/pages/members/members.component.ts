@@ -1244,7 +1244,8 @@ ${pgName}`;
         currentDueDate: due,
         subscriptionType: this.isGym() ? v.subscriptionType : undefined,
         isPartialPayment: v.isPartialPayment,
-        moveDueOnPartial: v.isPartialPayment ? v.moveDueToNextCycle : false,
+        moveDueOnPartial:
+          v.isPartialPayment && this.payEntryMode() !== 'pendingOnly' ? v.moveDueToNextCycle : false,
         pendingAmount: v.isPartialPayment ? computedPending : 0,
         priorPendingAmount: priorPending,
         memberPlanAmount: effectivePlanAmount,
@@ -1314,6 +1315,9 @@ ${pgName}`;
   }
 
   showMoveDueOnPartialOption(): boolean {
+    // Pending-only flow clears old balance only; advancing the cycle would let
+    // the member show as paid-up for the next period without paying that rent.
+    if (this.payEntryMode() === 'pendingOnly') return false;
     return this.pendingFromPayForm() > 1;
   }
 

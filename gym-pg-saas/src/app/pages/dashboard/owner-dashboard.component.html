@@ -1,19 +1,37 @@
 <div class="saas-page mx-auto w-full min-w-0 max-w-7xl space-y-6 overflow-x-clip">
   <!-- ── Header bar with title and plan countdown ─────────────────────────── -->
-  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
     <div class="min-w-0 flex-1">
       <h1 class="truncate text-2xl font-bold text-slate-900 sm:text-3xl">{{ dashboardTitle() }}</h1>
       <p class="mt-0.5 text-sm text-slate-600">{{ 'dashboard.subtitle' | t }}</p>
     </div>
-    @if (subscriptionCountdown(); as c) {
+    <div class="hidden shrink-0 flex-col items-stretch gap-2 self-start sm:flex sm:items-end">
       <div
-        class="inline-flex shrink-0 items-center self-start rounded-full border px-3 py-1.5 text-xs font-semibold"
-        [ngClass]="c.expired || c.days <= 7 ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'"
+        class="inline-flex items-center gap-2 rounded-2xl border border-slate-200/90 bg-white/90 px-3.5 py-2 shadow-sm backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/80"
+        [attr.title]="dashboardHeaderGreeting().text"
       >
-        <span class="material-icons-outlined mr-1 align-[-2px] text-sm">schedule</span>
-        Plan {{ c.text }}
+        <span
+          class="material-icons-outlined text-xl text-indigo-600 dark:text-indigo-400"
+          aria-hidden="true"
+          >{{ dashboardHeaderGreeting().icon }}</span>
+        <span class="text-sm font-semibold tracking-tight text-slate-800 dark:text-slate-100">{{
+          dashboardHeaderGreeting().text
+        }}</span>
       </div>
-    }
+      @if (subscriptionCountdown(); as c) {
+        <div
+          class="inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm"
+          [ngClass]="
+            c.expired || c.days <= 7
+              ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+          "
+        >
+          <span class="material-icons-outlined text-sm leading-none">schedule</span>
+          <span>Plan {{ c.text }}</span>
+        </div>
+      }
+    </div>
   </div>
 
   <!-- ── Pulse status strip (clickable chips, drill-down to filtered views) ── -->

@@ -81,6 +81,31 @@ function compactRupee(v: number): string {
   return '₹' + Math.round(v);
 }
 
+type DashboardDayGreetingSegment = 'morning' | 'afternoon' | 'evening' | 'night';
+
+function dashboardDayGreetingSegment(now: Date): DashboardDayGreetingSegment {
+  const h = now.getHours();
+  if (h >= 5 && h < 12) return 'morning';
+  if (h >= 12 && h < 17) return 'afternoon';
+  if (h >= 17 && h < 21) return 'evening';
+  return 'night';
+}
+
+function dashboardDayGreetingIcon(segment: DashboardDayGreetingSegment): string {
+  switch (segment) {
+    case 'morning':
+      return 'waving_hand';
+    case 'afternoon':
+      return 'wb_twilight';
+    case 'evening':
+      return 'nights_stay';
+    case 'night':
+      return 'bedtime';
+    default:
+      return 'waving_hand';
+  }
+}
+
 // ── Public types used by template ─────────────────────────────────────────────
 export type ActionTab = 'overdue' | 'dueToday' | 'dueSoon' | 'partial';
 
@@ -230,6 +255,22 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     const base = this.i18n.t('dashboard.title');
     const name = this.auth.profile()?.businessName?.trim();
     return name ? `${name} ${base}` : base;
+  });
+
+  /** Web / tablet: greeting beside title (hidden below sm to avoid duplicating the shell mobile bar). */
+  readonly dashboardHeaderGreeting = computed(() => {
+    this.nowMs();
+    this.i18n.lang();
+    const seg = dashboardDayGreetingSegment(new Date());
+    const key =
+      seg === 'morning'
+        ? 'shell.greetingMorning'
+        : seg === 'afternoon'
+          ? 'shell.greetingAfternoon'
+          : seg === 'evening'
+            ? 'shell.greetingEvening'
+            : 'shell.greetingNight';
+    return { text: this.i18n.t(key), icon: dashboardDayGreetingIcon(seg) };
   });
 
   readonly subscriptionDaysRemaining = computed(() => {

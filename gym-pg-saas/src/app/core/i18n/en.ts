@@ -46,6 +46,12 @@ export const EN: Record<string, unknown> = {
     userMenu: 'Account menu',
     toggleTheme: 'Toggle dark mode',
   },
+  shell: {
+    greetingMorning: 'Hi, good morning',
+    greetingAfternoon: 'Good afternoon',
+    greetingEvening: 'Good evening',
+    greetingNight: 'Good night',
+  },
   auth: {
     email: 'Email',
     logout: 'Sign out',

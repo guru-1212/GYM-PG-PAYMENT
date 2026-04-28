@@ -45,6 +45,12 @@ export const TE: Record<string, unknown> = {
     userMenu: 'ఖాతా మెనూ',
     toggleTheme: 'డార్క్ మోడ్ మార్చండి',
   },
+  shell: {
+    greetingMorning: 'హాయ్, శుభోదయం',
+    greetingAfternoon: 'శుభ మధ్యాహ్నం',
+    greetingEvening: 'శుభ సాయంత్రం',
+    greetingNight: 'శుభ రాత్రి',
+  },
   auth: {
     email: 'ఇమెయిల్',
     logout: 'సైన్ అవుట్',

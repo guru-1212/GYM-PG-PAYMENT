@@ -15,6 +15,31 @@ import { ThemeToggleComponent } from '../shared/theme-toggle.component';
 import { ThemePickerComponent } from '../shared/theme-picker.component';
 import { NotificationBellComponent } from '../shared/notification-bell/notification-bell.component';
 
+type DayGreetingSegment = 'morning' | 'afternoon' | 'evening' | 'night';
+
+function ownerDayGreetingSegment(now: Date): DayGreetingSegment {
+  const h = now.getHours();
+  if (h >= 5 && h < 12) return 'morning';
+  if (h >= 12 && h < 17) return 'afternoon';
+  if (h >= 17 && h < 21) return 'evening';
+  return 'night';
+}
+
+function ownerDayGreetingIcon(segment: DayGreetingSegment): string {
+  switch (segment) {
+    case 'morning':
+      return 'waving_hand';
+    case 'afternoon':
+      return 'wb_twilight';
+    case 'evening':
+      return 'nights_stay';
+    case 'night':
+      return 'bedtime';
+    default:
+      return 'waving_hand';
+  }
+}
+
 @Component({
   selector: 'app-owner-shell',
   standalone: true,
@@ -76,6 +101,22 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   readonly chatText = signal('');
   readonly unreadCount = signal(0);
   // readonly complaintToggleBusy = signal(false);
+  /** Mobile top bar: time-of-day greeting (follows `nowMs` tick). */
+  readonly ownerHeaderGreeting = computed(() => {
+    this.nowMs();
+    this.i18n.lang();
+    const seg = ownerDayGreetingSegment(new Date());
+    const key =
+      seg === 'morning'
+        ? 'shell.greetingMorning'
+        : seg === 'afternoon'
+          ? 'shell.greetingAfternoon'
+          : seg === 'evening'
+            ? 'shell.greetingEvening'
+            : 'shell.greetingNight';
+    return { text: this.i18n.t(key), icon: ownerDayGreetingIcon(seg) };
+  });
+
   readonly planCountdown = computed(() => {
     this.nowMs();
     const end = this.profile()?.planEndDate?.toDate?.();
