@@ -19,13 +19,16 @@ import { MemberReceiptService } from '../../core/services/member-receipt.service
 import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { ToastService } from '../../core/services/toast.service';
 import {
+  addDays,
   calendarDaysBetween,
   coerceFirestoreDate,
   dueUiStatus,
   DueBucket,
   dueRemainingOrOverdueLabel,
   endOfToday,
+  formatYyyyMmDdAsDdMmYyyy,
   memberDueBucket,
+  parseYyyyMmDdLocal,
   startOfDay,
   startOfToday,
   timestampToDate,
@@ -34,7 +37,13 @@ import { formatPgRoomLabel, sharingLabelForBeds } from '../../core/utils/pg-layo
 import { memberImportSampleAoA, memberImportSampleCsv } from '../../core/utils/member-import-sample.util';
 import { MEMBER_IMPORT_PROGRESS_MESSAGES } from '../../core/utils/member-import-progress.messages';
 import { parsePgImportSeat, pgSheetSubscriptionError } from '../../core/utils/pg-sheet-import.utils';
-import { applyDigitsOnlyFromInput, optionalDigitsLen, positiveAmount, dueDateAfterJoinDate } from '../../core/utils/validators';
+import {
+  applyDigitsOnlyFromInput,
+  dueDateAfterJoinDate,
+  joinDateNotInPast,
+  optionalDigitsLen,
+  positiveAmount,
+} from '../../core/utils/validators';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
@@ -377,8 +386,8 @@ export class MembersComponent implements OnInit, OnDestroy {
     gender: this.fb.control<'male' | 'female' | 'other' | ''>(''),
     aadhaarLast4: ['', optionalDigitsLen(12)],
     notes: [''],
-    joinDate: ['', Validators.required],
-    dueDate: ['', [Validators.required, dueDateAfterJoinDate()]],
+    joinDate: ['', [Validators.required, Validators.pattern(/^\d{4}-\d{2}-\d{2}$/)]],
+    dueDate: ['', [Validators.required, Validators.pattern(/^\d{4}-\d{2}-\d{2}$/), dueDateAfterJoinDate()]],
     amount: [0, [Validators.required, positiveAmount()]],
     advancePaid: [0, [Validators.min(0)]],
     isPartialPayment: this.fb.nonNullable.control(false),
@@ -438,6 +447,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   private querySub: Subscription | null = null;
   private currentOwnerId: string | null = null;
   private payFormSubscription: Subscription | null = null;
+  private joinDateValueSub: Subscription | null = null;
 
   constructor() {
     // Sync cache signals to component signals
@@ -449,10 +459,12 @@ export class MembersComponent implements OnInit, OnDestroy {
       this.pgLayout.set(this.cache.layout());
     });
 
-    // Update dueDate validation when joinDate changes
-    this.memberForm.get('joinDate')?.valueChanges.subscribe(() => {
+    this.joinDateValueSub = this.memberForm.get('joinDate')?.valueChanges.subscribe(() => {
+      if (!this.editingId()) {
+        this.syncDueDateFromJoinDate();
+      }
       this.memberForm.get('dueDate')?.updateValueAndValidity();
-    });
+    }) ?? null;
 
     // Set up conditional validation for pendingAmount based on isPartialPayment
     this.payFormSubscription = this.payForm.get('isPartialPayment')?.valueChanges.subscribe((isPartial: boolean) => {
@@ -544,6 +556,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.historyUnsub?.();
     this.querySub?.unsubscribe();
     this.payFormSubscription?.unsubscribe();
+    this.joinDateValueSub?.unsubscribe();
     this.clearImportProgressUi();
   }
 
@@ -640,6 +653,12 @@ export class MembersComponent implements OnInit, OnDestroy {
   openAdd(): void {
     this.editingId.set(null);
     this.moreOpen.set(false);
+    this.memberForm.controls.joinDate.setValidators([
+      Validators.required,
+      Validators.pattern(/^\d{4}-\d{2}-\d{2}$/),
+      joinDateNotInPast(),
+    ]);
+    this.memberForm.controls.joinDate.updateValueAndValidity({ emitEvent: false });
     const today = new Date();
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
@@ -679,6 +698,8 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   openEdit(m: Member): void {
     this.editingId.set(m.memberId);
+    this.memberForm.controls.joinDate.setValidators([Validators.required, Validators.pattern(/^\d{4}-\d{2}-\d{2}$/)]);
+    this.memberForm.controls.joinDate.updateValueAndValidity({ emitEvent: false });
     this.moreOpen.set(
       !!(m.gender || m.aadhaarLast4 || m.notes || m.profilePhotoUrl || m.aadhaarFrontUrl || m.aadhaarBackUrl),
     );
@@ -726,6 +747,44 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.manualSeatError.set(null);
     this.resetOnboardingPhotoState();
     this.modalOpen.set(false);
+  }
+
+  /** Native date input `min` when adding (today); omitted when editing so past joins stay valid. */
+  memberJoinDateInputMinIso(): string | null {
+    return this.editingId() ? null : this.toInputDate(startOfToday());
+  }
+
+  /** End date cannot be before join (native picker + validator). */
+  memberDueDateInputMinIso(): string | null {
+    const j = (this.memberForm.controls.joinDate.value ?? '').trim();
+    if (!j || !/^\d{4}-\d{2}-\d{2}$/.test(j)) return null;
+    return j;
+  }
+
+  memberJoinDateDdMmHint(): string {
+    return formatYyyyMmDdAsDdMmYyyy(this.memberForm.controls.joinDate.value || '');
+  }
+
+  memberDueDateDdMmHint(): string {
+    return formatYyyyMmDdAsDdMmYyyy(this.memberForm.controls.dueDate.value || '');
+  }
+
+  onMemberJoinDatePickerChange(): void {
+    this.memberForm.controls.joinDate.markAsTouched();
+  }
+
+  onMemberDueDatePickerChange(): void {
+    this.memberForm.controls.dueDate.markAsTouched();
+  }
+
+  private syncDueDateFromJoinDate(): void {
+    if (this.editingId()) return;
+    const iso = (this.memberForm.controls.joinDate.value ?? '').trim();
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
+    const join = parseYyyyMmDdLocal(iso);
+    if (!join) return;
+    const dueIso = this.toInputDate(addDays(join, 30));
+    this.memberForm.patchValue({ dueDate: dueIso }, { emitEvent: true });
   }
 
   /** Reset all the photo-upload signals back to empty / clean. */

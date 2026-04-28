@@ -759,37 +759,66 @@
       }
     </div>
     <div class="grid gap-4 sm:grid-cols-2">
-       <div>
+      <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">Join date</label>
         <input
           type="date"
-          lang="en-GB"
           formControlName="joinDate"
-          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+          autocomplete="off"
+          class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base"
+          [attr.min]="memberJoinDateInputMinIso()"
+          (change)="onMemberJoinDatePickerChange()"
         />
+        @if (memberJoinDateDdMmHint()) {
+          <p class="mt-1 text-xs text-slate-500">DD/MM/YYYY: {{ memberJoinDateDdMmHint() }}</p>
+        }
+        @if (!editingId()) {
+          <p class="mt-1 text-xs text-slate-500">Use the calendar — dates before today are not allowed for new members.</p>
+        } @else {
+          <p class="mt-1 text-xs text-slate-500">Use the calendar to change the join date.</p>
+        }
         @if (memberForm.controls.joinDate.touched && memberForm.controls.joinDate.invalid) {
-          <p class="mt-1 text-sm text-red-600">Join date is required</p>
+          @if (memberForm.controls.joinDate.hasError('required')) {
+            <p class="mt-1 text-sm text-red-600">Join date is required</p>
+          }
+          @if (memberForm.controls.joinDate.hasError('pattern') || memberForm.controls.joinDate.hasError('joinDateInvalid')) {
+            <p class="mt-1 text-sm text-red-600">Choose a valid join date</p>
+          }
+          @if (memberForm.controls.joinDate.hasError('joinDateInPast')) {
+            <p class="mt-1 text-sm text-red-600">Join date cannot be before today</p>
+          }
         }
       </div>
       <div>
         <label class="mb-1 block text-sm font-medium text-slate-700">End date</label>
         <input
           type="date"
-          lang="en-GB"
           formControlName="dueDate"
-          [min]="memberForm.get('joinDate')?.value"
-          class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
+          autocomplete="off"
+          class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base"
+          [attr.min]="memberDueDateInputMinIso()"
+          (change)="onMemberDueDatePickerChange()"
         />
+        @if (memberDueDateDdMmHint()) {
+          <p class="mt-1 text-xs text-slate-500">DD/MM/YYYY: {{ memberDueDateDdMmHint() }}</p>
+        }
+        @if (!editingId()) {
+          <p class="mt-1 text-xs text-slate-500">For new members this updates to 30 days after join when you change the join date.</p>
+        } @else {
+          <p class="mt-1 text-xs text-slate-500">Must be on or after join date.</p>
+        }
         @if (memberForm.controls.dueDate.touched && memberForm.controls.dueDate.invalid) {
           @if (memberForm.controls.dueDate.errors?.['required']) {
-            <p class="mt-1 text-sm text-red-600">Due date is required</p>
+            <p class="mt-1 text-sm text-red-600">End date is required</p>
+          }
+          @if (memberForm.controls.dueDate.errors?.['pattern']) {
+            <p class="mt-1 text-sm text-red-600">Choose a valid end date</p>
           }
           @if (memberForm.controls.dueDate.errors?.['dueDateBeforeJoinDate']) {
             <p class="mt-1 text-sm text-red-600">End date cannot be before join date</p>
           }
         }
       </div>
-      
     </div>
     <details class="rounded-xl border border-slate-200 bg-slate-50" [open]="moreOpen()" (toggle)="moreOpen.set($any($event.target).open)">
       <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-800">More details (optional)</summary>

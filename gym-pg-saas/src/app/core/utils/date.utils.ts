@@ -7,6 +7,54 @@ export function addDays(date: Date, days: number): Date {
   return d;
 }
 
+/** Parse `YYYY-MM-DD` as a local calendar date (avoids UTC-shift bugs from `new Date('YYYY-MM-DD')`). */
+export function parseYyyyMmDdLocal(iso: string): Date | null {
+  const trimmed = (iso ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  const [y, m, d] = trimmed.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return dt;
+}
+
+/** Local calendar date to YYYY-MM-DD (member form, APIs). */
+export function yyyyMmDdFromLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return String(y) + '-' + mo + '-' + da;
+}
+
+/** YYYY-MM-DD to DD/MM/YYYY for display. */
+export function formatYyyyMmDdAsDdMmYyyy(iso: string): string {
+  const trimmed = (iso ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return '';
+  const parts = trimmed.split('-');
+  return parts[2] + '/' + parts[1] + '/' + parts[0];
+}
+
+/** Strict DD/MM/YYYY to YYYY-MM-DD, or null if invalid. */
+export function parseDdMmYyyyToYyyyMmDd(raw: string): string | null {
+  const t = raw.trim();
+  const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const day = Number(m[1]);
+  const month = Number(m[2]);
+  const year = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const dt = new Date(year, month - 1, day);
+  if (dt.getFullYear() !== year || dt.getMonth() !== month - 1 || dt.getDate() !== day) return null;
+  return yyyyMmDdFromLocalDate(dt);
+}
+
+/** Up to 8 digits to dd/mm/yyyy with slashes while typing. */
+export function formatDdMmYyyyDigitsProgressive(digits: string): string {
+  const x = digits.replace(/\D/g, '').slice(0, 8);
+  if (x.length <= 2) return x;
+  if (x.length <= 4) return x.slice(0, 2) + '/' + x.slice(2);
+  return x.slice(0, 2) + '/' + x.slice(2, 4) + '/' + x.slice(4);
+}
+
 export function startOfToday(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
