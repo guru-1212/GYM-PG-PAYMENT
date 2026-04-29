@@ -247,13 +247,10 @@
               >info_outline</span
             >
           </div>
-          @if (showMonthEarnings()) {
+        
             <p class="relative mt-1.5 text-2xl font-extrabold tabular-nums text-white sm:mt-2 sm:text-3xl">
               ₹{{ supervisorTodayTotal() | number: '1.0-0' }}
             </p>
-          } @else {
-            <p class="relative mt-1.5 text-2xl font-extrabold tracking-wider text-white sm:mt-2 sm:text-3xl">₹ ••••••</p>
-          }
           <p class="relative mt-1 line-clamp-2 text-[11px] leading-snug text-white/85 sm:text-xs sm:text-white/80">
             @if (supervisorTodayCount() > 0) {
               {{ supervisorTodayCount() }} {{ supervisorTodayCount() === 1 ? 'payment' : 'payments' }} today &middot; tap for day-wise log
