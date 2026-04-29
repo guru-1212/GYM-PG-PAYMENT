@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { PwaInstallService } from './core/services/pwa-install.service';
 import { ThemeService } from './core/services/theme.service';
 import { ToastContainerComponent } from './shared/toast-container.component';
 
@@ -12,4 +13,10 @@ import { ToastContainerComponent } from './shared/toast-container.component';
 export class AppComponent {
   /** Eager inject so theme applies before routed shells (e.g. login). */
   private readonly theme = inject(ThemeService);
+  /**
+   * Eager inject so the PWA install service captures `beforeinstallprompt`
+   * as early as possible — that event only fires once and we'd miss it if
+   * the listener was attached lazily by a routed component.
+   */
+  private readonly pwa = inject(PwaInstallService);
 }

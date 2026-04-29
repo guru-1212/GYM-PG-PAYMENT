@@ -1,7 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { PwaInstallService } from '../../core/services/pwa-install.service';
+import { ToastService } from '../../core/services/toast.service';
 import { BrandLogoComponent } from '../../shared/brand-logo.component';
 import { ThemeToggleComponent } from '../../shared/theme-toggle.component';
 
@@ -16,6 +18,32 @@ export class HomeComponent {
   readonly ownerMobileNumber = '6300675014';
   readonly whatsappNumber = `91${this.ownerMobileNumber}`;
   mobileMenuOpen = false;
+
+  /** PWA install — exposed to the template. */
+  private readonly pwa = inject(PwaInstallService);
+  private readonly toast = inject(ToastService);
+  readonly canInstall = this.pwa.canInstall;
+  readonly isInstalled = this.pwa.isInstalled;
+  readonly isIosSafari = this.pwa.isIosSafari;
+  readonly showIosInstructions = this.pwa.showIosInstructions;
+  /** Whether to render the install CTA at all (Chromium prompt OR iOS guidance). */
+  readonly showInstallCta = computed(
+    () => !this.isInstalled() && (this.canInstall() || this.isIosSafari()),
+  );
+
+  async installApp(): Promise<void> {
+    this.mobileMenuOpen = false;
+    const outcome = await this.pwa.promptInstall();
+    if (outcome === 'accepted') {
+      this.toast.success('App installed. Open it from your home screen any time.');
+    } else if (outcome === 'unavailable' && !this.isIosSafari()) {
+      this.toast.success('Open your browser menu → "Install app" / "Add to Home Screen".');
+    }
+  }
+
+  closeIosInstructions(): void {
+    this.pwa.closeIosInstructions();
+  }
 
   readonly quickBenefits = [
     { icon: 'fa-indian-rupee-sign', title: 'Track Payments & Dues Easily' },

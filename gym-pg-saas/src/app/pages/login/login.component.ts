@@ -1,6 +1,5 @@
 import {
   Component,
-  OnDestroy,
   OnInit,
   computed,
   inject,
@@ -24,18 +23,13 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../../shared/brand-logo.component';
 import { TranslationService } from '../../core/services/translation.service';
 
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
-};
-
 @Component({
   selector: 'app-login',
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink, TranslatePipe, BrandLogoComponent],
   templateUrl: './login.component.html',
 })
-export class LoginComponent implements OnInit, OnDestroy {
+export class LoginComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly auditLog = inject(AuditLogService);
@@ -57,13 +51,6 @@ export class LoginComponent implements OnInit, OnDestroy {
   readonly showSignUpPassword = signal(false);
   /** PG-only sign-up for now; restore `'gym'` when gym onboarding returns. */
   readonly businessTypeSignal = signal<'gym' | 'pg'>('pg');
-
-  readonly showInstallHintPopup = signal(false);
-  private installHintTimerId: ReturnType<typeof setTimeout> | null = null;
-  private deferredInstallPrompt: BeforeInstallPromptEvent | null = null;
-  private beforeInstallPromptHandler: ((event: Event) => void) | null = null;
-  private appInstalledHandler: (() => void) | null = null;
-  private readonly installHintStorageKey = 'pgt.install.completed';
 
   readonly signInForm = this.fb.nonNullable.group({
     // Free-text identifier: email, mobile, or supervisor user ID. Only the
@@ -89,18 +76,11 @@ export class LoginComponent implements OnInit, OnDestroy {
     return this.businessTypeSignal() === 'pg' ? 'login.enterPgName' : 'login.enterGymName';
   });
 
-  ngOnDestroy(): void {
-    this.clearInstallHintTimer();
-    this.detachInstallPromptListeners();
-  }
-
   ngOnInit(): void {
-    this.attachInstallPromptListeners();
     this.notifications.requestPermissionOnce();
     const requestedMode = (this.route.snapshot.queryParamMap.get('mode') || '').toLowerCase().trim();
     if (requestedMode === 'signup') this.setMode('signup');
     else if (requestedMode === 'signin') this.setMode('signin');
-    this.scheduleInstallHintPopupIfNeeded();
     // Re-enable when gym / PG toggle is shown again on sign-up.
     // this.signUpForm.controls.businessType.valueChanges.subscribe((value) => {
     //   this.businessTypeSignal.set(value);
@@ -109,30 +89,6 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.signInForm.controls.identifier.valueChanges,
       this.signInForm.controls.password.valueChanges,
     ).subscribe(() => this.signInError.set(''));
-  }
-
-  closeInstallHintPopup(): void {
-    this.showInstallHintPopup.set(false);
-  }
-
-  async installAppFromPopup(): Promise<void> {
-    if (this.isInstalled()) {
-      this.showInstallHintPopup.set(false);
-      return;
-    }
-    if (!this.deferredInstallPrompt) {
-      this.toast.success('Use browser menu → Add to Home Screen to install the app.');
-      return;
-    }
-    try {
-      await this.deferredInstallPrompt.prompt();
-      const choice = await this.deferredInstallPrompt.userChoice;
-      if (choice.outcome === 'accepted') {
-        this.showInstallHintPopup.set(false);
-      }
-    } finally {
-      this.deferredInstallPrompt = null;
-    }
   }
 
   setMode(m: 'signin' | 'signup'): void {
@@ -395,65 +351,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     }
   }
 
-  private scheduleInstallHintPopupIfNeeded(): void {
-    const fromHome = this.route.snapshot.queryParamMap.get('installHint') === '1';
-    if (!fromHome || this.isInstalled()) return;
-    this.clearInstallHintTimer();
-    const delayMs = 2000 + Math.floor(Math.random() * 3001); // 2-5 seconds
-    this.installHintTimerId = setTimeout(() => {
-      if (!this.isInstalled()) {
-        this.showInstallHintPopup.set(true);
-      }
-    }, delayMs);
-  }
-
-  private clearInstallHintTimer(): void {
-    if (this.installHintTimerId !== null) {
-      clearTimeout(this.installHintTimerId);
-      this.installHintTimerId = null;
-    }
-  }
-
-  private attachInstallPromptListeners(): void {
-    if (typeof window === 'undefined') return;
-    this.beforeInstallPromptHandler = (event: Event) => {
-      event.preventDefault();
-      this.deferredInstallPrompt = event as BeforeInstallPromptEvent;
-    };
-    this.appInstalledHandler = () => {
-      try {
-        localStorage.setItem(this.installHintStorageKey, '1');
-      } catch {
-      }
-      this.showInstallHintPopup.set(false);
-      this.deferredInstallPrompt = null;
-    };
-    window.addEventListener('beforeinstallprompt', this.beforeInstallPromptHandler as EventListener);
-    window.addEventListener('appinstalled', this.appInstalledHandler as EventListener);
-  }
-
-  private detachInstallPromptListeners(): void {
-    if (typeof window === 'undefined') return;
-    if (this.beforeInstallPromptHandler) {
-      window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler as EventListener);
-      this.beforeInstallPromptHandler = null;
-    }
-    if (this.appInstalledHandler) {
-      window.removeEventListener('appinstalled', this.appInstalledHandler as EventListener);
-      this.appInstalledHandler = null;
-    }
-  }
-
-  private isInstalled(): boolean {
-    if (typeof window === 'undefined') return false;
-    try {
-      if (localStorage.getItem(this.installHintStorageKey) === '1') return true;
-    } catch {
-    }
-    const standaloneMedia = window.matchMedia?.('(display-mode: standalone)')?.matches;
-    const standaloneNavigator = Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
-    return Boolean(standaloneMedia || standaloneNavigator);
-  }
 }
 
 /**
