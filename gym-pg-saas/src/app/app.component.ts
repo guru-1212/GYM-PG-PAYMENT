@@ -19,4 +19,10 @@ export class AppComponent {
    * the listener was attached lazily by a routed component.
    */
   private readonly pwa = inject(PwaInstallService);
+
+  /** Expose iOS instructions overlay so it's globally available regardless of route. */
+  readonly showIosInstructions = this.pwa.showIosInstructions;
+  closeIosInstructions(): void {
+    this.pwa.closeIosInstructions();
+  }
 }

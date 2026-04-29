@@ -1,5 +1,6 @@
 import {
   Component,
+  OnDestroy,
   OnInit,
   computed,
   inject,
@@ -16,6 +17,7 @@ import { DataCacheService } from '../../core/services/data-cache.service';
 import { IpRestrictionService } from '../../core/services/ip-restriction.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { InAppNotificationService } from '../../core/services/in-app-notification.service';
+import { PwaInstallService } from '../../core/services/pwa-install.service';
 import { SupervisorSessionService } from '../../core/services/supervisor-session.service';
 import { ToastService } from '../../core/services/toast.service';
 // import { LanguageSwitcherComponent } from '../../shared/language-switcher.component';
@@ -29,7 +31,7 @@ import { TranslationService } from '../../core/services/translation.service';
   imports: [ReactiveFormsModule, RouterLink, TranslatePipe, BrandLogoComponent],
   templateUrl: './login.component.html',
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly auditLog = inject(AuditLogService);
@@ -39,9 +41,23 @@ export class LoginComponent implements OnInit {
   private readonly inAppNotifications = inject(InAppNotificationService);
   private readonly ipRestriction = inject(IpRestrictionService);
   private readonly supervisorSession = inject(SupervisorSessionService);
+  private readonly pwa = inject(PwaInstallService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
+
+  /**
+   * Login-page install nudge. Only renders when the PWA service confirms
+   * the app is genuinely installable (Chromium fired `beforeinstallprompt`)
+   * or the user is on iOS Safari. Hidden once installed or dismissed for
+   * the current browser session.
+   */
+  readonly showInstallPopup = signal(false);
+  readonly canInstall = this.pwa.canInstall;
+  readonly isInstalled = this.pwa.isInstalled;
+  readonly isIosSafari = this.pwa.isIosSafari;
+  private installPopupTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly installDismissedKey = 'pgt.install.dismissed.session';
 
   readonly mode = signal<'signin' | 'signup'>('signin');
   readonly busy = signal(false);
@@ -89,6 +105,70 @@ export class LoginComponent implements OnInit {
       this.signInForm.controls.identifier.valueChanges,
       this.signInForm.controls.password.valueChanges,
     ).subscribe(() => this.signInError.set(''));
+    this.scheduleInstallPopup();
+  }
+
+  ngOnDestroy(): void {
+    if (this.installPopupTimer !== null) {
+      clearTimeout(this.installPopupTimer);
+      this.installPopupTimer = null;
+    }
+  }
+
+  /**
+   * Open the install nudge if (and only if):
+   *  - we're in a browser context,
+   *  - the app is not already installed,
+   *  - the user hasn't dismissed it earlier in this session,
+   *  - and the browser actually supports installing (Chromium prompt
+   *    queued, or iOS Safari which goes through Add-to-Home-Screen).
+   *
+   * Runs after a short delay so `beforeinstallprompt` has a chance to fire.
+   */
+  private scheduleInstallPopup(): void {
+    if (typeof window === 'undefined') return;
+    if (this.isInstalled()) return;
+    try {
+      if (sessionStorage.getItem(this.installDismissedKey) === '1') return;
+    } catch {
+      /* sessionStorage unavailable — best-effort */
+    }
+    if (this.installPopupTimer !== null) clearTimeout(this.installPopupTimer);
+    this.installPopupTimer = setTimeout(() => {
+      this.installPopupTimer = null;
+      if (this.isInstalled()) return;
+      if (this.canInstall() || this.isIosSafari()) {
+        this.showInstallPopup.set(true);
+      }
+    }, 2500);
+  }
+
+  closeInstallPopup(): void {
+    this.showInstallPopup.set(false);
+    try {
+      sessionStorage.setItem(this.installDismissedKey, '1');
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Trigger the same install flow as the home navbar button. On Chromium
+   * this fires the native install dialog; on iOS Safari the service flips
+   * its `showIosInstructions` signal which is rendered globally by
+   * `AppComponent` (see app.component.html).
+   */
+  async installFromPopup(): Promise<void> {
+    const outcome = await this.pwa.promptInstall();
+    if (outcome === 'accepted') {
+      this.toast.success('App installed. Open it from your home screen any time.');
+      this.showInstallPopup.set(false);
+    } else if (outcome === 'unavailable' && !this.isIosSafari()) {
+      this.toast.success('Open your browser menu → "Install app" / "Add to Home Screen".');
+    }
+    if (this.isIosSafari()) {
+      this.showInstallPopup.set(false);
+    }
   }
 
   setMode(m: 'signin' | 'signup'): void {

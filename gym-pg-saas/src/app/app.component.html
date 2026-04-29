@@ -1,2 +1,39 @@
 <router-outlet />
 <app-toast-container />
+
+@if (showIosInstructions()) {
+  <div class="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 p-4 sm:items-center" (click)="closeIosInstructions()">
+    <div class="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl" (click)="$event.stopPropagation()">
+      <div class="flex items-start gap-3">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
+          <i class="fa-brands fa-apple text-lg"></i>
+        </span>
+        <div class="min-w-0">
+          <p class="text-base font-semibold text-slate-900">Install on iPhone / iPad</p>
+          <p class="mt-1 text-sm text-slate-600">Safari doesn't have a one-tap install. Add it to your home screen in 3 quick steps:</p>
+        </div>
+      </div>
+      <ol class="mt-4 space-y-2 text-sm text-slate-700">
+        <li class="flex items-start gap-2">
+          <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white">1</span>
+          <span>Tap the <i class="fa-solid fa-share mx-0.5 text-indigo-600"></i> <strong>Share</strong> icon at the bottom of Safari.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white">2</span>
+          <span>Choose <strong>Add to Home Screen</strong>.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white">3</span>
+          <span>Tap <strong>Add</strong> — the icon appears on your home screen.</span>
+        </li>
+      </ol>
+      <button
+        type="button"
+        class="mt-5 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+        (click)="closeIosInstructions()"
+      >
+        Got it
+      </button>
+    </div>
+  </div>
+}

@@ -19,13 +19,14 @@ export class HomeComponent {
   readonly whatsappNumber = `91${this.ownerMobileNumber}`;
   mobileMenuOpen = false;
 
-  /** PWA install — exposed to the template. */
+  /** PWA install — exposed to the template. The iOS instructions overlay
+   * is rendered globally in `AppComponent`, so we don't need to wire it
+   * up here. */
   private readonly pwa = inject(PwaInstallService);
   private readonly toast = inject(ToastService);
   readonly canInstall = this.pwa.canInstall;
   readonly isInstalled = this.pwa.isInstalled;
   readonly isIosSafari = this.pwa.isIosSafari;
-  readonly showIosInstructions = this.pwa.showIosInstructions;
   /** Whether to render the install CTA at all (Chromium prompt OR iOS guidance). */
   readonly showInstallCta = computed(
     () => !this.isInstalled() && (this.canInstall() || this.isIosSafari()),
@@ -39,10 +40,6 @@ export class HomeComponent {
     } else if (outcome === 'unavailable' && !this.isIosSafari()) {
       this.toast.success('Open your browser menu → "Install app" / "Add to Home Screen".');
     }
-  }
-
-  closeIosInstructions(): void {
-    this.pwa.closeIosInstructions();
   }
 
   readonly quickBenefits = [

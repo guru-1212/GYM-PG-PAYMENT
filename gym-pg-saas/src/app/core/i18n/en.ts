@@ -379,5 +379,10 @@ export const EN: Record<string, unknown> = {
     step3: 'Start using the app again',
     signOut: 'Sign Out',
     contactAdmin: 'Contact Admin on WhatsApp',
+    dataSafeTitle: 'Don\u2019t worry \u2014 your data is 100% safe',
+    dataSafeBody: 'Pausing the plan does not delete anything. The moment your plan is renewed, every member, payment and report comes back exactly where you left off.',
+    dataSafePoint1: 'Encrypted and securely stored on our servers',
+    dataSafePoint2: 'Backed up daily \u2014 nothing is lost',
+    dataSafePoint3: 'Resume right where you left off after renewal',
   },
 };
