@@ -3,10 +3,11 @@ import { RouterOutlet } from '@angular/router';
 import { PwaInstallService } from './core/services/pwa-install.service';
 import { ThemeService } from './core/services/theme.service';
 import { ToastContainerComponent } from './shared/toast-container.component';
+import { AskToGuruAssistantComponent } from './shared/ask-to-guru-assistant.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, ToastContainerComponent],
+  imports: [RouterOutlet, ToastContainerComponent, AskToGuruAssistantComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })
