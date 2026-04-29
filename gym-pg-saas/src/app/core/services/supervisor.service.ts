@@ -216,10 +216,10 @@ export class SupervisorService {
     }
   }
 
-  /** Update permissions / name / status. Caller must be the parent owner. */
+  /** Update permissions / name / status / IP-restriction toggle. Caller must be the parent owner. */
   async updateSupervisor(
     supervisorId: string,
-    patch: Partial<Pick<Supervisor, 'name' | 'status' | 'permissions'>>,
+    patch: Partial<Pick<Supervisor, 'name' | 'status' | 'permissions' | 'ipRestrictionEnabled'>>,
   ): Promise<void> {
     const ownerId = this.auth.profile()?.ownerId;
     if (!ownerId || this.auth.profile()?.role !== 'owner') {
@@ -230,6 +230,9 @@ export class SupervisorService {
     if (patch.name !== undefined) data.name = patch.name.trim();
     if (patch.status !== undefined) data.status = patch.status;
     if (patch.permissions !== undefined) data.permissions = patch.permissions;
+    if (patch.ipRestrictionEnabled !== undefined) {
+      data.ipRestrictionEnabled = !!patch.ipRestrictionEnabled;
+    }
     if (Object.keys(data).length === 0) return;
     // updateDoc's overload is partial-shape strict; cast keeps the call site simple.
     await updateDoc(ref, data as { [key: string]: any });

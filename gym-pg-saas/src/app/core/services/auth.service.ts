@@ -28,6 +28,7 @@ import {
   SUPERVISORS_COLLECTION,
   sanitizeSupervisorUserId,
 } from '../utils/supervisor.util';
+import { normalizeSupervisorPermissions } from '../models/supervisor.model';
 import { FirebaseAppService } from './firebase-app.service';
 import {
   digitsOnly,
@@ -169,12 +170,21 @@ export class AuthService {
         return;
       }
 
+      // Same user reattach (e.g. tab focus). Listener is still alive.
       if (this.profileListenerUid === u.uid && this.profileUnsub) {
         this.loading.set(false);
         return;
       }
 
+      // ---- New / different signed-in user ----
+      // CRITICAL: flip loading back to true so guards waiting on `!loading()`
+      // (subscriptionGuard, permissionGuard) don't race against stale profile
+      // state from the previous session. Also wipe stale profile + supervisor
+      // permissions so no component briefly renders with the wrong identity.
       this.tearDownProfileListeners();
+      this.profile.set(null);
+      this.supervisorPermissions.set(null);
+      this.loading.set(true);
       this.profileListenerUid = u.uid;
 
       const ownerRef = doc(this.fb.db, 'owners', u.uid);
@@ -229,6 +239,11 @@ export class AuthService {
   private subscribeAsSupervisor(uid: string): void {
     const supRef = doc(this.fb.db, SUPERVISORS_COLLECTION, uid);
     let parentBootstrapped = false;
+    // Tear down the previous owner-doc listener (still alive after the
+    // owners/{supervisorUid} miss callback) to avoid a phantom listener
+    // overwriting the supervisor profile with `null` if the doc later
+    // appears (e.g. admin promotes the user to a real owner).
+    this.profileUnsub?.();
     this.profileUnsub = onSnapshot(
       supRef,
       async (snap) => {
@@ -242,7 +257,7 @@ export class AuthService {
         this.profile.set(projected);
         const raw = snap.data() as Partial<Supervisor> | undefined;
         this.supervisorPermissions.set(
-          (raw?.permissions as SupervisorPermissions | undefined) ?? null,
+          normalizeSupervisorPermissions(raw?.permissions),
         );
 
         const parentId = projected?.parentOwnerId;
@@ -652,6 +667,12 @@ export class AuthService {
   }
 
   async signOut(): Promise<void> {
+    // Eagerly clear local listeners + state so the very next render after
+    // `signOut()` returns does not flash the previous user's profile while
+    // Firebase's onAuthStateChanged callback is still in flight.
+    this.tearDownProfileListeners();
+    this.profile.set(null);
+    this.supervisorPermissions.set(null);
     await signOut(this.fb.auth);
   }
 
@@ -684,7 +705,7 @@ export class AuthService {
         if (projected) this.profile.set(projected);
         const raw = supSnap.data() as Partial<Supervisor> | undefined;
         this.supervisorPermissions.set(
-          (raw?.permissions as SupervisorPermissions | undefined) ?? null,
+          normalizeSupervisorPermissions(raw?.permissions),
         );
         // Eagerly merge the parent owner's plan / business fields so the
         // caller (login redirect, subscription guard) sees a fully-hydrated

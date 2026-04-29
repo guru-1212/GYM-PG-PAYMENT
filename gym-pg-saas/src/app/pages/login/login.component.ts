@@ -13,8 +13,10 @@ import { environment } from '../../../environments/environment';
 import { normalizeOwnerPhone } from '../../core/utils/phone-auth.util';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
+import { IpRestrictionService } from '../../core/services/ip-restriction.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { InAppNotificationService } from '../../core/services/in-app-notification.service';
+import { SupervisorSessionService } from '../../core/services/supervisor-session.service';
 import { ToastService } from '../../core/services/toast.service';
 // import { LanguageSwitcherComponent } from '../../shared/language-switcher.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -39,6 +41,8 @@ export class LoginComponent implements OnInit, OnDestroy {
   private readonly cache = inject(DataCacheService);
   private readonly notifications = inject(NotificationService);
   private readonly inAppNotifications = inject(InAppNotificationService);
+  private readonly ipRestriction = inject(IpRestrictionService);
+  private readonly supervisorSession = inject(SupervisorSessionService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
@@ -170,6 +174,13 @@ export class LoginComponent implements OnInit, OnDestroy {
         await this.auth.signOut();
         return;
       }
+      // Supervisor-only post-login security: IP allowlist + single-device claim.
+      // This MUST run before we warm the cache or redirect — otherwise a
+      // disallowed-IP supervisor would briefly see members in transit.
+      if (p.role === 'supervisor' && p.status === 'approved') {
+        const supervisorOk = await this.runSupervisorPostLoginChecks();
+        if (!supervisorOk) return;
+      }
       if ((p.role === 'owner' || p.role === 'supervisor') && p.status === 'approved' && p.ownerId) {
         await this.cache.loadMembers(p.ownerId);
         this.notifications.checkDueMembers(this.cache.members());
@@ -235,6 +246,66 @@ export class LoginComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Run the supervisor-only post-login security checks.
+   *
+   * Order matters:
+   *   1. IP allowlist (cheap network call). If blocked, sign out and stop.
+   *   2. Claim a fresh single-device session (writes to supervisors/{uid}).
+   *      Owner has no IP restriction or single-device — the helper is only
+   *      called for `role === 'supervisor'`.
+   *
+   * Returns `true` when the supervisor is cleared to proceed, `false`
+   * when they were blocked / signed out (caller must abort the redirect).
+   */
+  private async runSupervisorPostLoginChecks(): Promise<boolean> {
+    const uid = this.auth.user()?.uid;
+    if (!uid) return false;
+
+    // 1) IP allowlist check.
+    let detectedIp: string | null = null;
+    try {
+      const result = await this.ipRestriction.evaluate(uid);
+      detectedIp = result.detectedIp;
+      if (result.status === 'blocked') {
+        this.signInError.set(
+          `Sign-in from this network is not authorised${
+            detectedIp ? ` (IP ${detectedIp})` : ''
+          }. Ask your owner to allow this network.`,
+        );
+        await this.auth.signOut();
+        return false;
+      }
+      if (result.status === 'cant-detect') {
+        // Fail-closed: if we can't detect the IP and restriction is on,
+        // we cannot honour the policy — best to refuse.
+        this.signInError.set(
+          'Could not verify your network for sign-in. Check your internet and try again.',
+        );
+        await this.auth.signOut();
+        return false;
+      }
+      // 'allowed' or 'not-supervisor' → continue.
+    } catch {
+      this.signInError.set(
+        'Sign-in security check failed. Please try again in a moment.',
+      );
+      await this.auth.signOut();
+      return false;
+    }
+
+    // 2) Claim a single-device session. Failure here is non-blocking — we
+    // log to the console but let the supervisor in (the watcher in the
+    // shell will retry on the next snapshot). We never want a transient
+    // Firestore write hiccup to block legitimate logins.
+    try {
+      await this.supervisorSession.claimSession(uid, detectedIp);
+    } catch (e) {
+      console.warn('[supervisor-session] claimSession failed at login', e);
+    }
+    return true;
+  }
+
   private async redirectAfterProfile(p: { role: string; status: string }): Promise<void> {
     const role = p.role.toLowerCase().trim();
     const status = p.status.toLowerCase().trim();
@@ -258,14 +329,15 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
     }
     if (role === 'supervisor') {
-      // Supervisors share the owner shell. Disabled supervisors land on the
-      // rejected screen so they get a clear "ask your owner" message instead
-      // of being silently signed out.
+      // Supervisors live under their own /supervisor/* shell — completely
+      // independent from the owner routes. Disabled supervisors land on
+      // the rejected screen so they get a clear "ask your owner" message
+      // instead of being silently signed out.
       if (status === 'disabled' || status === 'inactive') {
         await this.router.navigateByUrl('/account-rejected');
         return;
       }
-      await this.router.navigateByUrl('/dashboard');
+      await this.router.navigateByUrl('/supervisor/dashboard');
       return;
     }
 

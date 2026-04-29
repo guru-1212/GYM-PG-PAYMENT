@@ -743,6 +743,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   openAdd(): void {
+    if (!this.canAddMembersAction()) return;
     this.editingId.set(null);
     this.memberEditBillingPreserve = null;
     this.moreOpen.set(false);
@@ -791,6 +792,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   openEdit(m: Member): void {
+    if (!this.canEditMembersAction()) return;
     this.editingId.set(m.memberId);
     this.memberEditBillingPreserve = {
       amount: Number(m.amount) || 0,
@@ -1237,11 +1239,21 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Whether the current account is allowed to edit members (Add / Edit /
-   * Delete buttons, member modal save). Owners/admins always pass; supervisors
-   * are gated on `canEditMembers`.
+   * Granular member-mutation permissions.
+   *
+   * Owners/admins always pass; supervisors are gated by per-account flags.
+   * `canEditMembersAction` is the *broad* "can change member data" gate used
+   * by the member edit modal save and the self-onboarding approval flow —
+   * it's true if the supervisor has either Edit or Add (because creating a
+   * member then editing it is essentially the same right). Add and Delete
+   * have their own dedicated gates so the owner can grant them
+   * independently in the supervisor edit modal.
    */
-  readonly canEditMembersAction = computed(() => this.auth.hasPermission('canEditMembers'));
+  readonly canAddMembersAction = computed(() => this.auth.hasPermission('canAddMembers'));
+  readonly canEditMembersAction = computed(
+    () => this.auth.hasPermission('canEditMembers') || this.auth.hasPermission('canAddMembers'),
+  );
+  readonly canDeleteMembersAction = computed(() => this.auth.hasPermission('canDeleteMembers'));
   /** Whether the current account can share onboarding links. */
   readonly canShareOnboardingLinkAction = computed(() =>
     this.auth.hasPermission('canShareOnboardingLink'),
@@ -1366,6 +1378,7 @@ ${pgName}`;
   }
 
   async deleteMember(m: Member): Promise<void> {
+    if (!this.canDeleteMembersAction()) return;
     if (!confirm(`Remove ${m.firstName} from your list?`)) return;
     try {
       await this.membersApi.deleteMember(m.memberId);

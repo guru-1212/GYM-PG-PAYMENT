@@ -1,7 +1,8 @@
-import { Injectable, inject, signal, computed } from '@angular/core';
+import { Injectable, effect, inject, signal, computed } from '@angular/core';
 import { Member } from '../models/member.model';
 import { Payment } from '../models/payment.model';
 import { PgLayout } from '../models/pg-layout.model';
+import { AuthService } from './auth.service';
 import { MemberService } from './member.service';
 import { PaymentService } from './payment.service';
 import { PgLayoutService } from './pg-layout.service';
@@ -28,6 +29,7 @@ export class DataCacheService {
   private readonly memberApi = inject(MemberService);
   private readonly paymentApi = inject(PaymentService);
   private readonly layoutApi = inject(PgLayoutService);
+  private readonly auth = inject(AuthService);
 
   // Cache signals
   private readonly _members = signal<Member[]>([]);
@@ -55,6 +57,33 @@ export class DataCacheService {
   private memberUnsub: (() => void) | null = null;
   private paymentUnsub: (() => void) | null = null;
   private layoutUnsub: (() => void) | null = null;
+
+  /**
+   * Auto-clear the cache whenever the signed-in user changes (sign-out, or
+   * a different user signing in without a page refresh — e.g. owner signs
+   * out then a supervisor signs in). Without this, stale members from the
+   * previous session leak into the new session and the kept-alive listeners
+   * silently fail under the new auth context, leaving the new user staring
+   * at "no data" until they hard-refresh.
+   *
+   * Sentinel `undefined` ensures the very first effect run (which fires
+   * synchronously with whatever the current uid is) is a no-op.
+   */
+  private lastSeenUid: string | null | undefined = undefined;
+
+  constructor() {
+    effect(() => {
+      const uid = this.auth.user()?.uid ?? null;
+      if (this.lastSeenUid === undefined) {
+        this.lastSeenUid = uid;
+        return;
+      }
+      if (uid !== this.lastSeenUid) {
+        this.lastSeenUid = uid;
+        this.clear();
+      }
+    });
+  }
 
   /**
    * Load members data with caching

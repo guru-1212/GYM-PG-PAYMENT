@@ -11,9 +11,11 @@ import {
   supervisorFeatureGuard,
 } from './core/guards/permission.guard';
 import { subscriptionGuard } from './core/guards/subscription.guard';
+import { supervisorShellGuard } from './core/guards/supervisor-shell.guard';
 import { memberAppHomeGuard } from './core/guards/member-app.guard';
 import { AdminShellComponent } from './layout/admin-shell.component';
 import { OwnerShellComponent } from './layout/owner-shell.component';
+import { SupervisorShellComponent } from './layout/supervisor-shell.component';
 import { AccountRejectedComponent } from './pages/account-rejected/account-rejected.component';
 import { AdminDashboardComponent } from './pages/admin/admin-dashboard.component';
 import { AdminOwnersComponent } from './pages/admin/admin-owners.component';
@@ -28,6 +30,7 @@ import { PendingApprovalComponent } from './pages/pending-approval/pending-appro
 import { RoomsPageComponent } from './pages/rooms/rooms-page.component';
 import { MonthlyEarningsPageComponent } from './pages/monthly-earnings/monthly-earnings-page.component';
 import { SubscriptionExpiredComponent } from './pages/subscription-expired/subscription-expired.component';
+import { SupervisorDashboardComponent } from './pages/supervisor-dashboard/supervisor-dashboard.component';
 // Complaints feature temporarily disabled — re-enable imports + routes when fixed.
 // import { PublicComplaintPageComponent } from './pages/public-complaint/public-complaint-page.component';
 // import { ComplaintsPageComponent } from './pages/complaints/complaints-page.component';
@@ -82,6 +85,44 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       { path: 'dashboard', component: AdminDashboardComponent },
       { path: 'owners', component: AdminOwnersComponent },
+    ],
+  },
+  /**
+   * Supervisor shell — completely independent route tree from owner shell.
+   *
+   * Reuses Members / Payments / Rooms components because the data scope is
+   * still the parent owner (supervisor.profile.ownerId === parentOwnerId).
+   * Permission guards on each leaf route enforce the per-account flags.
+   * `subscriptionGuard` runs because supervisors inherit the parent owner's
+   * plan (auth merges parent.planEndDate into the supervisor profile).
+   */
+  {
+    path: 'supervisor',
+    canActivate: [authGuard, supervisorShellGuard, subscriptionGuard],
+    component: SupervisorShellComponent,
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      { path: 'dashboard', component: SupervisorDashboardComponent },
+      {
+        path: 'members',
+        canActivate: [permissionGuard('canViewMembers')],
+        component: MembersComponent,
+      },
+      {
+        path: 'inactive-members',
+        canActivate: [permissionGuard('canViewInactiveMembers')],
+        component: MembersComponent,
+      },
+      {
+        path: 'payments',
+        canActivate: [permissionGuard('canViewPayments')],
+        component: PaymentsPageComponent,
+      },
+      {
+        path: 'rooms',
+        canActivate: [permissionGuard('canViewRooms')],
+        component: RoomsPageComponent,
+      },
     ],
   },
   {

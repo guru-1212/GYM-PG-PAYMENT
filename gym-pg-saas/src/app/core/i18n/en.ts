@@ -343,7 +343,9 @@ export const EN: Record<string, unknown> = {
     disabledToast: 'Supervisor disabled.',
     perm: {
       canViewMembers: 'View members',
-      canEditMembers: 'Add / edit / delete members',
+      canAddMembers: 'Add new members',
+      canEditMembers: 'Edit member details',
+      canDeleteMembers: 'Delete members',
       canViewPayments: 'View payments',
       canRecordPayments: 'Record payments',
       canViewRooms: 'View rooms',

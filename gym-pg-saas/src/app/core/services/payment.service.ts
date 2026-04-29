@@ -15,8 +15,9 @@ import {
 } from 'firebase/firestore';
 import { Observable } from 'rxjs';
 import type { SubscriptionType } from '../models/member.model';
-import { Payment, PaymentMethod } from '../models/payment.model';
+import { Payment, PaymentMethod, PaymentRecordedByRole } from '../models/payment.model';
 import { coerceFirestoreDate, dateToTimestamp, isDateInCalendarMonth, nextDueAfterPaid, timestampToDate } from '../utils/date.utils';
+import { AuthService } from './auth.service';
 import { FirebaseAppService } from './firebase-app.service';
 import { MemberService } from './member.service';
 
@@ -37,6 +38,40 @@ export interface MarkPaidResult {
 export class PaymentService {
   private readonly fb = inject(FirebaseAppService);
   private readonly members = inject(MemberService);
+  private readonly auth = inject(AuthService);
+
+  /**
+   * Build the audit-log fields stamped onto every payment document.
+   *
+   * The owner can later prove "who collected this cash" without trusting
+   * any client-side state — `recordedBy` is the Firebase Auth UID of
+   * whoever was signed in when the write happened, and Firestore rules
+   * enforce that this matches `request.auth.uid` at write time.
+   *
+   * Returns a partial object so callers spread it directly into addDoc()
+   * payloads. Falls back gracefully when the profile is unavailable
+   * (very brief windows during sign-in) so writes never blow up purely
+   * because the audit metadata isn't ready yet.
+   */
+  private buildAuditFields(): {
+    recordedBy: string;
+    recordedByName: string;
+    recordedByRole: PaymentRecordedByRole;
+  } {
+    const uid = this.auth.user()?.uid ?? '';
+    const profile = this.auth.profile();
+    const role: PaymentRecordedByRole =
+      profile?.role === 'admin'
+        ? 'admin'
+        : profile?.role === 'supervisor'
+          ? 'supervisor'
+          : 'owner';
+    return {
+      recordedBy: uid,
+      recordedByName: (profile?.name || profile?.email || '').trim(),
+      recordedByRole: role,
+    };
+  }
 
   private paymentDateFromRow(row: Record<string, unknown>): Date | null {
     return coerceFirestoreDate(row['date']) ?? coerceFirestoreDate(row['createdAt']);
@@ -212,6 +247,7 @@ export class PaymentService {
     const priorPending = Math.max(0, Number(params.priorPendingAmount) || 0);
     const planAmount = Math.max(0, Number(params.memberPlanAmount) || 0);
 
+    const audit = this.buildAuditFields();
     await addDoc(collection(this.fb.db, 'payments'), {
       memberId: params.memberId,
       ownerId: params.ownerId,
@@ -221,6 +257,11 @@ export class PaymentService {
       isPartialPayment,
       pendingAmount: isPartialPayment ? pendingFromForm : 0,
       createdAt: serverTimestamp(),
+      // Audit log (additive — see Payment model). Owners can use these
+      // fields to reconcile cash flow when a supervisor collects on
+      // their behalf, or to investigate a disputed payment.
+      ...audit,
+      recordedAt: serverTimestamp(),
     });
 
     if (isPartialPayment) {

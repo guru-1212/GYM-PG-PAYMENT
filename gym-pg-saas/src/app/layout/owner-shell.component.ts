@@ -157,7 +157,8 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
 
   constructor() {
     effect(() => {
-      const ownerId = this.profile()?.ownerId;
+      const profile = this.profile();
+      const ownerId = profile?.ownerId;
       this.unsubThread?.();
       this.unsubUnread?.();
       this.unsubOwnerInApp?.();
@@ -165,6 +166,10 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
       this.unreadCount.set(0);
       this.ownerInAppUnread.set(0);
       if (!ownerId) return;
+      // Owner-only resources. Supervisors live under their own shell now;
+      // running these listeners in their session triggers permission-denied
+      // (chats are owner-uid-scoped) and fills the console with noise.
+      if (profile?.role !== 'owner') return;
       this.unsubThread = this.chat.watchThread(ownerId, (messages) => this.chatMessages.set(messages));
       this.unsubUnread = this.chat.watchOwnerUnreadCount(ownerId, (count) => this.unreadCount.set(count));
       this.unsubOwnerInApp = this.inApp.watchOwnerNotifications(ownerId, (rows) => {

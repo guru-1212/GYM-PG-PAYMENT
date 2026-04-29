@@ -12,7 +12,7 @@
         <!-- <button type="button" class="saas-btn-secondary px-4 py-2 text-sm" (click)="exportToCSV()">
           📥 Export CSV
         </button> -->
-        @if (canEditMembersAction()) {
+        @if (canAddMembersAction()) {
           <button type="button" class="saas-btn-primary px-6 py-3 text-base" (click)="openAdd()">
             + {{ 'members.addMember' | t }}
           </button>
@@ -87,7 +87,7 @@
     <div class="saas-card p-10 text-center">
       <p class="text-slate-600">{{ 'members.noneFound' | t }}</p>
       @if (listMode() === 'active') {
-        @if (canEditMembersAction()) {
+        @if (canAddMembersAction()) {
           <button type="button" class="saas-btn-primary mt-4 px-5 py-2.5 text-sm" (click)="openAdd()">{{ 'members.addMember' | t }}</button>
         }
       }

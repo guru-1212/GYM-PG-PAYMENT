@@ -1,0 +1,467 @@
+<div class="flex min-h-screen bg-transparent dark:bg-slate-950">
+  <!-- ============================================================ -->
+  <!-- Desktop sidebar                                                -->
+  <!-- ============================================================ -->
+  <aside
+    class="hidden w-64 shrink-0 flex-col border-r border-white/60 bg-white/75 backdrop-blur-xl md:sticky md:top-0 md:flex md:h-screen dark:border-slate-700/70 dark:bg-slate-950/90 dark:backdrop-blur-xl"
+  >
+    <div class="border-b border-slate-100/80 px-5 py-5 dark:border-slate-800/80">
+      <div class="mb-3 flex items-center justify-between gap-2">
+        <app-brand-logo [logoSize]="'32px'" [showText]="true" brandName="OurPGTracker"></app-brand-logo>
+      </div>
+      <!-- Working-under badge: gives the supervisor unambiguous context
+           about which business their actions are scoped to. -->
+      <div class="mt-1 rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-blue-50 px-3 py-2.5 dark:border-indigo-900/60 dark:from-indigo-950/60 dark:to-blue-950/40">
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+          Working under
+        </p>
+        <p class="mt-0.5 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+          {{ parentBusinessName() || parentOwnerName() || 'Loading…' }}
+        </p>
+        <p class="mt-1 inline-flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-700 dark:bg-slate-900/50 dark:text-indigo-300">
+          <span class="material-icons-outlined text-[12px] leading-none">badge</span>
+          Supervisor
+        </p>
+      </div>
+    </div>
+
+    <nav class="flex flex-1 flex-col gap-1 p-3">
+      <a
+        routerLink="/supervisor/dashboard"
+        routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+        [routerLinkActiveOptions]="{ exact: true }"
+        class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90"
+      >
+        <span class="material-icons-outlined">dashboard</span>
+        Dashboard
+      </a>
+
+      @if (canViewMembers()) {
+        <a
+          routerLink="/supervisor/members"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90"
+        >
+          <span class="material-icons-outlined">groups</span>
+          Members
+        </a>
+      }
+
+      @if (canViewInactiveMembers()) {
+        <a
+          routerLink="/supervisor/inactive-members"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90"
+        >
+          <span class="material-icons-outlined">person_off</span>
+          Inactive members
+        </a>
+      }
+
+      @if (canViewPayments()) {
+        <a
+          routerLink="/supervisor/payments"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90"
+        >
+          <span class="material-icons-outlined">payments</span>
+          Payments
+        </a>
+      }
+
+      @if (isPg() && canViewRooms()) {
+        <a
+          routerLink="/supervisor/rooms"
+          routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90"
+        >
+          <span class="material-icons-outlined">hotel</span>
+          Rooms
+        </a>
+      }
+    </nav>
+
+    <div class="border-t border-slate-100 p-3 dark:border-slate-800">
+      <div class="mb-3">
+        <app-theme-picker />
+      </div>
+      <div class="mb-3">
+        <app-theme-toggle />
+      </div>
+      <button
+        type="button"
+        class="saas-btn-secondary flex w-full items-center justify-center gap-2 py-3 text-sm"
+        (click)="signOut()"
+      >
+        <span class="material-icons-outlined text-lg">logout</span>
+        Sign out
+      </button>
+    </div>
+  </aside>
+
+  <div class="flex min-w-0 flex-1 flex-col">
+    <!-- ============================================================ -->
+    <!-- Mobile top bar                                                 -->
+    <!-- ============================================================ -->
+    <header
+      class="sticky top-0 z-20 flex w-full min-w-0 items-center justify-between gap-3 border-b border-slate-200/90 bg-white px-3 py-2.5 md:hidden dark:border-slate-700 dark:bg-slate-950"
+    >
+      <button
+        type="button"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm transition-all hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+        (click)="openMobileMenu()"
+        aria-label="Open menu"
+        [attr.aria-expanded]="mobileMenuOpen()"
+      >
+        <span class="material-icons-outlined text-2xl">menu</span>
+      </button>
+
+      <div class="min-w-0 flex-1 px-1 text-center">
+        <p class="truncate text-[13px] font-semibold leading-tight text-slate-800 dark:text-slate-100 sm:text-sm">
+          <span
+            class="material-icons-outlined mr-0.5 align-[-3px] text-[17px] text-indigo-600 dark:text-indigo-400"
+            aria-hidden="true"
+            >{{ headerGreeting().icon }}</span
+          ><span>{{ headerGreeting().text }}</span>
+          @if (headerGreeting().displayName) {
+            <span class="mx-0.5 font-normal text-slate-500 dark:text-slate-400">—</span>
+            <span>{{ headerGreeting().displayName }}</span>
+          }
+        </p>
+        <p class="truncate text-[10px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-300">
+          {{ parentBusinessName() || parentOwnerName() || '…' }}
+        </p>
+      </div>
+
+      <div class="flex shrink-0 items-center gap-2">
+        <div class="relative shrink-0" data-user-menu-root>
+          <button
+            type="button"
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-blue-600 text-sm font-bold text-white shadow-md ring-2 ring-white"
+            (click)="toggleUserMenu($event)"
+            [attr.aria-expanded]="userMenuOpen()"
+            aria-label="User menu"
+          >
+            {{ supervisorInitial() }}
+          </button>
+          @if (userMenuOpen()) {
+            <div
+              class="absolute right-0 top-12 z-50 min-w-[14rem] rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-600 dark:bg-slate-900 dark:shadow-black/40"
+              role="menu"
+            >
+              <p class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                Signed in as
+              </p>
+              <p class="px-3 pb-2 text-sm font-medium text-slate-900 break-all dark:text-slate-100">
+                {{ profile()?.name }}
+              </p>
+              <button
+                type="button"
+                class="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/40"
+                role="menuitem"
+                (click)="signOut()"
+              >
+                <span class="material-icons-outlined text-lg">logout</span>
+                Sign out
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================================================ -->
+    <!-- Mobile drawer                                                  -->
+    <!-- ============================================================ -->
+    @if (mobileMenuOpen()) {
+      <div
+        class="fixed inset-0 z-40 md:hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
+      >
+        <div
+          class="absolute inset-0 bg-slate-900/45 backdrop-blur-sm transition-opacity"
+          (click)="closeMobileMenu()"
+        ></div>
+        <aside
+          class="absolute left-0 top-0 flex h-full w-[min(18rem,88vw)] flex-col border-r border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-950 dark:shadow-black/40"
+          (click)="$event.stopPropagation()"
+        >
+          <div class="border-b border-slate-100 px-4 py-4 dark:border-slate-800">
+            <div class="flex items-center justify-between">
+              <p class="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-xs font-semibold uppercase tracking-wide text-transparent">
+                Menu
+              </p>
+              <button
+                type="button"
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                (click)="closeMobileMenu()"
+                aria-label="Close menu"
+              >
+                <span class="material-icons-outlined">close</span>
+              </button>
+            </div>
+            <p class="mt-2 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {{ profile()?.name }}
+            </p>
+            <div class="mt-2 rounded-lg border border-indigo-100 bg-indigo-50/70 px-2 py-1.5 dark:border-indigo-900/60 dark:bg-indigo-950/40">
+              <p class="text-[10px] font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                Working under
+              </p>
+              <p class="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
+                {{ parentBusinessName() || parentOwnerName() || '…' }}
+              </p>
+            </div>
+          </div>
+
+          <nav class="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
+            <a
+              routerLink="/supervisor/dashboard"
+              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+              [routerLinkActiveOptions]="{ exact: true }"
+              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+              (click)="closeMobileMenu()"
+            >
+              <span class="material-icons-outlined">dashboard</span>
+              Dashboard
+            </a>
+            @if (canViewMembers()) {
+              <a
+                routerLink="/supervisor/members"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">groups</span>
+                Members
+              </a>
+            }
+            @if (canViewInactiveMembers()) {
+              <a
+                routerLink="/supervisor/inactive-members"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">person_off</span>
+                Inactive members
+              </a>
+            }
+            @if (canViewPayments()) {
+              <a
+                routerLink="/supervisor/payments"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">payments</span>
+                Payments
+              </a>
+            }
+            @if (isPg() && canViewRooms()) {
+              <a
+                routerLink="/supervisor/rooms"
+                routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">hotel</span>
+                Rooms
+              </a>
+            }
+          </nav>
+
+          <div class="border-t border-slate-100 p-3 dark:border-slate-800">
+            <div class="mb-3"><app-theme-picker /></div>
+            <app-theme-toggle />
+            <button
+              type="button"
+              class="saas-btn-secondary mt-3 flex w-full items-center justify-center gap-2 py-3 text-sm"
+              (click)="signOut()"
+            >
+              <span class="material-icons-outlined text-lg">logout</span>
+              Sign out
+            </button>
+          </div>
+        </aside>
+      </div>
+    }
+
+    <!-- ============================================================ -->
+    <!-- Main content                                                   -->
+    <!-- ============================================================ -->
+    <main class="flex-1 p-4 pb-28 md:p-6 md:pb-8 lg:p-8 dark:bg-slate-950/50">
+      @if (planExpiryBanner(); as banner) {
+        <!--
+          Plan-expiry banner (inherited from parent owner).
+          Supervisors can't renew themselves; the banner asks them to alert
+          the owner before lock-out. Tone escalates: warn (≤14d) → danger (expired).
+        -->
+        <div
+          class="mb-4 flex flex-col gap-2 rounded-2xl border px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:gap-3"
+          [class.border-amber-300]="banner.tone === 'warn'"
+          [class.bg-amber-50]="banner.tone === 'warn'"
+          [class.text-amber-900]="banner.tone === 'warn'"
+          [class.dark:border-amber-800]="banner.tone === 'warn'"
+          [class.dark:bg-amber-950]="banner.tone === 'warn'"
+          [class.dark:text-amber-200]="banner.tone === 'warn'"
+          [class.border-red-300]="banner.tone === 'danger'"
+          [class.bg-red-50]="banner.tone === 'danger'"
+          [class.text-red-900]="banner.tone === 'danger'"
+          [class.dark:border-red-800]="banner.tone === 'danger'"
+          [class.dark:bg-red-950]="banner.tone === 'danger'"
+          [class.dark:text-red-200]="banner.tone === 'danger'"
+          role="status"
+        >
+          <span class="material-icons-outlined shrink-0 text-2xl">
+            {{ banner.tone === 'danger' ? 'lock_clock' : 'schedule' }}
+          </span>
+          <div class="min-w-0 flex-1">
+            @if (banner.tone === 'danger') {
+              <p class="text-sm font-semibold leading-tight">
+                {{ parentBusinessName() || 'This business' }} subscription has expired.
+              </p>
+              <p class="mt-0.5 text-xs leading-snug opacity-90">
+                Ask {{ parentOwnerName() || 'the owner' }} to renew the plan to restore access.
+              </p>
+            } @else {
+              <p class="text-sm font-semibold leading-tight">
+                Subscription expires in
+                {{ banner.daysLeft }} day{{ banner.daysLeft === 1 ? '' : 's' }}
+                ({{ banner.dateText }}).
+              </p>
+              <p class="mt-0.5 text-xs leading-snug opacity-90">
+                You'll be locked out if {{ parentOwnerName() || 'the owner' }} doesn't renew before then. Please remind them.
+              </p>
+            }
+          </div>
+        </div>
+      }
+      <router-outlet />
+    </main>
+
+    <!-- ============================================================ -->
+    <!-- Mobile bottom nav                                              -->
+    <!-- ============================================================ -->
+    <nav
+      class="fixed inset-x-0 bottom-0 z-30 md:hidden"
+      aria-label="Bottom navigation"
+      style="padding-bottom: env(safe-area-inset-bottom)"
+    >
+      <div
+        class="relative flex h-16 items-stretch border-t border-slate-200/80 bg-white/95 px-1 backdrop-blur-xl shadow-[0_-6px_24px_rgba(15,23,42,0.08)] dark:border-slate-700/70 dark:bg-slate-950/95 dark:shadow-[0_-6px_24px_rgba(0,0,0,0.5)]"
+      >
+        <a
+          routerLink="/supervisor/dashboard"
+          [routerLinkActiveOptions]="{ exact: true }"
+          routerLinkActive="!text-indigo-700 dark:!text-indigo-300"
+          #homeRLA="routerLinkActive"
+          class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-slate-500 transition active:scale-[0.96] dark:text-slate-400"
+        >
+          @if (homeRLA.isActive) {
+            <span
+              class="pointer-events-none absolute top-0 h-1 w-7 -translate-y-px rounded-b-full bg-gradient-to-r from-indigo-500 to-blue-600"
+              aria-hidden="true"
+            ></span>
+          }
+          <span class="material-icons-outlined text-[22px] leading-none">home</span>
+          <span class="text-[10px] font-semibold leading-tight">Home</span>
+        </a>
+
+        @if (canViewMembers()) {
+          <a
+            routerLink="/supervisor/members"
+            routerLinkActive="!text-indigo-700 dark:!text-indigo-300"
+            #memRLA="routerLinkActive"
+            class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-slate-500 transition active:scale-[0.96] dark:text-slate-400"
+          >
+            @if (memRLA.isActive) {
+              <span
+                class="pointer-events-none absolute top-0 h-1 w-7 -translate-y-px rounded-b-full bg-gradient-to-r from-indigo-500 to-blue-600"
+                aria-hidden="true"
+              ></span>
+            }
+            <span class="material-icons-outlined text-[22px] leading-none">groups</span>
+            <span class="text-[10px] font-semibold leading-tight">Members</span>
+          </a>
+        } @else {
+          <div class="flex min-w-0 flex-1"></div>
+        }
+
+        <!-- Center: collect payment FAB if allowed, else add member, else spacer -->
+        <div class="relative flex w-16 shrink-0 items-end justify-center">
+          @if (canRecordPayments()) {
+            <a
+              routerLink="/supervisor/payments"
+              [queryParams]="{ action: 'collect' }"
+              class="-mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/40 ring-[3px] ring-white transition active:scale-95 dark:ring-slate-950"
+              aria-label="Collect payment"
+              title="Collect payment"
+            >
+              <span class="material-icons-outlined relative text-[28px] leading-none">attach_money</span>
+            </a>
+          } @else if (canViewMembers()) {
+            <a
+              routerLink="/supervisor/members"
+              [queryParams]="{ action: 'add' }"
+              class="-mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 via-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-600/40 ring-[3px] ring-white transition active:scale-95 dark:ring-slate-950"
+              aria-label="Add member"
+              title="Add member"
+            >
+              <span class="material-icons-outlined relative text-[28px] leading-none">person_add</span>
+            </a>
+          } @else {
+            <div class="-mt-7 h-14 w-14"></div>
+          }
+        </div>
+
+        @if (isPg() && canViewRooms()) {
+          <a
+            routerLink="/supervisor/rooms"
+            routerLinkActive="!text-indigo-700 dark:!text-indigo-300"
+            #roomRLA="routerLinkActive"
+            class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-slate-500 transition active:scale-[0.96] dark:text-slate-400"
+          >
+            @if (roomRLA.isActive) {
+              <span
+                class="pointer-events-none absolute top-0 h-1 w-7 -translate-y-px rounded-b-full bg-gradient-to-r from-indigo-500 to-blue-600"
+                aria-hidden="true"
+              ></span>
+            }
+            <span class="material-icons-outlined text-[22px] leading-none">hotel</span>
+            <span class="text-[10px] font-semibold leading-tight">Rooms</span>
+          </a>
+        } @else if (canViewPayments()) {
+          <a
+            routerLink="/supervisor/payments"
+            routerLinkActive="!text-indigo-700 dark:!text-indigo-300"
+            #payRLA="routerLinkActive"
+            class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-slate-500 transition active:scale-[0.96] dark:text-slate-400"
+          >
+            @if (payRLA.isActive) {
+              <span
+                class="pointer-events-none absolute top-0 h-1 w-7 -translate-y-px rounded-b-full bg-gradient-to-r from-indigo-500 to-blue-600"
+                aria-hidden="true"
+              ></span>
+            }
+            <span class="material-icons-outlined text-[22px] leading-none">payments</span>
+            <span class="text-[10px] font-semibold leading-tight">Payments</span>
+          </a>
+        } @else {
+          <div class="flex min-w-0 flex-1"></div>
+        }
+
+        <button
+          type="button"
+          (click)="openMobileMenu()"
+          class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-slate-500 transition active:scale-[0.96] dark:text-slate-400"
+          aria-label="More"
+        >
+          <span class="material-icons-outlined text-[22px] leading-none">more_horiz</span>
+          <span class="text-[10px] font-semibold leading-tight">More</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+</div>

@@ -342,7 +342,9 @@ export const TE: Record<string, unknown> = {
     disabledToast: 'సూపర్‌వైజర్ డిజేబుల్ చేయబడ్డారు.',
     perm: {
       canViewMembers: 'సభ్యులను చూడండి',
-      canEditMembers: 'సభ్యులను జోడించండి / సవరించండి / తీసివేయండి',
+      canAddMembers: 'కొత్త సభ్యులను జోడించండి',
+      canEditMembers: 'సభ్యుల వివరాలు సవరించండి',
+      canDeleteMembers: 'సభ్యులను తీసివేయండి',
       canViewPayments: 'చెల్లింపులు చూడండి',
       canRecordPayments: 'చెల్లింపులు రికార్డ్ చేయండి',
       canViewRooms: 'గదులను చూడండి',
