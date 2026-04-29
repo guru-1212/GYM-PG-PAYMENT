@@ -265,6 +265,16 @@
                       />
                       WhatsApp
                     </label>
+                    <label class="flex items-center gap-1.5 text-slate-700">
+                      <input
+                        type="checkbox"
+                        class="h-4 w-4 accent-amber-600"
+                        [checked]="isAuditLogEnabled(o)"
+                        [disabled]="busyId() === o.ownerId"
+                        (change)="toggleAuditLogEnabled(o, $any($event.target).checked)"
+                      />
+                      Audit Log
+                    </label>
                     @if (isSupervisorEnabled(o)) {
                       <label class="flex items-center gap-1.5 text-slate-700">
                         Cap
@@ -442,6 +452,16 @@
                     (change)="toggleWhatsappEnabled(o, $any($event.target).checked)"
                   />
                   WhatsApp
+                </label>
+                <label class="flex items-center gap-1.5 text-slate-700">
+                  <input
+                    type="checkbox"
+                    class="h-4 w-4 accent-amber-600"
+                    [checked]="isAuditLogEnabled(o)"
+                    [disabled]="busyId() === o.ownerId"
+                    (change)="toggleAuditLogEnabled(o, $any($event.target).checked)"
+                  />
+                  Audit Log
                 </label>
                 @if (isSupervisorEnabled(o)) {
                   <label class="flex items-center gap-1.5 text-slate-700">

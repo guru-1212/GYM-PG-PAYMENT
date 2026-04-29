@@ -666,6 +666,43 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /**
+     * Audit log: every actor-driven mutation (payments, member edits,
+     * onboarding link generation, supervisor lifecycle, login, etc.)
+     * appends a single immutable row here.
+     *
+     * Read scope: owner + active supervisors of the owner + admin.
+     * Supervisors can READ the trail so the audit page works in their
+     * shell too — but they can only WRITE rows attributed to themselves
+     * (`performedBy == request.auth.uid` is mandatory on every create).
+     *
+     * Documents are write-once; updates and deletes are forbidden so a
+     * malicious supervisor can't rewrite history.
+     */
+    match /owners/{ownerId}/auditLogs/{auditId} {
+      function performedByMatchesCaller() {
+        return request.resource.data.performedBy is string
+          && request.resource.data.performedBy == request.auth.uid;
+      }
+      function canReadAuditTrail() {
+        return isAdmin()
+          || (isApprovedOwner() && request.auth.uid == ownerId)
+          || isActiveSupervisorOf(ownerId);
+      }
+      function canWriteAuditEntry() {
+        return (isApprovedOwner() && request.auth.uid == ownerId)
+          || isActiveSupervisorOf(ownerId);
+      }
+      allow read: if canReadAuditTrail();
+      allow create: if canWriteAuditEntry()
+        && performedByMatchesCaller()
+        && request.resource.data.ownerId == ownerId
+        && request.resource.data.action is string
+        && request.resource.data.entityType is string
+        && request.resource.data.description is string;
+      allow update, delete: if false;
+    }
+
     /** Owner / supervisor in-app + FCM companion notifications. */
     match /owners/{ownerId}/appNotifications/{nid} {
       function canReadOwnerScoped() {

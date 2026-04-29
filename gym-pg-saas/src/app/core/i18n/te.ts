@@ -135,6 +135,8 @@ export const TE: Record<string, unknown> = {
     viewBedMap: 'మంచం మ్యాప్ చూడండి',
     totalMembers: 'మొత్తం సభ్యులు',
     monthEarnings: 'ఈ నెల ఆదాయం',
+    todayCollection: 'ఈరోజు వసూలు',
+    todayCollectionHint: 'ఈరోజు నమోదైన చెల్లింపులు',
     pendingPayments: 'పెండింగ్ చెల్లింపులు',
     dueTodayOrOverdue: 'ఈరోజు లేదా అతిరిక్తం',
     overdue: 'అతిరిక్తం',

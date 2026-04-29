@@ -73,6 +73,29 @@ export const supervisorFeatureGuard: CanActivateFn = async () => {
 };
 
 /**
+ * Route guard for the owner-only `/audit-log` page.
+ * Blocks the route unless:
+ *   - the signed-in user is an approved owner (supervisors are bounced), AND
+ *   - admin has enabled `featureFlags.auditLogEnabled` on their owner doc.
+ * Audit log entries are still written for everyone — this guard only gates
+ * the *owner-facing view* of them.
+ */
+export const auditLogFeatureGuard: CanActivateFn = async () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  await awaitAuthReady(auth);
+  const profile = auth.profile();
+  if (!profile) return router.createUrlTree(['/login']);
+  if (profile.role !== 'owner') {
+    return landingFor(auth, router);
+  }
+  if (profile.featureFlags?.auditLogEnabled !== true) {
+    return router.createUrlTree(['/dashboard']);
+  }
+  return true;
+};
+
+/**
  * Hard-blocks supervisors from a route regardless of permissions.
  * Used for /monthly-earnings (per product rule), /analytics, and any other
  * owner-business-only screens.

@@ -16,6 +16,7 @@ import type {
   MemberOnboardingPrefill,
 } from '../models/member-onboarding.model';
 import { Member } from '../models/member.model';
+import { AuditLogService } from './audit-log.service';
 import { AuthService } from './auth.service';
 import { FirebaseAppService } from './firebase-app.service';
 
@@ -83,6 +84,7 @@ export interface OnboardingSubmitInput {
 export class MemberOnboardingService {
   private readonly fb = inject(FirebaseAppService);
   private readonly auth = inject(AuthService);
+  private readonly audit = inject(AuditLogService);
 
   /* ------------------------- helpers ------------------------- */
 
@@ -197,6 +199,21 @@ export class MemberOnboardingService {
 
     await updateDoc(doc(this.fb.db, 'members', member.memberId), {
       onboardingLinkShareCount: increment(1),
+    });
+
+    const memberDisplay =
+      `${(member.firstName || '').trim()} ${(member.lastName || '').trim()}`.trim() || 'Member';
+    void this.audit.log({
+      ownerId: owner.ownerId,
+      action: 'member.profileLinkSent',
+      entityType: 'member',
+      entityId: member.memberId,
+      entityLabel: memberDisplay,
+      description: `Shared profile-update link with ${memberDisplay}.`,
+      meta: {
+        expiresAt: expiresAt.toISOString(),
+        shareCount: String((member.onboardingLinkShareCount || 0) + 1),
+      },
     });
 
     return { token, url: this.buildShareUrl(token), expiresAt };

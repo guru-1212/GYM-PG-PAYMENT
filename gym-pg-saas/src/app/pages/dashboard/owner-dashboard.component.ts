@@ -14,6 +14,8 @@ import { PgLayoutService } from '../../core/services/pg-layout.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { InAppNotificationService } from '../../core/services/in-app-notification.service';
 import { MemberReceiptService } from '../../core/services/member-receipt.service';
+import { SupervisorService } from '../../core/services/supervisor.service';
+import { Supervisor } from '../../core/models/supervisor.model';
 // Complaints disabled — restore when feature fixed
 // import { ComplaintService } from '../../core/services/complaint.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -140,6 +142,33 @@ export interface QueueRow {
   secondary?: string;
 }
 
+/** One supervisor-collected payment, decorated for the modal table. */
+export interface SupervisorCollectionRow {
+  paymentId: string;
+  supervisorId: string;
+  supervisorName: string;
+  memberId: string;
+  memberName: string;
+  amount: number;
+  /** Bucket the row falls into. */
+  kind: 'rent' | 'pending' | 'partial';
+  kindLabel: string;
+  method: 'cash' | 'upi' | 'card';
+  methodLabel: string;
+  pendingAfter: number;
+  time: Date;
+  timeLabel: string;
+}
+
+/** Day-wise group of supervisor collections for the modal. */
+export interface SupervisorCollectionDay {
+  dayKey: string;
+  label: string;
+  total: number;
+  count: number;
+  rows: SupervisorCollectionRow[];
+}
+
 @Component({
   selector: 'app-owner-dashboard',
   standalone: true,
@@ -165,6 +194,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   private readonly paymentsApi = inject(PaymentService);
   private readonly pgLayoutApi = inject(PgLayoutService);
   private readonly receiptService = inject(MemberReceiptService);
+  private readonly supervisorApi = inject(SupervisorService);
   private readonly notifications = inject(NotificationService);
   private readonly inAppNotifications = inject(InAppNotificationService);
   // private readonly complaintApi = inject(ComplaintService);
@@ -175,6 +205,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   readonly members = signal<Member[]>([]);
   readonly payments = signal<Payment[]>([]);
+  readonly supervisors = signal<Supervisor[]>([]);
+  readonly supervisorCollectionsModalOpen = signal(false);
   readonly loading = signal(true);
   readonly setupModalOpen = signal(false);
   readonly validationError = signal<string | null>(null);
@@ -306,6 +338,264 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   });
 
   readonly totalMembers = computed(() => this.members().filter((m) => m.status === 'active').length);
+
+  /**
+   * Today's collection: sum of all payments stamped with today's date for the
+   * signed-in owner. Lightweight version of `monthEarnings` scoped to a single
+   * day. Returns 0 while data is still loading.
+   */
+  readonly todayCollection = computed(() => {
+    if (this.loading()) return 0;
+    const oid = this.auth.profile()?.ownerId;
+    const today = new Date();
+    let sum = 0;
+    for (const p of this.payments()) {
+      if (oid && p.ownerId !== oid) continue;
+      const pd = this.convertTimestampToDate(p.date);
+      if (!pd) continue;
+      if (isSameDay(pd, today)) {
+        sum += Number(p.amount) || 0;
+      }
+    }
+    return sum;
+  });
+
+  /** Number of payment transactions captured today (used for the card's helper line). */
+  readonly todayCollectionCount = computed(() => {
+    if (this.loading()) return 0;
+    const oid = this.auth.profile()?.ownerId;
+    const today = new Date();
+    let count = 0;
+    for (const p of this.payments()) {
+      if (oid && p.ownerId !== oid) continue;
+      const pd = this.convertTimestampToDate(p.date);
+      if (!pd) continue;
+      if (isSameDay(pd, today)) count += 1;
+    }
+    return count;
+  });
+
+  // ── Supervisor collections (only when owner has supervisors) ───────────────
+
+  /** True when the signed-in owner has at least one supervisor account. */
+  readonly hasSupervisors = computed(() => this.supervisors().length > 0);
+
+  /** True when the supervisor-collections card should render. */
+  readonly canSeeSupervisorCollections = computed(
+    () => !this.isSupervisor() && this.hasSupervisors(),
+  );
+
+  /** All payments stamped as recorded by a supervisor for the current owner. */
+  private readonly supervisorPayments = computed(() => {
+    const oid = this.auth.profile()?.ownerId;
+    if (!oid) return [];
+    return this.payments().filter(
+      (p) => p.ownerId === oid && p.recordedByRole === 'supervisor',
+    );
+  });
+
+  /** Today's total amount collected by all supervisors combined. */
+  readonly supervisorTodayTotal = computed(() => {
+    if (this.loading()) return 0;
+    const today = new Date();
+    let sum = 0;
+    for (const p of this.supervisorPayments()) {
+      const pd = this.convertTimestampToDate(p.date);
+      if (!pd) continue;
+      if (isSameDay(pd, today)) sum += Number(p.amount) || 0;
+    }
+    return sum;
+  });
+
+  /** Number of supervisor-collected transactions today. */
+  readonly supervisorTodayCount = computed(() => {
+    if (this.loading()) return 0;
+    const today = new Date();
+    let count = 0;
+    for (const p of this.supervisorPayments()) {
+      const pd = this.convertTimestampToDate(p.date);
+      if (!pd) continue;
+      if (isSameDay(pd, today)) count += 1;
+    }
+    return count;
+  });
+
+  /**
+   * Day-grouped supervisor collections for the detail modal.
+   * Newest day first; rows within a day ordered newest first by time of payment.
+   */
+  readonly supervisorCollectionGroups = computed<SupervisorCollectionDay[]>(() => {
+    const memberById = new Map<string, Member>();
+    for (const m of this.members()) memberById.set(m.memberId, m);
+    const supById = new Map<string, Supervisor>();
+    for (const s of this.supervisors()) supById.set(s.supervisorId, s);
+
+    const groups = new Map<string, SupervisorCollectionDay>();
+    for (const p of this.supervisorPayments()) {
+      const date = this.convertTimestampToDate(p.date);
+      if (!date) continue;
+      const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      let group = groups.get(dayKey);
+      if (!group) {
+        group = {
+          dayKey,
+          label: this.supervisorDayLabel(date),
+          total: 0,
+          count: 0,
+          rows: [],
+        };
+        groups.set(dayKey, group);
+      }
+
+      const member = memberById.get(p.memberId);
+      const memberName = member
+        ? `${member.firstName || ''} ${member.lastName || ''}`.trim() || 'Unknown member'
+        : 'Unknown member';
+      const sup = p.recordedBy ? supById.get(p.recordedBy) : undefined;
+      const supervisorName =
+        p.recordedByName?.trim() || sup?.name || 'Supervisor';
+      const isPartial = Boolean(p.isPartialPayment);
+      const pendingAfter = Math.max(0, Number(p.pendingAmount) || 0);
+      const kind: SupervisorCollectionRow['kind'] = isPartial
+        ? 'partial'
+        : pendingAfter > 0
+          ? 'pending'
+          : 'rent';
+      const kindLabel = isPartial
+        ? 'Partial payment'
+        : pendingAfter > 0
+          ? 'Pending balance'
+          : 'Rent / Plan';
+      const method = (p.method || 'cash') as SupervisorCollectionRow['method'];
+      const methodLabel = method === 'upi' ? 'UPI' : method === 'card' ? 'Card' : 'Cash';
+      const amount = Number(p.amount) || 0;
+
+      group.rows.push({
+        paymentId: p.paymentId,
+        supervisorId: p.recordedBy || '',
+        supervisorName,
+        memberId: p.memberId,
+        memberName,
+        amount,
+        kind,
+        kindLabel,
+        method,
+        methodLabel,
+        pendingAfter,
+        time: date,
+        timeLabel: date.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }),
+      });
+      group.total += amount;
+      group.count += 1;
+    }
+
+    const list = [...groups.values()];
+    list.sort((a, b) => (a.dayKey < b.dayKey ? 1 : -1));
+    for (const g of list) {
+      g.rows.sort((a, b) => b.time.getTime() - a.time.getTime());
+    }
+    return list;
+  });
+
+  /** Lifetime total collected by supervisors — shown in the modal header. */
+  readonly supervisorAllTimeTotal = computed(() => {
+    let sum = 0;
+    for (const p of this.supervisorPayments()) sum += Number(p.amount) || 0;
+    return sum;
+  });
+
+  /** Per-supervisor today summary used in the modal header. */
+  readonly supervisorTodayBreakdown = computed(() => {
+    const today = new Date();
+    const by = new Map<string, { id: string; name: string; total: number; count: number }>();
+    for (const p of this.supervisorPayments()) {
+      const pd = this.convertTimestampToDate(p.date);
+      if (!pd || !isSameDay(pd, today)) continue;
+      const id = p.recordedBy || 'unknown';
+      const name = p.recordedByName?.trim() || this.supervisors().find((s) => s.supervisorId === id)?.name || 'Supervisor';
+      const cur = by.get(id) ?? { id, name, total: 0, count: 0 };
+      cur.total += Number(p.amount) || 0;
+      cur.count += 1;
+      by.set(id, cur);
+    }
+    return [...by.values()].sort((a, b) => b.total - a.total);
+  });
+
+  private supervisorDayLabel(d: Date): string {
+    const today = startOfToday();
+    const day = startOfDay(d);
+    const diffDays = Math.round((today.getTime() - day.getTime()) / 86400000);
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    return d.toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  trackSupervisorDay(_idx: number, group: SupervisorCollectionDay): string {
+    return group.dayKey;
+  }
+
+  trackSupervisorRow(_idx: number, row: SupervisorCollectionRow): string {
+    return row.paymentId;
+  }
+
+  /** Color tone classes for the payment-kind badge in the modal. */
+  collectionKindClasses(kind: SupervisorCollectionRow['kind']): string {
+    switch (kind) {
+      case 'rent':
+        return 'bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50';
+      case 'partial':
+        return 'bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50';
+      case 'pending':
+        return 'bg-indigo-50 text-indigo-700 ring-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-900/50';
+      default:
+        return 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700';
+    }
+  }
+
+  /** Color tone classes for the payment-method badge in the modal. */
+  methodChipClasses(method: SupervisorCollectionRow['method']): string {
+    switch (method) {
+      case 'cash':
+        return 'bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50';
+      case 'upi':
+        return 'bg-violet-50 text-violet-700 ring-violet-100 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900/50';
+      case 'card':
+        return 'bg-sky-50 text-sky-700 ring-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900/50';
+      default:
+        return 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700';
+    }
+  }
+
+  /** Material icon name per payment method. */
+  methodIcon(method: SupervisorCollectionRow['method']): string {
+    switch (method) {
+      case 'cash':
+        return 'payments';
+      case 'upi':
+        return 'qr_code_2';
+      case 'card':
+        return 'credit_card';
+      default:
+        return 'payments';
+    }
+  }
+
+  openSupervisorCollections(): void {
+    this.supervisorCollectionsModalOpen.set(true);
+  }
+
+  closeSupervisorCollections(): void {
+    this.supervisorCollectionsModalOpen.set(false);
+  }
 
   /**
    * Monthly earnings: Sum of all payments in the current calendar month
@@ -482,6 +772,7 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   private currentOwnerId: string | null = null;
   private dueAlertDebounce: ReturnType<typeof setTimeout> | null = null;
+  private supervisorsUnsub: (() => void) | null = null;
 
   // ── Command Deck: unified action queue (Tabs: Overdue / Due today / Due soon / Partial)
   readonly actionQueueCounts = computed(() => ({
@@ -925,6 +1216,13 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
     this.currentOwnerId = uid;
 
+    if (!this.isSupervisor()) {
+      this.supervisorsUnsub?.();
+      this.supervisorsUnsub = this.supervisorApi.watchSupervisors(uid, (rows) => {
+        this.supervisors.set(rows.filter((s) => s.status !== 'disabled'));
+      });
+    }
+
     try {
       await this.cache.loadAllData(uid);
       // Low-cost check using already loaded members (no extra listener/polling here).
@@ -947,6 +1245,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       clearInterval(this.subscriptionCountdownTimer);
       this.subscriptionCountdownTimer = null;
     }
+    this.supervisorsUnsub?.();
+    this.supervisorsUnsub = null;
     this.clearImportProgressUi();
     // Cache service handles listener cleanup
   }

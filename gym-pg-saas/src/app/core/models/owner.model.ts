@@ -20,6 +20,13 @@ export interface OwnerFeatureFlags {
   supervisorEnabled?: boolean;
   /** WhatsApp auto-integration (placeholder for now; real wiring later). */
   whatsappEnabled?: boolean;
+  /**
+   * Audit log visibility.
+   * When `true`, the owner sees the "Audit Log" sidebar tab and can open
+   * `/audit-log`. Audit entries are still written for everyone — this flag
+   * only gates the *owner-facing* view of them.
+   */
+  auditLogEnabled?: boolean;
 }
 
 export interface Owner {

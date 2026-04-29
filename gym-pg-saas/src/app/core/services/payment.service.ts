@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -14,9 +15,10 @@ import {
   where,
 } from 'firebase/firestore';
 import { Observable } from 'rxjs';
-import type { SubscriptionType } from '../models/member.model';
+import type { Member, SubscriptionType } from '../models/member.model';
 import { Payment, PaymentMethod, PaymentRecordedByRole } from '../models/payment.model';
 import { coerceFirestoreDate, dateToTimestamp, isDateInCalendarMonth, nextDueAfterPaid, timestampToDate } from '../utils/date.utils';
+import { AuditLogService } from './audit-log.service';
 import { AuthService } from './auth.service';
 import { FirebaseAppService } from './firebase-app.service';
 import { MemberService } from './member.service';
@@ -39,6 +41,20 @@ export class PaymentService {
   private readonly fb = inject(FirebaseAppService);
   private readonly members = inject(MemberService);
   private readonly auth = inject(AuthService);
+  private readonly audit = inject(AuditLogService);
+
+  private async getMemberDisplay(memberId: string): Promise<string> {
+    try {
+      const snap = await getDoc(doc(this.fb.db, 'members', memberId));
+      if (snap.exists()) {
+        const m = snap.data() as Member;
+        return `${(m.firstName || '').trim()} ${(m.lastName || '').trim()}`.trim() || 'Member';
+      }
+    } catch {
+      /* swallow — audit display name is best-effort */
+    }
+    return 'Member';
+  }
 
   /**
    * Build the audit-log fields stamped onto every payment document.
@@ -248,7 +264,7 @@ export class PaymentService {
     const planAmount = Math.max(0, Number(params.memberPlanAmount) || 0);
 
     const audit = this.buildAuditFields();
-    await addDoc(collection(this.fb.db, 'payments'), {
+    const paymentRef = await addDoc(collection(this.fb.db, 'payments'), {
       memberId: params.memberId,
       ownerId: params.ownerId,
       amount: params.amount,
@@ -262,6 +278,32 @@ export class PaymentService {
       // their behalf, or to investigate a disputed payment.
       ...audit,
       recordedAt: serverTimestamp(),
+    });
+
+    const memberDisplay = await this.getMemberDisplay(params.memberId);
+    const action = isPartialPayment
+      ? 'payment.partialCollected'
+      : priorPending > 0 && paid <= priorPending
+        ? 'payment.pendingCollected'
+        : 'payment.collected';
+    const description = isPartialPayment
+      ? `Collected ₹${paid.toLocaleString('en-IN')} from ${memberDisplay} (partial; ₹${pendingFromForm.toLocaleString('en-IN')} still pending).`
+      : priorPending > 0 && paid <= priorPending
+        ? `Collected ₹${paid.toLocaleString('en-IN')} pending balance from ${memberDisplay}.`
+        : `Collected ₹${paid.toLocaleString('en-IN')} rent from ${memberDisplay}.`;
+    void this.audit.log({
+      ownerId: params.ownerId,
+      action,
+      entityType: 'payment',
+      entityId: paymentRef.id,
+      entityLabel: memberDisplay,
+      description,
+      amount: paid,
+      meta: {
+        method: params.method,
+        memberId: params.memberId,
+        ...(isPartialPayment ? { pending: String(pendingFromForm) } : {}),
+      },
     });
 
     if (isPartialPayment) {
@@ -356,6 +398,34 @@ export class PaymentService {
    */
   async updatePaymentAmount(paymentId: string, newAmount: number): Promise<void> {
     const ref = doc(this.fb.db, 'payments', paymentId);
+    let prevAmount = 0;
+    let memberId = '';
+    let ownerId = this.auth.profile()?.ownerId || '';
+    try {
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data() as Payment;
+        prevAmount = Number(data.amount) || 0;
+        memberId = data.memberId || '';
+        ownerId = data.ownerId || ownerId;
+      }
+    } catch {
+      /* best-effort lookup */
+    }
     await updateDoc(ref, { amount: newAmount });
+
+    if (ownerId) {
+      const memberDisplay = memberId ? await this.getMemberDisplay(memberId) : 'Member';
+      void this.audit.log({
+        ownerId,
+        action: 'payment.edited',
+        entityType: 'payment',
+        entityId: paymentId,
+        entityLabel: memberDisplay,
+        description: `Updated payment amount for ${memberDisplay}: ₹${prevAmount.toLocaleString('en-IN')} → ₹${newAmount.toLocaleString('en-IN')}.`,
+        amount: newAmount,
+        meta: { previousAmount: String(prevAmount) },
+      });
+    }
   }
 }

@@ -8,6 +8,7 @@ import { Timestamp } from 'firebase/firestore';
 import { Member, SubscriptionType } from '../../core/models/member.model';
 import { PgFloorLayout, PgLayout, PgRoomLayout } from '../../core/models/pg-layout.model';
 import { Payment, PaymentMethod } from '../../core/models/payment.model';
+import { AuditLogService } from '../../core/services/audit-log.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
 import { TranslationService } from '../../core/services/translation.service';
@@ -112,6 +113,7 @@ const MEMBER_MODAL_PHOTO_MIMES = ['image/jpeg', 'image/png', 'image/webp'] as co
 })
 export class MembersComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
+  private readonly auditLog = inject(AuditLogService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly cache = inject(DataCacheService);
@@ -1702,6 +1704,27 @@ ${pgName}`;
     const encoded = encodeURIComponent(msg);
     const url = `https://wa.me/91${digits}?text=${encoded}`;
     window.open(url, '_blank', 'noopener,noreferrer');
+
+    const ownerId = this.auth.profile()?.ownerId;
+    if (ownerId) {
+      const display = `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || 'Member';
+      const tone = this.rowTone(m);
+      const reminderType =
+        tone === 'red' ? 'overdue' : tone === 'orange' ? 'due-soon' : tone === 'blue' ? 'pending' : 'general';
+      void this.auditLog.log({
+        ownerId,
+        action: 'member.reminderSent',
+        entityType: 'member',
+        entityId: m.memberId,
+        entityLabel: display,
+        description: `Sent payment reminder to ${display} on WhatsApp.`,
+        meta: {
+          channel: 'whatsapp',
+          reminderType,
+          mobile: digits.slice(-4),
+        },
+      });
+    }
   }
 
   openBedPicker(): void {

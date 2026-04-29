@@ -89,6 +89,16 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   readonly canViewMonthlyEarnings = computed(() => !this.isSupervisor());
   /** Analytics dashboard — owner-only (financial + member data). */
   readonly canViewAnalytics = computed(() => !this.isSupervisor());
+  /**
+   * Audit log — owner-only and admin-gated.
+   * Visible only when the signed-in user is an owner AND admin has enabled
+   * `featureFlags.auditLogEnabled` for them. Supervisors never see this tab.
+   */
+  readonly canViewAuditLog = computed(
+    () =>
+      this.profile()?.role === 'owner' &&
+      this.profile()?.featureFlags?.auditLogEnabled === true,
+  );
 
   /** Unread in-app alerts for the signed-in owner scope (sidebar badge). */
   readonly ownerInAppUnread = signal(0);

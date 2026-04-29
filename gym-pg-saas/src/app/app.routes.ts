@@ -6,6 +6,7 @@ import { loginGuard } from './core/guards/login.guard';
 import { ownerGuard } from './core/guards/owner.guard';
 import { pendingApprovalGuard } from './core/guards/pending-approval.guard';
 import {
+  auditLogFeatureGuard,
   noSupervisorGuard,
   permissionGuard,
   supervisorFeatureGuard,
@@ -170,6 +171,14 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./pages/analytics/analytics-page.component').then(
             (m) => m.AnalyticsPageComponent,
+          ),
+      },
+      {
+        path: 'audit-log',
+        canActivate: [auditLogFeatureGuard],
+        loadComponent: () =>
+          import('./pages/audit-log/audit-log-page.component').then(
+            (m) => m.AuditLogPageComponent,
           ),
       },
       // Notify members page temporarily disabled.

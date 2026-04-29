@@ -11,6 +11,7 @@ import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Va
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { normalizeOwnerPhone } from '../../core/utils/phone-auth.util';
+import { AuditLogService } from '../../core/services/audit-log.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
 import { IpRestrictionService } from '../../core/services/ip-restriction.service';
@@ -37,6 +38,7 @@ type BeforeInstallPromptEvent = Event & {
 export class LoginComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
+  private readonly auditLog = inject(AuditLogService);
   private readonly i18n = inject(TranslationService);
   private readonly cache = inject(DataCacheService);
   private readonly notifications = inject(NotificationService);
@@ -185,6 +187,20 @@ export class LoginComponent implements OnInit, OnDestroy {
         await this.cache.loadMembers(p.ownerId);
         this.notifications.checkDueMembers(this.cache.members());
         void this.inAppNotifications.syncDueAlertsFromMembers(p.ownerId, this.cache.members());
+        // Stamp the login row in the audit trail so the owner can see
+        // exactly when each supervisor (or themselves) signed in. Skipped
+        // for admins since they don't have a parent owner scope.
+        const actorLabel = p.role === 'supervisor'
+          ? `${p.name?.trim() || 'Supervisor'} signed in.`
+          : `${p.name?.trim() || 'Owner'} signed in.`;
+        void this.auditLog.log({
+          ownerId: p.ownerId,
+          action: 'auth.login',
+          entityType: 'auth',
+          entityId: load.uid || undefined,
+          entityLabel: p.name || p.email || undefined,
+          description: actorLabel,
+        });
       }
       await this.redirectAfterProfile(p);
     } catch (e: unknown) {

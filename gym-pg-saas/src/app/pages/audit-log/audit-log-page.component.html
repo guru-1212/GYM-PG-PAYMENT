@@ -1,0 +1,368 @@
+<div class="mx-auto w-full max-w-7xl space-y-6">
+  <!-- Page header -->
+  <header class="overflow-hidden rounded-3xl border border-white/60 bg-gradient-to-br from-indigo-600 via-indigo-600 to-blue-600 p-6 text-white shadow-xl dark:border-slate-700/60 sm:p-8">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div class="min-w-0 flex-1">
+        <p class="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-white/30 backdrop-blur">
+          <span class="material-icons-outlined text-[14px] leading-none">verified_user</span>
+          Activity trail
+        </p>
+        <h1 class="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">Audit Log</h1>
+        <p class="mt-1.5 max-w-2xl text-sm text-indigo-50/90 sm:text-[15px]">
+          Every action by you and your supervisors — payments, members, reminders, logins. Tamper-resistant and time-stamped.
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-3 self-start rounded-2xl bg-white/15 p-3 ring-1 ring-white/25 backdrop-blur sm:self-center">
+        <span class="material-icons-outlined rounded-xl bg-white/15 p-2 text-2xl">timeline</span>
+        <div class="leading-tight">
+          <p class="text-2xl font-bold tabular-nums">{{ rows().length | number }}</p>
+          <p class="text-[11px] font-medium uppercase tracking-wide text-indigo-100/85">Events captured</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Summary tiles -->
+  <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    @for (card of summary(); track card.label) {
+      <div class="group relative overflow-hidden rounded-2xl border bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:bg-slate-900 {{ summaryCardClasses(card.tone) }}">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {{ card.label }}
+            </p>
+            <p class="mt-1 truncate text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+              {{ card.value }}
+            </p>
+            <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{{ card.hint }}</p>
+          </div>
+          <span class="material-icons-outlined shrink-0 rounded-xl p-2 text-2xl {{ toneIconClasses(card.tone) }}">{{ card.icon }}</span>
+        </div>
+      </div>
+    }
+  </section>
+
+  <!-- Filters -->
+  <section class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span class="material-icons-outlined text-lg text-slate-500 dark:text-slate-400">filter_list</span>
+        <h2 class="text-sm font-semibold tracking-tight text-slate-700 dark:text-slate-200">Filters</h2>
+      </div>
+      @if (hasActiveFilters()) {
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          (click)="resetFilters()"
+        >
+          <span class="material-icons-outlined text-[14px] leading-none">restart_alt</span>
+          Clear filters
+        </button>
+      }
+    </div>
+    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <label class="lg:col-span-2">
+        <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Search</span>
+        <span class="relative block">
+          <span class="material-icons-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-slate-400">search</span>
+          <input
+            type="text"
+            class="saas-input w-full !py-2.5 !pl-9 !pr-3 text-sm"
+            placeholder="Member name, action, amount..."
+            [value]="searchQuery()"
+            (input)="searchQuery.set(inputValue($event))"
+          />
+          @if (searchQuery()) {
+            <button
+              type="button"
+              class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+              (click)="searchQuery.set('')"
+              aria-label="Clear search"
+            >
+              <span class="material-icons-outlined text-base">close</span>
+            </button>
+          }
+        </span>
+      </label>
+
+      <label>
+        <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Action</span>
+        <select
+          class="saas-input w-full !py-2.5 text-sm"
+          [value]="actionFilter()"
+          (change)="onActionChange(inputValue($event))"
+        >
+          @for (opt of actionOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Done by</span>
+        <select
+          class="saas-input w-full !py-2.5 text-sm"
+          [value]="actorFilter()"
+          (change)="onActorChange(inputValue($event))"
+        >
+          @for (opt of actorOptions(); track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+
+      <div class="grid grid-cols-2 gap-2 lg:col-span-1">
+        <label>
+          <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">From</span>
+          <input
+            type="date"
+            class="saas-input w-full !py-2.5 text-sm"
+            [value]="fromDate()"
+            (input)="onFromDateChange(inputValue($event))"
+          />
+        </label>
+        <label>
+          <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">To</span>
+          <input
+            type="date"
+            class="saas-input w-full !py-2.5 text-sm"
+            [value]="toDate()"
+            (input)="onToDateChange(inputValue($event))"
+          />
+        </label>
+      </div>
+    </div>
+
+    <!-- Quick date-range chips -->
+    <div class="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="mr-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <span class="material-icons-outlined text-[14px] leading-none">bolt</span>
+          Quick range
+        </span>
+        @for (preset of rangePresets; track preset.id) {
+          <button
+            type="button"
+            class="group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all"
+            [class.border-indigo-500]="quickRange() === preset.id"
+            [class.bg-indigo-600]="quickRange() === preset.id"
+            [class.text-white]="quickRange() === preset.id"
+            [class.shadow-sm]="quickRange() === preset.id"
+            [class.border-slate-200]="quickRange() !== preset.id"
+            [class.bg-white]="quickRange() !== preset.id"
+            [class.text-slate-700]="quickRange() !== preset.id"
+            [class.hover:border-indigo-300]="quickRange() !== preset.id"
+            [class.hover:bg-indigo-50]="quickRange() !== preset.id"
+            [class.hover:text-indigo-700]="quickRange() !== preset.id"
+            [class.dark:border-slate-700]="quickRange() !== preset.id"
+            [class.dark:bg-slate-900]="quickRange() !== preset.id"
+            [class.dark:text-slate-200]="quickRange() !== preset.id"
+            (click)="setQuickRange(preset.id)"
+          >
+            <span class="material-icons-outlined text-[14px] leading-none">{{ preset.icon }}</span>
+            {{ preset.label }}
+          </button>
+        }
+        @if (quickRange() === 'custom') {
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50">
+            <span class="material-icons-outlined text-[14px] leading-none">tune</span>
+            Custom range
+          </span>
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- States: loading / error / empty -->
+  @if (loading()) {
+    <div class="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <span class="material-icons-outlined animate-spin text-3xl text-indigo-500">progress_activity</span>
+      <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">Loading audit trail...</p>
+    </div>
+  } @else if (error()) {
+    <div class="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-200">
+      <p class="text-sm font-semibold">{{ error() }}</p>
+    </div>
+  } @else if (filteredRows().length === 0) {
+    <div class="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <span class="material-icons-outlined text-5xl text-slate-300 dark:text-slate-600">inbox</span>
+      <h3 class="mt-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
+        {{ hasActiveFilters() ? 'No matches for these filters' : 'No activity yet' }}
+      </h3>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        {{ hasActiveFilters() ? 'Try clearing the filters to see all events.' : 'New events will appear here as you and your supervisors work.' }}
+      </p>
+      @if (hasActiveFilters()) {
+        <button
+          type="button"
+          class="saas-btn-secondary mt-5 inline-flex items-center gap-2 px-4 py-2 text-sm"
+          (click)="resetFilters()"
+        >
+          <span class="material-icons-outlined text-base">restart_alt</span>
+          Clear filters
+        </button>
+      }
+    </div>
+  } @else {
+    <!-- Desktop table -->
+    <section class="hidden overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:block">
+      <div class="overflow-x-auto">
+        <table class="saas-table min-w-full text-left text-sm">
+          <thead>
+            <tr>
+              <th class="px-5 py-3.5 font-semibold">Time</th>
+              <th class="px-5 py-3.5 font-semibold">Action</th>
+              <th class="px-5 py-3.5 font-semibold">Member / Subject</th>
+              <th class="px-5 py-3.5 text-right font-semibold">Amount</th>
+              <th class="px-5 py-3.5 font-semibold">Done by</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (group of groupedRows(); track trackGroup($index, group)) {
+              <tr class="bg-slate-50/80 dark:bg-slate-800/60">
+                <td colspan="5" class="px-5 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {{ group.label }} &middot; {{ group.rows.length }} {{ group.rows.length === 1 ? 'event' : 'events' }}
+                </td>
+              </tr>
+              @for (row of group.rows; track trackRow($index, row)) {
+                <tr class="border-t border-slate-100 align-top transition-colors hover:bg-indigo-50/40 dark:border-slate-800 dark:hover:bg-slate-800/40">
+                  <td class="whitespace-nowrap px-5 py-3.5 text-slate-600 dark:text-slate-300">
+                    <div class="flex flex-col">
+                      <span class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ row.timeOfDay }}</span>
+                      <span class="text-[11px] text-slate-500 dark:text-slate-400">
+                        {{ row.date | date: 'dd MMM yyyy' }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-start gap-3">
+                      <span class="material-icons-outlined mt-0.5 shrink-0 rounded-xl p-2 text-[20px] {{ toneIconClasses(row.tone) }}">{{ row.icon }}</span>
+                      <div class="min-w-0">
+                        <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {{ row.actionLabel }}
+                        </p>
+                        <p class="mt-0.5 text-[12.5px] leading-relaxed text-slate-600 dark:text-slate-300">
+                          {{ row.description }}
+                        </p>
+                        @if (row.meta && (row.meta['method'] || row.meta['pending'] || row.meta['fields'])) {
+                          <div class="mt-1.5 flex flex-wrap gap-1.5">
+                            @if (row.meta['method']) {
+                              <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                <span class="material-icons-outlined text-[12px] leading-none">payments</span>
+                                {{ row.meta['method'] }}
+                              </span>
+                            }
+                            @if (row.meta['pending']) {
+                              <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                                Pending &#8377;{{ row.meta['pending'] }}
+                              </span>
+                            }
+                            @if (row.meta['fields']) {
+                              <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                {{ row.meta['fields'] }}
+                              </span>
+                            }
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3.5">
+                    <div class="flex flex-col">
+                      <span class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {{ row.entityLabel || '-' }}
+                      </span>
+                      <span class="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {{ row.entityType }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="whitespace-nowrap px-5 py-3.5 text-right tabular-nums">
+                    @if (row.amount && row.amount > 0) {
+                      <span class="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                        &#8377;{{ row.amount | number }}
+                      </span>
+                    } @else {
+                      <span class="text-sm text-slate-400">-</span>
+                    }
+                  </td>
+                  <td class="px-5 py-3.5">
+                    <div class="flex items-center gap-2">
+                      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white {{ roleAvatarClasses(row.performedByRole) }}">
+                        {{ row.performedByName.charAt(0).toUpperCase() || '?' }}
+                      </span>
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {{ row.performedByName || 'Unknown' }}
+                        </p>
+                        <p class="text-[11px] uppercase tracking-wide {{ roleTextClasses(row.performedByRole) }}">
+                          {{ roleLabel(row.performedByRole) }}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Mobile / tablet timeline -->
+    <section class="space-y-4 lg:hidden">
+      @for (group of groupedRows(); track trackGroup($index, group)) {
+        <div class="space-y-2">
+          <div class="flex items-center gap-2 px-1">
+            <span class="material-icons-outlined text-[16px] text-slate-400">today</span>
+            <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {{ group.label }}
+            </p>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              {{ group.rows.length }}
+            </span>
+          </div>
+          <div class="space-y-2">
+            @for (row of group.rows; track trackRow($index, row)) {
+              <article class="rounded-2xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:bg-slate-900 {{ mobileCardClasses(row.tone) }}">
+                <div class="flex items-start gap-3">
+                  <span class="material-icons-outlined shrink-0 rounded-xl p-2 text-[22px] {{ toneIconClasses(row.tone) }}">{{ row.icon }}</span>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-baseline justify-between gap-2">
+                      <p class="text-sm font-bold text-slate-900 dark:text-slate-100">
+                        {{ row.actionLabel }}
+                      </p>
+                      <span class="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {{ row.timeOfDay }}
+                      </span>
+                    </div>
+                    <p class="mt-1 text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
+                      {{ row.description }}
+                    </p>
+                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                      <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 {{ roleBadgeClasses(row.performedByRole) }}">
+                        <span class="material-icons-outlined text-[12px] leading-none">person</span>
+                        {{ row.performedByName || 'Unknown' }} &middot; {{ roleLabel(row.performedByRole) }}
+                      </span>
+                      @if (row.entityLabel) {
+                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                          <span class="material-icons-outlined text-[12px] leading-none">person_pin</span>
+                          {{ row.entityLabel }}
+                        </span>
+                      }
+                      @if (row.amount && row.amount > 0) {
+                        <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50">
+                          &#8377;{{ row.amount | number }}
+                        </span>
+                      }
+                    </div>
+                  </div>
+                </div>
+              </article>
+            }
+          </div>
+        </div>
+      }
+    </section>
+  }
+</div>

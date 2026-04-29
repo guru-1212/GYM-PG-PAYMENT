@@ -347,6 +347,10 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
     return o.featureFlags?.whatsappEnabled === true;
   }
 
+  isAuditLogEnabled(o: Owner): boolean {
+    return o.featureFlags?.auditLogEnabled === true;
+  }
+
   async toggleSupervisorEnabled(o: Owner, checked: boolean): Promise<void> {
     this.busyId.set(o.ownerId);
     try {
@@ -368,6 +372,18 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
       this.toast.success(
         checked ? 'WhatsApp integration enabled' : 'WhatsApp integration disabled',
       );
+    } catch {
+      this.toast.error('Could not update feature flag');
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  async toggleAuditLogEnabled(o: Owner, checked: boolean): Promise<void> {
+    this.busyId.set(o.ownerId);
+    try {
+      await this.admin.setOwnerFeatureFlag(o.ownerId, 'auditLogEnabled', checked);
+      this.toast.success(checked ? 'Audit log enabled' : 'Audit log hidden');
     } catch {
       this.toast.error('Could not update feature flag');
     } finally {
