@@ -219,6 +219,33 @@ function normalizeDigits10(raw) {
   return d.length >= 10 ? d.slice(-10) : d;
 }
 
+/**
+ * Return the last 4 digits of the member's Aadhaar, sourced from either the
+ * legacy `aadhaarLast4` field (which historically may hold the full 12 digits)
+ * or the newer `aadhaarNumber` field. We only ever expose the last 4 digits
+ * for verification — never the full Aadhaar.
+ */
+function memberAadhaarLast4Digits(md) {
+  const a = String((md && md.aadhaarLast4) || '').replace(/\D/g, '');
+  if (a.length >= 4) return a.slice(-4);
+  const b = String((md && md.aadhaarNumber) || '').replace(/\D/g, '');
+  if (b.length >= 4) return b.slice(-4);
+  return '';
+}
+
+/** Normalise the tenant-supplied last-4 input: keep digits only, take the last 4. */
+function normalizeLast4Input(raw) {
+  const d = String(raw || '').replace(/\D/g, '');
+  return d.length >= 4 ? d.slice(-4) : d;
+}
+
+/**
+ * Sentinel string the client looks for to render the
+ * "ask your owner to update Aadhaar" message instead of the
+ * generic mismatch error.
+ */
+const AADHAAR_NOT_ON_FILE_TAG = 'aadhaar-not-on-file';
+
 async function findMemberDocByOwnerAndMobile(db, ownerId, rawMobile) {
   const digits = normalizeDigits10(rawMobile);
   if (digits.length !== 10) return null;
@@ -257,6 +284,11 @@ exports.verifyMemberForApp = functions
     const installCode = String(data.installCode || '');
     const ownerId = String(data.ownerId || '');
     const mobile = data.mobile;
+    // Second factor: last 4 digits of the member's Aadhaar. Mobile + last-4
+    // must both match. Optional in the request schema for backwards-compat
+    // with very old clients, but if present we enforce it. The current app
+    // always sends it.
+    const submittedLast4 = normalizeLast4Input(data.aadhaarLast4);
     if (!installCode || !ownerId) {
       throw new functions.https.HttpsError('invalid-argument', 'installCode and ownerId are required');
     }
@@ -269,10 +301,42 @@ exports.verifyMemberForApp = functions
       }
       const memberDoc = await findMemberDocByOwnerAndMobile(db, ownerId, mobile);
       if (!memberDoc || !memberDoc.exists) {
+        // Use a single generic message regardless of which field was wrong, so an
+        // attacker can't enumerate "is this mobile registered?" separately from
+        // "is this room number correct?".
         throw new functions.https.HttpsError(
-          'not-found',
-          'This mobile number is not on file for this property. Ask the owner to add you first.',
+          'permission-denied',
+          'These details do not match our records for this property. Please double-check your mobile number and room number with your owner.',
         );
+      }
+      const md0 = memberDoc.data() || {};
+      if (submittedLast4) {
+        const memberLast4 = memberAadhaarLast4Digits(md0);
+        if (!memberLast4) {
+          // The member exists, but the owner has not added an Aadhaar number
+          // for them yet, so we can't verify the second factor. Tell the
+          // client (via the sentinel tag) so it can render a clear, polite
+          // message asking the tenant to ping their owner.
+          functions.logger.warn('verifyMemberForApp aadhaar missing on member', {
+            ownerId,
+            memberId: memberDoc.id,
+          });
+          throw new functions.https.HttpsError(
+            'failed-precondition',
+            `${AADHAAR_NOT_ON_FILE_TAG}: Your Aadhaar number is not on file with this property yet. Please ask your owner to update your profile, then sign in again.`,
+          );
+        }
+        if (submittedLast4.length !== 4 || memberLast4 !== submittedLast4) {
+          functions.logger.warn('verifyMemberForApp aadhaar last4 mismatch', {
+            ownerId,
+            memberId: memberDoc.id,
+            submittedLen: submittedLast4.length,
+          });
+          throw new functions.https.HttpsError(
+            'permission-denied',
+            'These details do not match our records for this property. Please double-check your mobile number and the last 4 digits of your Aadhaar with your owner.',
+          );
+        }
       }
       const memberId = memberDoc.id;
       const actRef = db.collection('memberAppActivations').doc(memberId);
@@ -550,6 +614,83 @@ exports.resetOwnerPasswordWithPhoneOtp = functions
     }
 
     return { ok: true };
+  });
+
+/**
+ * When a tenant raises an in-app complaint, push the owner an OS-level
+ * notification (so they see it without opening the app) AND drop a row
+ * into `owners/{ownerId}/appNotifications` so the in-app bell badge updates
+ * even when the owner is signed in but has the Complaint Box closed.
+ */
+exports.onComplaintCreated = functions.firestore
+  .document('complaints/{complaintId}')
+  .onCreate(async (snap, context) => {
+    const c = snap.data() || {};
+    const ownerId = String(c.ownerId || '');
+    if (!ownerId) return null;
+    // Only notify for in-app member complaints (avoids re-firing on legacy
+    // public-form rows if any older docs still get back-filled).
+    if (c.source && c.source !== 'member_app') return null;
+
+    const memberName = String(c.memberName || 'A tenant').trim() || 'A tenant';
+    const room = String(c.roomNumber || '').trim();
+    const category = String(c.category || 'Complaint').trim();
+    const messagePreview = String(c.message || '').slice(0, 160);
+
+    const titleSuffix = room ? ` (Room ${room})` : '';
+    const title = `New complaint: ${category}${titleSuffix}`;
+    const body = `${memberName}: ${messagePreview}`;
+
+    const db = admin.firestore();
+
+    // 1. In-app notification row (read by the owner notification bell).
+    try {
+      await db
+        .collection('owners')
+        .doc(ownerId)
+        .collection('appNotifications')
+        .add({
+          title,
+          body,
+          category: 'complaint',
+          read: false,
+          memberId: c.memberId || null,
+          complaintId: context.params.complaintId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+    } catch (e) {
+      functions.logger.warn('onComplaintCreated appNotifications failed', e);
+    }
+
+    // 2. FCM push to all of the owner's registered devices.
+    try {
+      const tokensSnap = await db
+        .collection('fcmTokens')
+        .where('uid', '==', ownerId)
+        .get();
+      if (tokensSnap.empty) return null;
+      const tokens = tokensSnap.docs
+        .map((d) => (d.data() || {}).token)
+        .filter((t) => typeof t === 'string' && t.length > 0);
+      if (!tokens.length) return null;
+      const message = {
+        notification: {
+          title,
+          body,
+          icon: '/icons/Brand_LOGO_New.png',
+        },
+        data: {
+          type: 'complaint',
+          complaintId: context.params.complaintId,
+          ownerId,
+        },
+        tokens,
+      };
+      return await admin.messaging().sendMulticast(message);
+    } catch (e) {
+      functions.logger.error('onComplaintCreated FCM failed', e);
+      return null;
+    }
   });
 
 exports.onOwnerBroadcastCreated = functions.firestore

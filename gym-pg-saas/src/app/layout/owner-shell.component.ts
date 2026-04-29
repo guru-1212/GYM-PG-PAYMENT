@@ -5,8 +5,8 @@ import { AuthService } from '../core/services/auth.service';
 import { InAppNotificationService } from '../core/services/in-app-notification.service';
 import { NotificationService } from '../core/services/notification.service';
 import { OwnerAdminChatService } from '../core/services/owner-admin-chat.service';
-// Complaints disabled — restore when feature fixed
-// import { ComplaintService } from '../core/services/complaint.service';
+import { OwnerPublicStatusService } from '../core/services/owner-public-status.service';
+import { ComplaintService } from '../core/services/complaint.service';
 import { TranslationService } from '../core/services/translation.service';
 import { ModalComponent } from '../shared/modal.component';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
@@ -61,7 +61,8 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   private readonly chat = inject(OwnerAdminChatService);
   private readonly inApp = inject(InAppNotificationService);
   private readonly notifications = inject(NotificationService);
-  // private readonly complaintApi = inject(ComplaintService);
+  private readonly complaintApi = inject(ComplaintService);
+  private readonly ownerPublicStatus = inject(OwnerPublicStatusService);
   private readonly router = inject(Router);
   readonly i18n = inject(TranslationService);
 
@@ -102,6 +103,9 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
 
   /** Unread in-app alerts for the signed-in owner scope (sidebar badge). */
   readonly ownerInAppUnread = signal(0);
+
+  /** Open (unresolved) tenant complaints — drives the Complaint Box badge. */
+  readonly openComplaintsCount = signal(0);
 
   readonly mobileMenuOpen = signal(false);
   readonly userMenuOpen = signal(false);
@@ -163,6 +167,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   private unsubThread: (() => void) | null = null;
   private unsubUnread: (() => void) | null = null;
   private unsubOwnerInApp: (() => void) | null = null;
+  private unsubComplaints: (() => void) | null = null;
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
@@ -172,9 +177,11 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
       this.unsubThread?.();
       this.unsubUnread?.();
       this.unsubOwnerInApp?.();
+      this.unsubComplaints?.();
       this.chatMessages.set([]);
       this.unreadCount.set(0);
       this.ownerInAppUnread.set(0);
+      this.openComplaintsCount.set(0);
       if (!ownerId) return;
       // Owner-only resources. Supervisors live under their own shell now;
       // running these listeners in their session triggers permission-denied
@@ -185,13 +192,17 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
       this.unsubOwnerInApp = this.inApp.watchOwnerNotifications(ownerId, (rows) => {
         this.ownerInAppUnread.set(rows.filter((r) => !r.read).length);
       });
-      /* Complaints disabled — restore when feature fixed
-      const p = this.profile();
-      if (p?.role === 'owner') {
-        void this.complaintApi.publishPublicComplaintSettings(ownerId, Boolean(p.complaintEnabled));
-      }
-      void this.complaintApi.syncMemberMobileLookupsForOwner(ownerId);
-      */
+      // Keep the public mirror doc fresh on every profile tick (plan extended,
+      // business name updated, etc.) so the Member PWA always sees correct
+      // info without ever reading the owner doc directly.
+      void this.ownerPublicStatus.publishStatus(profile);
+      // Complaint Box badge: count open complaints in real time.
+      this.unsubComplaints = this.complaintApi.watchComplaintsForOwner(
+        ownerId,
+        (rows) => {
+          this.openComplaintsCount.set(rows.filter((r) => r.status === 'open').length);
+        },
+      );
     });
   }
 
@@ -263,6 +274,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
     this.unsubThread?.();
     this.unsubUnread?.();
     this.unsubOwnerInApp?.();
+    this.unsubComplaints?.();
     if (this.countdownTimer) {
       clearInterval(this.countdownTimer);
       this.countdownTimer = null;

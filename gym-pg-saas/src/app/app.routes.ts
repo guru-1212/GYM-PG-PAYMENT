@@ -32,9 +32,7 @@ import { RoomsPageComponent } from './pages/rooms/rooms-page.component';
 import { MonthlyEarningsPageComponent } from './pages/monthly-earnings/monthly-earnings-page.component';
 import { SubscriptionExpiredComponent } from './pages/subscription-expired/subscription-expired.component';
 import { SupervisorDashboardComponent } from './pages/supervisor-dashboard/supervisor-dashboard.component';
-// Complaints feature temporarily disabled — re-enable imports + routes when fixed.
-// import { PublicComplaintPageComponent } from './pages/public-complaint/public-complaint-page.component';
-// import { ComplaintsPageComponent } from './pages/complaints/complaints-page.component';
+import { ComplaintsPageComponent } from './pages/complaints/complaints-page.component';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', component: HomeComponent },
@@ -181,8 +179,20 @@ export const routes: Routes = [
             (m) => m.AuditLogPageComponent,
           ),
       },
-      // Notify members page temporarily disabled.
-      { path: 'notify-members', redirectTo: 'notifications', pathMatch: 'full' },
+      /**
+       * Member App QR generator + broadcast hub.
+       * Owner-only; supervisors don't issue install codes.
+       */
+      {
+        path: 'member-app-qr',
+        canActivate: [noSupervisorGuard],
+        loadComponent: () =>
+          import('./pages/owner-notify-members/owner-notify-members-page.component').then(
+            (m) => m.OwnerNotifyMembersPageComponent,
+          ),
+      },
+      // Legacy redirect — anything that linked to /notify-members lands on the new page.
+      { path: 'notify-members', redirectTo: 'member-app-qr', pathMatch: 'full' },
       {
         path: 'notifications',
         loadComponent: () =>
@@ -190,8 +200,11 @@ export const routes: Routes = [
             (m) => m.OwnerNotificationsPageComponent,
           ),
       },
-      /* Complaints disabled: was ComplaintsPageComponent */
-      { path: 'complaints', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'complaints',
+        canActivate: [noSupervisorGuard],
+        component: ComplaintsPageComponent,
+      },
     ],
   },
   { path: '**', redirectTo: 'login' },

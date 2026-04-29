@@ -1,9 +1,21 @@
 <div class="mai">
   <div class="mai-card">
-    <h1 class="mai-h1">Member app</h1>
+    <p class="mai-kicker">Tenant access · This app is for members only</p>
+    <h1 class="mai-h1">Welcome to your tenant app</h1>
+    @if (ownerBusinessName()) {
+      <p class="mai-property">
+        <span class="material-icons-outlined">apartment</span>
+        {{ ownerBusinessName() }}
+      </p>
+    }
     <p class="mai-lead">
-      Install this app to your home screen for quick access, then sign in with the mobile number your owner has on file.
+      With this app you can:
     </p>
+    <ul class="mai-bullets">
+      <li><span class="material-icons-outlined">receipt_long</span>Download rent receipts every month</li>
+      <li><span class="material-icons-outlined">payments</span>Track your rent and dues in real time</li>
+      <li><span class="material-icons-outlined">support_agent</span>Raise a complaint to your owner directly</li>
+    </ul>
 
     @if (loadError()) {
       <p class="mai-err">{{ loadError() }}</p>
@@ -11,12 +23,34 @@
     } @else if (!ownerId()) {
       <p class="mai-muted">Loading…</p>
     } @else {
-      <p class="mai-muted">
-        Tip: use your browser’s <strong>Install app</strong> or <strong>Add to Home screen</strong> so you receive alerts even when the browser is closed (where the OS allows web push).
-      </p>
+      @if (showInstallCta()) {
+        <div class="mai-install-row">
+          <div class="mai-install-copy">
+            <p class="mai-install-title">Install on your phone first</p>
+            <p class="mai-install-sub">
+              {{
+                isIosSafari()
+                  ? 'Tap the Share icon in Safari, then “Add to Home Screen”.'
+                  : 'Add this app to your home screen for one-tap access and offline use.'
+              }}
+            </p>
+          </div>
+          <button type="button" class="mai-install-btn" (click)="installApp()">
+            <span class="material-icons-outlined">get_app</span>
+            Install
+          </button>
+        </div>
+      } @else if (isInstalled()) {
+        <p class="mai-installed">
+          <span class="material-icons-outlined">check_circle</span>
+          App installed. Sign in to continue.
+        </p>
+      }
 
       <form class="mai-form" [formGroup]="mobileForm" (ngSubmit)="continue()">
-        <label class="mai-label" for="m-mobile">10-digit mobile</label>
+        <p class="mai-form-title">Sign in with your registered details</p>
+
+        <label class="mai-label" for="m-mobile">Registered mobile number</label>
         <input
           id="m-mobile"
           class="mai-input"
@@ -26,10 +60,26 @@
           autocomplete="tel"
           formControlName="mobile"
           (input)="onMobileInput($event)"
-          placeholder="9876543210"
+          placeholder="10-digit mobile"
         />
         @if (mobileForm.controls.mobile.touched && mobileForm.controls.mobile.invalid) {
-          <p class="mai-field-err">Enter a valid 10-digit mobile number.</p>
+          <p class="mai-field-err">Enter the 10-digit mobile your owner has on file.</p>
+        }
+
+        <label class="mai-label" for="m-aadhaar4">Last 4 digits of your Aadhaar</label>
+        <input
+          id="m-aadhaar4"
+          class="mai-input"
+          type="tel"
+          inputmode="numeric"
+          maxlength="4"
+          autocomplete="off"
+          formControlName="aadhaarLast4"
+          (input)="onAadhaarLast4Input($event)"
+          placeholder="4-digit code"
+        />
+        @if (mobileForm.controls.aadhaarLast4.touched && mobileForm.controls.aadhaarLast4.invalid) {
+          <p class="mai-field-err">Enter the last 4 digits of the Aadhaar your owner has on file.</p>
         }
 
         @if (errorMessage()) {
@@ -37,8 +87,12 @@
         }
 
         <button type="submit" class="mai-btn" [disabled]="busy()">
-          {{ busy() ? 'Signing in…' : 'Continue' }}
+          {{ busy() ? 'Verifying…' : 'Continue' }}
         </button>
+
+        <p class="mai-fine-print">
+          Your details stay on this property. We only use them to verify you're a registered tenant.
+        </p>
       </form>
     }
   </div>

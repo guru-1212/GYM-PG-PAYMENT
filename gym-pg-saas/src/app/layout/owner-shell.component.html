@@ -143,14 +143,31 @@
           Audit Log
         </a>
       }
-      <!-- Notify members tab disabled for now.
-      @if (canViewMembers()) {
-        <a routerLink="/notify-members">Notify members</a>
+      @if (!isSupervisor()) {
+        <a
+          routerLink="/complaints"
+          routerLinkActive="bg-amber-50 text-amber-800 shadow-sm dark:bg-amber-950/60 dark:text-amber-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">support_agent</span>
+          <span class="min-w-0 flex-1">Complaint Box</span>
+          @if (openComplaintsCount() > 0) {
+            <span
+              class="shrink-0 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white tabular-nums"
+              >{{ openComplaintsCount() > 99 ? '99+' : openComplaintsCount() }}</span>
+          }
+        </a>
       }
-      -->
-      <!-- Complaints disabled — restore when feature fixed
-      <a routerLink="/complaints" ...>Complaints</a>
-      -->
+      @if (!isSupervisor()) {
+        <a
+          routerLink="/member-app-qr"
+          routerLinkActive="bg-teal-50 text-teal-800 shadow-sm dark:bg-teal-950/60 dark:text-teal-100 dark:shadow-md"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:bg-slate-800/90 dark:hover:shadow-lg dark:hover:shadow-black/25"
+        >
+          <span class="material-icons-outlined">qr_code_2</span>
+          Member App QR
+        </a>
+      }
     </nav>
     <div class="border-t border-slate-100 p-3 dark:border-slate-800">
       <!-- Complaints toggle disabled — restore when feature fixed
@@ -420,22 +437,33 @@
                 Audit Log
               </a>
             }
-            <!-- Notify members tab disabled for now.
-            @if (canViewMembers()) {
-              <a routerLink="/notify-members" (click)="closeMobileMenu()">Notify members</a>
+            @if (!isSupervisor()) {
+              <a
+                routerLink="/complaints"
+                routerLinkActive="bg-amber-50 text-amber-800 shadow-sm dark:bg-amber-950/60 dark:text-amber-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">support_agent</span>
+                <span class="min-w-0 flex-1">Complaint Box</span>
+                @if (openComplaintsCount() > 0) {
+                  <span
+                    class="shrink-0 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white tabular-nums"
+                    >{{ openComplaintsCount() > 99 ? '99+' : openComplaintsCount() }}</span>
+                }
+              </a>
             }
-            -->
-            <!-- Complaints nav disabled — restore when feature fixed
-            <a
-              routerLink="/complaints"
-              routerLinkActive="bg-indigo-50 text-indigo-800 shadow-sm dark:bg-indigo-950/70 dark:text-indigo-100 dark:shadow-md"
-              class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-              (click)="closeMobileMenu()"
-            >
-              <span class="material-icons-outlined">report_problem</span>
-              Complaints
-            </a>
-            -->
+            @if (!isSupervisor()) {
+              <a
+                routerLink="/member-app-qr"
+                routerLinkActive="bg-teal-50 text-teal-800 shadow-sm dark:bg-teal-950/60 dark:text-teal-100 dark:shadow-md"
+                class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                (click)="closeMobileMenu()"
+              >
+                <span class="material-icons-outlined">qr_code_2</span>
+                Member App QR
+              </a>
+            }
           </nav>
           <div class="border-t border-slate-100 p-3 dark:border-slate-800">
             <div class="mb-3">
