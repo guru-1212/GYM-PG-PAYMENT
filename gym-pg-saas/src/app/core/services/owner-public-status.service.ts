@@ -16,7 +16,7 @@ import { FirebaseAppService } from './firebase-app.service';
  * so this lightweight projection lives at `publicOwnerStatus/{ownerId}` with
  * a wide-open read rule.
  *
- * Source of truth still lives on the owner doc — this is just an outbound
+ * Source of truth still lives on the owner doc - this is just an outbound
  * projection kept up to date by the owner shell (no Cloud Function required).
  */
 export interface OwnerPublicStatus {
@@ -28,6 +28,11 @@ export interface OwnerPublicStatus {
   planActive: boolean;
   /** Mirror of the owner's complaint feature toggle (kept for future use). */
   complaintEnabled: boolean;
+  /**
+   * When `false`, tenant QR sign-in + in-app complaints are off (admin revoked).
+   * Absent/`true` = allowed for legacy + approved owners.
+   */
+  tenantMemberAppEnabled: boolean;
   /** Server timestamp of the last sync (debug + cache freshness). */
   updatedAt?: Timestamp;
 }
@@ -61,6 +66,7 @@ export class OwnerPublicStatusService {
           planEndDate,
           planActive,
           complaintEnabled: Boolean(profile.complaintEnabled),
+          tenantMemberAppEnabled: profile.featureFlags?.tenantMemberAppEnabled !== false,
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -92,6 +98,7 @@ export class OwnerPublicStatusService {
         planEndDate: (data['planEndDate'] as Timestamp | null) ?? null,
         planActive: Boolean(data['planActive']),
         complaintEnabled: Boolean(data['complaintEnabled']),
+        tenantMemberAppEnabled: data['tenantMemberAppEnabled'] !== false,
         updatedAt: (data['updatedAt'] as Timestamp | undefined) ?? undefined,
       });
     });

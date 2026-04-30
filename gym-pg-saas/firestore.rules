@@ -517,6 +517,10 @@ service cloud.firestore {
      * Firestore rejects the upsert and the batch fails atomically.
      */
     match /complaintLimits/{memberId} {
+      function memberAppTenantOkFromToken() {
+        return !exists(/databases/$(database)/documents/publicOwnerStatus/$(request.auth.token.ownerId))
+          || get(/databases/$(database)/documents/publicOwnerStatus/$(request.auth.token.ownerId)).data.tenantMemberAppEnabled != false;
+      }
       function memberAppOwnsLimit() {
         return signedIn()
           && request.auth.token.role == 'member_app'
@@ -530,11 +534,13 @@ service cloud.firestore {
         || (isApprovedOwner() && resource.data.ownerId == request.auth.uid);
       // First-ever complaint by this member: doc didn't exist, member_app creates it.
       allow create: if memberAppOwnsLimit()
+        && memberAppTenantOkFromToken()
         && request.resource.data.ownerId == request.auth.token.ownerId
         && request.resource.data.memberId == memberId
         && request.resource.data.lastCreatedAt == request.time;
       // Subsequent complaints: only if 24h have passed since last create.
       allow update: if memberAppOwnsLimit()
+        && memberAppTenantOkFromToken()
         && lastCreatedOlderThan24h()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastCreatedAt'])
         && request.resource.data.lastCreatedAt == request.time;
@@ -542,12 +548,22 @@ service cloud.firestore {
     }
 
     match /complaints/{complaintId} {
+      /**
+       * Tenant PWA features (complaints) require `publicOwnerStatus.tenantMemberAppEnabled`
+       * not to be explicitly false. Missing mirror doc = legacy allow.
+       */
+      function memberAppTenantOk(oid) {
+        return !exists(/databases/$(database)/documents/publicOwnerStatus/$(oid))
+          || get(/databases/$(database)/documents/publicOwnerStatus/$(oid)).data.tenantMemberAppEnabled != false;
+      }
+
       /** Member PWA creating an in-app complaint for themselves. */
       function isMemberAppCreatingOwnComplaint() {
         return signedIn()
           && request.auth.token.role == 'member_app'
           && request.resource.data.ownerId == request.auth.token.ownerId
           && request.resource.data.memberId == request.auth.token.memberId
+          && memberAppTenantOk(request.resource.data.ownerId)
           && request.resource.data.source == 'member_app'
           && request.resource.data.status == 'open'
           && request.resource.data.message is string

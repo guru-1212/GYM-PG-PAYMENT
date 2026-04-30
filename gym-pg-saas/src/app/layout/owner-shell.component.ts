@@ -101,6 +101,13 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
       this.profile()?.featureFlags?.auditLogEnabled === true,
   );
 
+  /** Tenant QR + broadcast page — hidden when admin revoked `tenantMemberAppEnabled`. */
+  readonly canSeeMemberAppQrLink = computed(
+    () =>
+      this.profile()?.role === 'owner' &&
+      this.profile()?.featureFlags?.tenantMemberAppEnabled !== false,
+  );
+
   /** Unread in-app alerts for the signed-in owner scope (sidebar badge). */
   readonly ownerInAppUnread = signal(0);
 

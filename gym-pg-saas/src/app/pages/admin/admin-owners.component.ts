@@ -351,6 +351,11 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
     return o.featureFlags?.auditLogEnabled === true;
   }
 
+  /** Tenant PWA (QR install, complaints, owner broadcasts) — off only when admin sets false. */
+  isTenantMemberAppEnabled(o: Owner): boolean {
+    return o.featureFlags?.tenantMemberAppEnabled !== false;
+  }
+
   async toggleSupervisorEnabled(o: Owner, checked: boolean): Promise<void> {
     this.busyId.set(o.ownerId);
     try {
@@ -384,6 +389,22 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
     try {
       await this.admin.setOwnerFeatureFlag(o.ownerId, 'auditLogEnabled', checked);
       this.toast.success(checked ? 'Audit log enabled' : 'Audit log hidden');
+    } catch {
+      this.toast.error('Could not update feature flag');
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  async toggleTenantMemberAppEnabled(o: Owner, checked: boolean): Promise<void> {
+    this.busyId.set(o.ownerId);
+    try {
+      await this.admin.setOwnerFeatureFlag(o.ownerId, 'tenantMemberAppEnabled', checked);
+      this.toast.success(
+        checked
+          ? 'Tenant member app (QR, complaints, messages) enabled'
+          : 'Tenant member app disabled for this owner',
+      );
     } catch {
       this.toast.error('Could not update feature flag');
     } finally {

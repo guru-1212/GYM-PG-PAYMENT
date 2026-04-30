@@ -10,6 +10,7 @@ import {
   noSupervisorGuard,
   permissionGuard,
   supervisorFeatureGuard,
+  tenantMemberAppFeatureGuard,
 } from './core/guards/permission.guard';
 import { subscriptionGuard } from './core/guards/subscription.guard';
 import { supervisorShellGuard } from './core/guards/supervisor-shell.guard';
@@ -65,6 +66,18 @@ export const routes: Routes = [
   { path: 'member-onboarding/:token', component: MemberOnboardingComponent },
   /** Public receipt link a member receives to download their payment receipt. */
   { path: 'member-receipt/:token', component: MemberReceiptComponent },
+  /** PWA `start_url` — routes tenants away from the public marketing home page. */
+  {
+    path: 'member-app/entry',
+    loadComponent: () =>
+      import('./pages/member-app/member-app-entry.component').then((m) => m.MemberAppEntryComponent),
+  },
+  /** Tenant sign-in hub (restores install URL from localStorage when possible). */
+  {
+    path: 'member-app/login',
+    loadComponent: () =>
+      import('./pages/member-app/member-app-login.component').then((m) => m.MemberAppLoginComponent),
+  },
   {
     path: 'member-app/install/:code',
     loadComponent: () =>
@@ -185,7 +198,7 @@ export const routes: Routes = [
        */
       {
         path: 'member-app-qr',
-        canActivate: [noSupervisorGuard],
+        canActivate: [noSupervisorGuard, tenantMemberAppFeatureGuard],
         loadComponent: () =>
           import('./pages/owner-notify-members/owner-notify-members-page.component').then(
             (m) => m.OwnerNotifyMembersPageComponent,

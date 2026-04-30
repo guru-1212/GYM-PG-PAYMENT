@@ -1,6 +1,8 @@
 <router-outlet />
 <app-toast-container />
-<app-ask-to-guru-assistant />
+@if (showAskToGuru()) {
+  <app-ask-to-guru-assistant />
+}
 
 @if (showIosInstructions()) {
   <div class="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 p-4 sm:items-center" (click)="closeIosInstructions()">

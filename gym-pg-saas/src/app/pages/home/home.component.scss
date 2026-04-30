@@ -67,6 +67,11 @@
   cursor: pointer;
 }
 
+.nav-link--dense {
+  font-size: 0.8125rem;
+  padding: 0.3rem 0.35rem;
+}
+
 .nav-link:hover {
   color: #2563eb;
 }
@@ -235,7 +240,8 @@
   position: fixed;
   right: 20px;
   bottom: 20px;
-  z-index: 40;
+  /* Above sticky marketing nav (z-50) so WhatsApp stays clickable on the home page. */
+  z-index: 60;
   display: inline-flex;
   align-items: center;
   gap: 8px;

@@ -275,6 +275,16 @@
                       />
                       Audit Log
                     </label>
+                    <label class="flex items-center gap-1.5 text-slate-700">
+                      <input
+                        type="checkbox"
+                        class="h-4 w-4 accent-teal-600"
+                        [checked]="isTenantMemberAppEnabled(o)"
+                        [disabled]="busyId() === o.ownerId"
+                        (change)="toggleTenantMemberAppEnabled(o, $any($event.target).checked)"
+                      />
+                      Tenant app
+                    </label>
                     @if (isSupervisorEnabled(o)) {
                       <label class="flex items-center gap-1.5 text-slate-700">
                         Cap
@@ -462,6 +472,16 @@
                     (change)="toggleAuditLogEnabled(o, $any($event.target).checked)"
                   />
                   Audit Log
+                </label>
+                <label class="flex items-center gap-1.5 text-slate-700">
+                  <input
+                    type="checkbox"
+                    class="h-4 w-4 accent-teal-600"
+                    [checked]="isTenantMemberAppEnabled(o)"
+                    [disabled]="busyId() === o.ownerId"
+                    (change)="toggleTenantMemberAppEnabled(o, $any($event.target).checked)"
+                  />
+                  Tenant app
                 </label>
                 @if (isSupervisorEnabled(o)) {
                   <label class="flex items-center gap-1.5 text-slate-700">

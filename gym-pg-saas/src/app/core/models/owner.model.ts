@@ -27,6 +27,12 @@ export interface OwnerFeatureFlags {
    * only gates the *owner-facing* view of them.
    */
   auditLogEnabled?: boolean;
+  /**
+   * Tenant PWA: QR install link + in-app complaints. Set `true` when admin
+   * approves the owner; admin may set `false` to revoke. Absence is treated
+   * as enabled for legacy approved owners.
+   */
+  tenantMemberAppEnabled?: boolean;
 }
 
 export interface Owner {

@@ -245,6 +245,10 @@ function normalizeLast4Input(raw) {
  * generic mismatch error.
  */
 const AADHAAR_NOT_ON_FILE_TAG = 'aadhaar-not-on-file';
+/** Client surfaces a dedicated "inactive tenant" message when this tag appears. */
+const MEMBER_INACTIVE_TAG = 'member-inactive';
+/** Owner not approved or admin revoked tenant PWA / QR sign-in. */
+const TENANT_MEMBER_APP_DISABLED_TAG = 'tenant-member-app-disabled';
 
 async function findMemberDocByOwnerAndMobile(db, ownerId, rawMobile) {
   const digits = normalizeDigits10(rawMobile);
@@ -299,6 +303,20 @@ exports.verifyMemberForApp = functions
       if (!codeSnap.exists || c.active !== true || c.ownerId !== ownerId) {
         throw new functions.https.HttpsError('permission-denied', 'Invalid or inactive install link');
       }
+      const ownerSnapEarly = await db.collection('owners').doc(ownerId).get();
+      const owEarly = ownerSnapEarly.data() || {};
+      if (!ownerSnapEarly.exists || String(owEarly.status || '') !== 'approved') {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          `${TENANT_MEMBER_APP_DISABLED_TAG}: Tenant sign-in is not available for this property yet.`,
+        );
+      }
+      if ((owEarly.featureFlags || {}).tenantMemberAppEnabled === false) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          `${TENANT_MEMBER_APP_DISABLED_TAG}: Tenant app access has been turned off for this property. Please contact your owner.`,
+        );
+      }
       const memberDoc = await findMemberDocByOwnerAndMobile(db, ownerId, mobile);
       if (!memberDoc || !memberDoc.exists) {
         // Use a single generic message regardless of which field was wrong, so an
@@ -306,10 +324,22 @@ exports.verifyMemberForApp = functions
         // "is this room number correct?".
         throw new functions.https.HttpsError(
           'permission-denied',
-          'These details do not match our records for this property. Please double-check your mobile number and room number with your owner.',
+          'These details do not match our records for this property. Please double-check your mobile number and the last 4 digits of your Aadhaar with your owner.',
         );
       }
       const md0 = memberDoc.data() || {};
+      const memberStatus = String(md0.status || '').toLowerCase();
+      if (memberStatus !== 'active') {
+        functions.logger.warn('verifyMemberForApp member not active', {
+          ownerId,
+          memberId: memberDoc.id,
+          status: memberStatus || '(missing)',
+        });
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          `${MEMBER_INACTIVE_TAG}: Your profile is not active for this property. Please contact your owner.`,
+        );
+      }
       if (submittedLast4) {
         const memberLast4 = memberAadhaarLast4Digits(md0);
         if (!memberLast4) {
@@ -339,29 +369,20 @@ exports.verifyMemberForApp = functions
         }
       }
       const memberId = memberDoc.id;
+      // Members may sign in again on any device / after clearing storage — we only
+      // record last sign-in for support analytics; we never block re-login.
       const actRef = db.collection('memberAppActivations').doc(memberId);
-
-      let alreadyActivated = false;
-      await db.runTransaction(async (t) => {
-        const act = await t.get(actRef);
-        if (act.exists) {
-          alreadyActivated = true;
-          return;
-        }
-        t.set(actRef, {
-          ownerId,
-          memberId,
-          installCode,
-          activatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      });
-
-      if (alreadyActivated) {
-        throw new functions.https.HttpsError(
-          'failed-precondition',
-          'This member number is already linked to the app. Open the app from your home screen. New sign-ups on another phone are not allowed.',
-        );
-      }
+      await actRef
+        .set(
+          {
+            ownerId,
+            memberId,
+            installCode,
+            lastSignInAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        )
+        .catch(() => {});
 
       const ownerSnap = await db.collection('owners').doc(ownerId).get();
       const od = ownerSnap.data() || {};
@@ -370,6 +391,10 @@ exports.verifyMemberForApp = functions
       const memberDisplayName = `${String(md.firstName || 'Member').trim()} ${String(md.lastName || '').trim()}`
         .trim()
         .slice(0, 120);
+      const memberMobileClaim = normalizeDigits10(md.mobile || mobile) || '';
+      const roomNumberClaim = String(md.roomNumber || '').slice(0, 40);
+      const floorNumberClaim = String(md.floorNumber || '').slice(0, 40);
+      const bedNumberClaim = String(md.bedNumber || '').slice(0, 40);
       let customToken;
       try {
         customToken = await admin.auth().createCustomToken(`memapp_${memberId}`, {
@@ -378,9 +403,14 @@ exports.verifyMemberForApp = functions
           memberId,
           ownerBusinessName,
           memberDisplayName,
+          // Lets the PWA submit complaints / receipts if Firestore member reads lag
+          // (claims are on the ID token; no extra Secure Token round-trip for layout).
+          memberMobile: memberMobileClaim.slice(0, 15),
+          roomNumber: roomNumberClaim,
+          floorNumber: floorNumberClaim,
+          bedNumber: bedNumberClaim,
         });
       } catch (tokenErr) {
-        await actRef.delete().catch(() => {});
         functions.logger.error('verifyMemberForApp createCustomToken failed', tokenErr, { ownerId, memberId });
         throw new functions.https.HttpsError(
           'internal',

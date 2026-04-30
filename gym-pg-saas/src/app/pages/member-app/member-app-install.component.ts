@@ -67,6 +67,12 @@ export class MemberAppInstallComponent implements OnInit {
         return;
       }
       this.ownerId.set(data.ownerId);
+      try {
+        localStorage.setItem('memberApp.installCode', c);
+        localStorage.setItem('memberApp.ownerId', data.ownerId);
+      } catch {
+        /* private mode — PWA entry will fall back to /member-app/login */
+      }
       // Show the PG / Gym name on the install card so the tenant can confirm
       // they scanned the right QR before they type their mobile + Aadhaar last 4.
       this.ownerPublicStatus.watchStatus(data.ownerId, (status) => {
@@ -135,9 +141,18 @@ export class MemberAppInstallComponent implements OnInit {
         this.errorMessage.set(
           'Your Aadhaar number is not on file with this property yet. Please visit your owner and ask them to update your profile, then try signing in again.',
         );
-      } else if (code === 'functions/failed-precondition' || /already linked|already-activated/i.test(msg)) {
+      } else if (/member-inactive/i.test(msg)) {
         this.errorMessage.set(
-          "This number is already set up on the member app. Open the app from your phone's home screen. Signing in again from a new phone is not allowed.",
+          'Your profile is not active for this property. Please contact your owner.',
+        );
+      } else if (/tenant-member-app-disabled/i.test(msg)) {
+        this.errorMessage.set(
+          'Tenant sign-in is not turned on for this property yet, or it was disabled. Please contact your owner or try again after the owner is approved in the system.',
+        );
+      } else if (/already linked|linked to the app/i.test(msg)) {
+        // Legacy Cloud Function still deployed — local code allows re-login.
+        this.errorMessage.set(
+          'This property is still running an older sign-in service that blocks repeat logins. Ask the owner to redeploy the latest Cloud Functions (verifyMemberForApp) for this Firebase project, then try again.',
         );
       } else if (
         code === 'functions/permission-denied' ||

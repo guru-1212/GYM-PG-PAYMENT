@@ -70,7 +70,7 @@ export class AdminService {
    */
   async setOwnerFeatureFlag(
     ownerId: string,
-    key: 'supervisorEnabled' | 'whatsappEnabled' | 'auditLogEnabled',
+    key: 'supervisorEnabled' | 'whatsappEnabled' | 'auditLogEnabled' | 'tenantMemberAppEnabled',
     value: boolean,
   ): Promise<void> {
     // Dot-path update so we don't clobber other flag keys.

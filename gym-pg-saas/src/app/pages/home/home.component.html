@@ -1,45 +1,117 @@
 <div class="home-bg min-h-screen">
   <div class="saas-page mx-auto max-w-6xl space-y-10 px-4 py-5 sm:px-6 lg:px-8">
-    <nav class="glass-nav sticky top-3 z-50 rounded-2xl border border-white/60 bg-white/85 px-4 py-3 shadow-sm backdrop-blur-xl">
-      <div class="flex items-center justify-between gap-4">
-        <app-brand-logo [logoSize]="'38px'" [showText]="true" brandName="OurPGTracker"></app-brand-logo>
+    <nav class="glass-nav sticky top-3 z-50 rounded-2xl border border-white/60 bg-white/85 px-3 py-2.5 shadow-sm backdrop-blur-xl sm:px-4 sm:py-3">
+      <div class="flex min-w-0 flex-nowrap items-center gap-2 sm:gap-3 lg:gap-4">
+        <app-brand-logo class="min-w-0 shrink" [logoSize]="'38px'" [showText]="true" brandName="OurPGTracker"></app-brand-logo>
 
-        <div class="hidden items-center gap-4 lg:flex">
-          <button class="nav-link" type="button" (click)="scrollTo('about')">About</button>
-          <button class="nav-link" type="button" (click)="scrollTo('benefits')">Benefits</button>
-          <button class="nav-link" type="button" (click)="scrollTo('features')">Features</button>
-          <button class="nav-link" type="button" (click)="scrollTo('how-it-works')">How It Works</button>
-          <button class="nav-link" type="button" (click)="scrollTo('contact')">Contact Us</button>
+        <!-- Desktop: centre links — horizontal scroll on very tight widths (never wrap). -->
+        <div
+          class="mx-1 hidden min-h-0 min-w-0 flex-1 justify-center overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] lg:flex [&::-webkit-scrollbar]:hidden"
+        >
+          <div class="inline-flex items-center gap-0.5 whitespace-nowrap px-0.5 py-0.5 sm:gap-1">
+            <button class="nav-link nav-link--dense" type="button" (click)="scrollTo('about')">About</button>
+            <button class="nav-link nav-link--dense" type="button" (click)="scrollTo('benefits')">Benefits</button>
+            <button class="nav-link nav-link--dense" type="button" (click)="scrollTo('features')">Features</button>
+            <button class="nav-link nav-link--dense" type="button" (click)="scrollTo('how-it-works')">How It Works</button>
+            <button class="nav-link nav-link--dense" type="button" (click)="scrollTo('contact')">Contact Us</button>
+          </div>
         </div>
 
-        <div class="hidden items-center gap-3 lg:flex">
+        <!-- Desktop: theme + Sign in menu + Start Free (single row). -->
+        <div class="hidden shrink-0 items-center gap-2 lg:flex">
           <app-theme-toggle />
-          @if (showInstallCta()) {
+          <div class="relative" data-home-signin-menu>
             <button
               type="button"
-              (click)="installApp()"
-              class="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
-              [attr.title]="isIosSafari() ? 'See how to add to your iPhone home screen' : 'Install Our PG Tracker as an app'"
+              class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-white dark:border-slate-600 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:bg-slate-800"
+              (click)="onDesktopSignInToggle($event)"
+              [attr.aria-expanded]="desktopSignInOpen()"
+              [attr.aria-haspopup]="true"
             >
-              <i class="fa-solid fa-download"></i>
-              Install App
+              Sign in
+              <i
+                class="fa-solid fa-chevron-down text-[0.6rem] opacity-70 transition-transform duration-200"
+                [class.rotate-180]="desktopSignInOpen()"
+                aria-hidden="true"
+              ></i>
             </button>
-          }
-          <a routerLink="/login" [queryParams]="{ mode: 'signin' }" class="rounded-xl border border-slate-200 bg-white/75 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white">
-            Sign In
-          </a>
-          <a routerLink="/login" [queryParams]="{ mode: 'signup' }" class="btn-gradient btn-border-anim rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:opacity-95">
+            @if (desktopSignInOpen()) {
+              <div
+                class="absolute right-0 top-[calc(100%+0.35rem)] z-[70] min-w-[14rem] overflow-hidden rounded-xl border border-slate-200/90 bg-white py-1 shadow-xl dark:border-slate-600 dark:bg-slate-900"
+                role="menu"
+                (click)="$event.stopPropagation()"
+              >
+                <p class="border-b border-slate-100 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:border-slate-700 dark:text-slate-500">
+                  Choose account
+                </p>
+                <a
+                  routerLink="/login"
+                  [queryParams]="{ mode: 'signin' }"
+                  class="flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                  role="menuitem"
+                  (click)="closeDesktopSignInMenu()"
+                >
+                  <i class="fa-solid fa-building-user w-4 text-center text-slate-500" aria-hidden="true"></i>
+                  Owner / supervisor
+                </a>
+                <a
+                  routerLink="/login"
+                  [queryParams]="{ mode: 'signin' }"
+                  class="flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                  role="menuitem"
+                  (click)="closeDesktopSignInMenu()"
+                >
+                  <i class="fa-solid fa-shield-halved w-4 text-center text-slate-500" aria-hidden="true"></i>
+                  Admin
+                </a>
+                <a
+                  routerLink="/member-app/login"
+                  class="flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-teal-800 transition hover:bg-teal-50 dark:text-teal-200 dark:hover:bg-teal-950/50"
+                  role="menuitem"
+                  (click)="closeDesktopSignInMenu()"
+                >
+                  <i class="fa-solid fa-house-user w-4 text-center text-teal-600 dark:text-teal-400" aria-hidden="true"></i>
+                  Tenant
+                </a>
+                @if (showInstallCta()) {
+                  <div class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
+                  <button
+                    type="button"
+                    class="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-emerald-950/40"
+                    role="menuitem"
+                    (click)="installApp()"
+                    [attr.title]="isIosSafari() ? 'See how to add to your iPhone home screen' : 'Install the app on this device'"
+                  >
+                    <i class="fa-solid fa-download w-4 text-center text-emerald-600 dark:text-emerald-400" aria-hidden="true"></i>
+                    Install app
+                  </button>
+                }
+              </div>
+            }
+          </div>
+          <a
+            routerLink="/login"
+            [queryParams]="{ mode: 'signup' }"
+            class="btn-gradient btn-border-anim shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-white shadow-md transition hover:opacity-95 sm:px-4"
+          >
             Start Free
           </a>
         </div>
 
-        <button class="menu-btn lg:hidden" type="button" (click)="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle menu">
+        <button class="menu-btn shrink-0 lg:hidden" type="button" (click)="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle menu">
           <i class="fa-solid" [class.fa-bars]="!mobileMenuOpen" [class.fa-xmark]="mobileMenuOpen"></i>
         </button>
       </div>
 
       <div *ngIf="mobileMenuOpen" class="mt-3 space-y-2 rounded-xl border border-slate-200 bg-white/90 p-3 lg:hidden">
         <app-theme-toggle />
+        <a
+          routerLink="/member-app/login"
+          (click)="mobileMenuOpen = false"
+          class="mobile-link block w-full rounded-lg border border-teal-200 bg-teal-50 py-2 text-center font-semibold text-teal-800"
+        >
+          Tenant login
+        </a>
         <button class="mobile-link" type="button" (click)="scrollTo('about')">About</button>
         <button class="mobile-link" type="button" (click)="scrollTo('benefits')">Benefits</button>
         <button class="mobile-link" type="button" (click)="scrollTo('features')">Features</button>
@@ -268,7 +340,7 @@
     </section>
 
     <footer class="rounded-2xl border border-white/60 bg-white/60 p-4 text-center text-xs text-slate-500 backdrop-blur-xl">
-      © 2026 Our PG Tracker — PG management, rent tracking &amp; tenant management made simple. v-29/04 v1.0.4 AI + member
+      © 2026 Our PG Tracker — PG management, rent tracking &amp; tenant management made simple. v-30/04 v1.0.4 AI + member Pro
     </footer>
   </div>
 

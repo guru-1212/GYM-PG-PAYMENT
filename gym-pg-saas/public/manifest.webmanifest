@@ -2,7 +2,7 @@
   "name": "Our PG Tracker",
   "short_name": "Our PG Tracker",
   "description": "Our PG Tracker — PG management software for rent tracking, tenant management, and room & bed allotment.",
-  "start_url": "/",
+  "start_url": "/member-app/entry",
   "display": "standalone",
   "background_color": "#1D4ED8",
   "theme_color": "#1D4ED8",

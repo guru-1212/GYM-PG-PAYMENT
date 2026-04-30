@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -19,6 +19,9 @@ export class HomeComponent {
   readonly whatsappNumber = `91${this.ownerMobileNumber}`;
   mobileMenuOpen = false;
 
+  /** Desktop (`lg+`): compact header — Sign in opens role menu + optional install. */
+  readonly desktopSignInOpen = signal(false);
+
   /** PWA install — exposed to the template. The iOS instructions overlay
    * is rendered globally in `AppComponent`, so we don't need to wire it
    * up here. */
@@ -32,8 +35,26 @@ export class HomeComponent {
     () => !this.isInstalled() && (this.canInstall() || this.isIosSafari()),
   );
 
+  onDesktopSignInToggle(ev: Event): void {
+    ev.stopPropagation();
+    this.desktopSignInOpen.update((o: boolean) => !o);
+  }
+
+  closeDesktopSignInMenu(): void {
+    this.desktopSignInOpen.set(false);
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(ev: MouseEvent): void {
+    const t = ev.target as HTMLElement | null;
+    if (!t?.closest('[data-home-signin-menu]')) {
+      this.desktopSignInOpen.set(false);
+    }
+  }
+
   async installApp(): Promise<void> {
     this.mobileMenuOpen = false;
+    this.closeDesktopSignInMenu();
     const outcome = await this.pwa.promptInstall();
     if (outcome === 'accepted') {
       this.toast.success('App installed. Open it from your home screen any time.');

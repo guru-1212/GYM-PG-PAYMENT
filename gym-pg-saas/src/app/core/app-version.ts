@@ -9,4 +9,4 @@
  * must not keep running. Use semver-style strings (e.g. "1.0.2", "1.1.0").
  supervisor chagnes done in this branch 
  */
-export const APP_VERSION = '1.0.5';
+export const APP_VERSION = '1.0.6';

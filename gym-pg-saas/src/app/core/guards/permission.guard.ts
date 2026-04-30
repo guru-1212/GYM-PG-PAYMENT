@@ -109,3 +109,23 @@ export const noSupervisorGuard: CanActivateFn = async () => {
   }
   return true;
 };
+
+/**
+ * Owner-only routes for the tenant PWA (QR + broadcast hub).
+ * Blocked when admin has set `featureFlags.tenantMemberAppEnabled` to `false`.
+ * Absence of the flag still allows (legacy approved owners).
+ */
+export const tenantMemberAppFeatureGuard: CanActivateFn = async () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  await awaitAuthReady(auth);
+  const profile = auth.profile();
+  if (!profile) return router.createUrlTree(['/login']);
+  if (profile.role !== 'owner') {
+    return landingFor(auth, router);
+  }
+  if (profile.featureFlags?.tenantMemberAppEnabled === false) {
+    return router.createUrlTree(['/dashboard']);
+  }
+  return true;
+};

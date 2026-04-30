@@ -22,6 +22,13 @@
   }
 }
 
+/* Outer frame: centres the tenant app on wide screens without changing mobile layout. */
+.mah-shell {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 0 clamp(0.35rem, 1.5vw, 1.25rem);
+}
+
 .mah {
   max-width: 32rem;
   margin: 0 auto;
@@ -67,6 +74,36 @@
   background: linear-gradient(120deg, #14b8a6, #0d9488);
   color: white;
   font-size: 1.25rem;
+}
+
+.mah-data-err {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #7f1d1d;
+  background: rgba(254, 226, 226, 0.95);
+  border: 1px solid rgba(185, 28, 28, 0.25);
+}
+
+.mah-data-err .material-icons-outlined {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.mah-data-err p {
+  margin: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .mah-data-err {
+    color: #fecaca;
+    background: rgba(127, 29, 29, 0.35);
+    border-color: rgba(248, 113, 113, 0.25);
+  }
 }
 
 .mah-brand-text { min-width: 0; }
@@ -185,6 +222,10 @@
   background: white;
   border: 1px solid rgba(15, 23, 42, 0.06);
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+
+.mah-tabs--dual {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .mah-tab {
@@ -359,6 +400,56 @@
     font-size: 0.72rem;
     color: #64748b;
     margin-top: 0.1rem;
+  }
+}
+
+.mah-quick--single {
+  grid-template-columns: 1fr;
+  max-width: 22rem;
+  margin: 0 auto;
+}
+
+/* ───────── Owner broadcasts (send to all members) ───────── */
+
+.mah-broadcasts {
+  .mah-bc-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .mah-bc-card {
+    margin: 0;
+    padding: 0.85rem 1rem;
+    border-radius: 0.95rem;
+    background: white;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  }
+
+  .mah-bc-title {
+    margin: 0 0 0.35rem;
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.35;
+  }
+
+  .mah-bc-body {
+    margin: 0;
+    font-size: 0.84rem;
+    color: #475569;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+
+  .mah-bc-time {
+    margin: 0.55rem 0 0;
+    font-size: 0.72rem;
+    color: #94a3b8;
   }
 }
 
@@ -673,6 +764,49 @@
 
 /* ───────────────── Wider screens ───────────────── */
 
+@media (min-width: 900px) {
+  .mah-shell {
+    padding: 1.25rem clamp(1rem, 3vw, 2rem) 5rem;
+  }
+
+  .mah {
+    max-width: min(48rem, 100%);
+    margin-left: auto;
+    margin-right: auto;
+    padding: 1rem 1.35rem 5rem;
+    gap: 1.1rem;
+  }
+
+  .mah-greeting {
+    padding: 0.15rem 0.25rem 0;
+  }
+
+  .mah-name {
+    font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+  }
+
+  .mah-tabs .mah-tab {
+    padding: 0.65rem 0.6rem;
+    font-size: 0.82rem;
+  }
+
+  .mah-broadcasts .mah-bc-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .mah-quick {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
+  }
+
+  .mah-quick--single {
+    grid-template-columns: 1fr;
+    max-width: 24rem;
+  }
+}
+
 @media (min-width: 720px) {
   .mah-table-head {
     display: grid;
@@ -767,4 +901,11 @@
   .mah-cf-label { color: #94a3b8; }
   .mah-complaint-msg { color: #e2e8f0; }
   .mah-complaint-time { color: #64748b; }
+  .mah-broadcasts .mah-bc-card {
+    background: rgba(15, 23, 42, 0.85);
+    border-color: rgba(148, 163, 184, 0.15);
+  }
+  .mah-broadcasts .mah-bc-title { color: #f1f5f9; }
+  .mah-broadcasts .mah-bc-body { color: #cbd5e1; }
+  .mah-broadcasts .mah-bc-time { color: #64748b; }
 }

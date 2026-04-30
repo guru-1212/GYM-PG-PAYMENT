@@ -1,4 +1,5 @@
-<div class="mah">
+<div class="mah-shell">
+  <div class="mah">
   <!-- ───────── Top app bar ───────── -->
   <header class="mah-topbar">
     <div class="mah-brand">
@@ -12,6 +13,13 @@
       <span class="material-icons-outlined">logout</span>
     </button>
   </header>
+
+  @if (dataLoadError(); as err) {
+    <div class="mah-data-err" role="alert">
+      <span class="material-icons-outlined">cloud_off</span>
+      <p>{{ err }}</p>
+    </div>
+  }
 
   <!-- ───────── Greeting ───────── -->
   <section class="mah-greeting">
@@ -28,15 +36,15 @@
         </div>
       </div>
     } @else if (planExpiryLine()) {
-      <div class="mah-plan-ok">
+      <!-- <div class="mah-plan-ok">
         <span class="material-icons-outlined">verified</span>
         <span>Plan active until <strong>{{ planExpiryLine() }}</strong></span>
-      </div>
+      </div> -->
     }
   </section>
 
   <!-- ───────── Top tabs ───────── -->
-  <nav class="mah-tabs" role="tablist">
+  <nav class="mah-tabs" [class.mah-tabs--dual]="!canUseComplaints()" role="tablist">
     <button
       type="button"
       role="tab"
@@ -60,20 +68,22 @@
       Receipts
       <span class="mah-tab-badge mah-badge-soft">{{ payments().length }}</span>
     </button>
-    <button
-      type="button"
-      role="tab"
-      [attr.aria-selected]="tab() === 'complaint'"
-      class="mah-tab"
-      [class.is-active]="tab() === 'complaint'"
-      (click)="setTab('complaint')"
-    >
-      <span class="material-icons-outlined">support_agent</span>
-      Complaint
-      @if (openComplaintsCount() > 0) {
-        <span class="mah-tab-badge mah-badge-warn">{{ openComplaintsCount() }}</span>
-      }
-    </button>
+    @if (canUseComplaints()) {
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="tab() === 'complaint'"
+        class="mah-tab"
+        [class.is-active]="tab() === 'complaint'"
+        (click)="setTab('complaint')"
+      >
+        <span class="material-icons-outlined">support_agent</span>
+        Complaint
+        @if (openComplaintsCount() > 0) {
+          <span class="mah-tab-badge mah-badge-warn">{{ openComplaintsCount() }}</span>
+        }
+      </button>
+    }
   </nav>
 
   <!-- ───────── HOME TAB ───────── -->
@@ -129,9 +139,27 @@
       </section>
     }
 
+    @if (broadcasts().length > 0) {
+      <section class="mah-section mah-broadcasts" aria-labelledby="mah-bc-heading">
+        <h2 id="mah-bc-heading" class="mah-h2">Messages from your owner</h2>
+        <p class="mah-section-sub">Your owner sent these to everyone at the property. You also get a push when notifications are enabled.</p>
+        <ul class="mah-bc-list">
+          @for (b of broadcasts(); track b.id) {
+            <li class="mah-bc-card">
+              <p class="mah-bc-title">{{ b.title }}</p>
+              <p class="mah-bc-body">{{ b.body }}</p>
+              @if (b.createdAt; as ca) {
+                <p class="mah-bc-time">{{ ca.toDate() | date: 'd MMM y, h:mm a' }}</p>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
     <section class="mah-section">
       <h2 class="mah-h2">Quick actions</h2>
-      <div class="mah-quick">
+      <div class="mah-quick" [class.mah-quick--single]="!canUseComplaints()">
         <button type="button" class="mah-quick-btn" (click)="setTab('receipts')">
           <span class="material-icons-outlined">receipt_long</span>
           <span class="mah-quick-text">
@@ -139,13 +167,15 @@
             <small>Any month, anytime</small>
           </span>
         </button>
-        <button type="button" class="mah-quick-btn" (click)="setTab('complaint')">
-          <span class="material-icons-outlined">support_agent</span>
-          <span class="mah-quick-text">
-            <strong>Raise a complaint</strong>
-            <small>1 per day to your owner</small>
-          </span>
-        </button>
+        @if (canUseComplaints()) {
+          <button type="button" class="mah-quick-btn" (click)="setTab('complaint')">
+            <span class="material-icons-outlined">support_agent</span>
+            <span class="mah-quick-text">
+              <strong>Raise a complaint</strong>
+              <small>1 per day to your owner</small>
+            </span>
+          </button>
+        }
       </div>
     </section>
   }
@@ -173,7 +203,7 @@
               <div class="mah-receipt-meta">
                 <span class="mah-receipt-month">{{ row.monthLabel }}</span>
                 <span class="mah-receipt-date">
-                  {{ row.payment.date.toDate() | date: 'd MMM y' }}
+                  {{ row.receiptDate | date: 'd MMM y' }}
                 </span>
                 <span class="mah-receipt-no">#{{ row.receiptNumber }}</span>
               </div>
@@ -208,7 +238,7 @@
   }
 
   <!-- ───────── COMPLAINT TAB ───────── -->
-  @if (tab() === 'complaint') {
+  @if (tab() === 'complaint' && canUseComplaints()) {
     <section class="mah-section">
       <h2 class="mah-h2">Raise a complaint</h2>
       <p class="mah-section-sub">
@@ -291,4 +321,5 @@
       }
     </section>
   }
+  </div>
 </div>

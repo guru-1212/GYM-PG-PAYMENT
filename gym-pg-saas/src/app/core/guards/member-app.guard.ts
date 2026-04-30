@@ -10,15 +10,15 @@ export const memberAppHomeGuard: CanActivateFn = async () => {
   const auth = getAuth(fb.app);
   const user = auth.currentUser;
   if (!user) {
-    return router.parseUrl('/');
+    return router.parseUrl('/member-app/login');
   }
   try {
     const token = await user.getIdTokenResult();
     if (token.claims['role'] !== 'member_app') {
-      return router.parseUrl('/');
+      return router.parseUrl('/member-app/login');
     }
   } catch {
-    return router.parseUrl('/');
+    return router.parseUrl('/member-app/login');
   }
   return true;
 };
