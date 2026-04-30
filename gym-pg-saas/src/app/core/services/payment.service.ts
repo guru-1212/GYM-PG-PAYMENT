@@ -272,6 +272,7 @@ export class PaymentService {
       method: params.method,
       isPartialPayment,
       pendingAmount: isPartialPayment ? pendingFromForm : 0,
+      priorPendingAmount: priorPending,
       createdAt: serverTimestamp(),
       // Audit log (additive — see Payment model). Owners can use these
       // fields to reconcile cash flow when a supervisor collects on

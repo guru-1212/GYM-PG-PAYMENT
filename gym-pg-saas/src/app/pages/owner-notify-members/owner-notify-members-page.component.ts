@@ -1,8 +1,12 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import QRCode from 'qrcode';
 import { AuthService } from '../../core/services/auth.service';
-import { MemberBroadcastService } from '../../core/services/member-broadcast.service';
+import {
+  MemberBroadcastService,
+  type OwnerBroadcast,
+} from '../../core/services/member-broadcast.service';
 import { MemberInstallQrService } from '../../core/services/member-install-qr.service';
 import { ToastService } from '../../core/services/toast.service';
 import { NotificationBellComponent } from '../../shared/notification-bell/notification-bell.component';
@@ -10,7 +14,7 @@ import { NotificationBellComponent } from '../../shared/notification-bell/notifi
 @Component({
   selector: 'app-owner-notify-members-page',
   standalone: true,
-  imports: [ReactiveFormsModule, NotificationBellComponent],
+  imports: [ReactiveFormsModule, NotificationBellComponent, DatePipe],
   templateUrl: './owner-notify-members-page.component.html',
   styleUrl: './owner-notify-members-page.component.scss',
 })
@@ -41,6 +45,27 @@ export class OwnerNotifyMembersPageComponent implements OnInit {
     title: ['', [Validators.required, Validators.maxLength(120)]],
     body: ['', [Validators.required, Validators.maxLength(4000)]],
   });
+
+  /** Broadcasts already sent to all members (live from Firestore). */
+  readonly broadcastHistory = signal<OwnerBroadcast[]>([]);
+
+  constructor() {
+    effect((onCleanup) => {
+      const p = this.profile();
+      const oid = p?.ownerId;
+      if (!oid || p?.role !== 'owner') {
+        this.broadcastHistory.set([]);
+        return;
+      }
+      const unsub = this.broadcast.watchBroadcasts(
+        oid,
+        (rows) => this.broadcastHistory.set(rows),
+        () => this.broadcastHistory.set([]),
+        { limit: 100 },
+      );
+      onCleanup(() => unsub());
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     // Auto-load on first paint so the QR is immediately visible — owners
@@ -306,5 +331,12 @@ export class OwnerNotifyMembersPageComponent implements OnInit {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  /** Table preview column — full text in `title` attribute on the cell. */
+  truncateBody(text: string, max: number): string {
+    const t = String(text ?? '').replace(/\s+/g, ' ').trim();
+    if (t.length <= max) return t;
+    return `${t.slice(0, max)}…`;
   }
 }

@@ -18,6 +18,11 @@ export interface Payment {
   method: PaymentMethod;
   isPartialPayment?: boolean;
   pendingAmount?: number;
+  /**
+   * Member's pending balance before this payment was recorded (additive field).
+   * Lets the tenant app split receipts into pending-balance vs rent without guessing.
+   */
+  priorPendingAmount?: number;
   createdAt: Timestamp;
 
   /* ---------- Audit log (set on creation only; never edited) ----------

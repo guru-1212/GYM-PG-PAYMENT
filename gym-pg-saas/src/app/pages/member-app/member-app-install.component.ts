@@ -11,6 +11,40 @@ import { ToastService } from '../../core/services/toast.service';
 import { applyDigitsOnlyFromInput } from '../../core/utils/validators';
 import { environment } from '../../../environments/environment';
 
+/** Last successful tenant sign-in for this device (per owner). Not a password — still verified server-side. */
+const MEMBER_SIGNIN_CREDENTIAL_LS = 'memberApp.signInCredential';
+
+function readStoredMemberCredential(ownerId: string): { mobile: string; aadhaarLast4: string } | null {
+  try {
+    const raw = localStorage.getItem(MEMBER_SIGNIN_CREDENTIAL_LS);
+    if (!raw) return null;
+    const o = JSON.parse(raw) as { v?: number; ownerId?: string; mobile?: string; aadhaarLast4?: string };
+    if (o?.ownerId !== ownerId || o?.v !== 1) return null;
+    const mobile = String(o.mobile || '').replace(/\D/g, '').slice(-10);
+    const a4 = String(o.aadhaarLast4 || '').replace(/\D/g, '').slice(-4);
+    if (mobile.length !== 10 || a4.length !== 4) return null;
+    return { mobile, aadhaarLast4: a4 };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredMemberCredential(ownerId: string, mobile: string, aadhaarLast4: string): void {
+  try {
+    localStorage.setItem(
+      MEMBER_SIGNIN_CREDENTIAL_LS,
+      JSON.stringify({
+        v: 1,
+        ownerId,
+        mobile: mobile.replace(/\D/g, '').slice(-10),
+        aadhaarLast4: aadhaarLast4.replace(/\D/g, '').slice(-4),
+      }),
+    );
+  } catch {
+    /* private mode / quota */
+  }
+}
+
 @Component({
   selector: 'app-member-app-install',
   standalone: true,
@@ -33,6 +67,8 @@ export class MemberAppInstallComponent implements OnInit {
   readonly ownerBusinessName = signal<string>('');
   readonly code = signal<string>('');
   readonly loadError = signal('');
+  /** True when mobile + Aadhaar last 4 were restored from this browser's saved sign-in. */
+  readonly credentialFromDevice = signal(false);
 
   readonly canInstall = this.pwa.canInstall;
   readonly isInstalled = this.pwa.isInstalled;
@@ -72,6 +108,11 @@ export class MemberAppInstallComponent implements OnInit {
         localStorage.setItem('memberApp.ownerId', data.ownerId);
       } catch {
         /* private mode — PWA entry will fall back to /member-app/login */
+      }
+      const saved = readStoredMemberCredential(data.ownerId);
+      if (saved) {
+        this.mobileForm.patchValue({ mobile: saved.mobile, aadhaarLast4: saved.aadhaarLast4 });
+        this.credentialFromDevice.set(true);
       }
       // Show the PG / Gym name on the install card so the tenant can confirm
       // they scanned the right QR before they type their mobile + Aadhaar last 4.
@@ -130,6 +171,11 @@ export class MemberAppInstallComponent implements OnInit {
       }
       const auth = getAuth(this.fb.app);
       await signInWithCustomToken(auth, data.customToken);
+      writeStoredMemberCredential(
+        oid,
+        this.mobileForm.controls.mobile.value,
+        this.mobileForm.controls.aadhaarLast4.value.trim(),
+      );
       await this.router.navigateByUrl('/member-app/home');
     } catch (e: unknown) {
       const fe = e as { code?: string; message?: string };

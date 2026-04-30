@@ -364,3 +364,150 @@
   align-self: flex-start;
   margin-top: 0.4rem;
 }
+
+/* ───────── Broadcast history table ───────── */
+
+.onm-history {
+  margin-top: 1rem;
+}
+
+.onm-history-lead {
+  margin-bottom: 0.85rem;
+}
+
+.onm-history-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 1rem 1.1rem;
+  border-radius: 0.75rem;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.45;
+
+  .material-icons-outlined {
+    font-size: 1.35rem;
+    color: #94a3b8;
+    flex-shrink: 0;
+    margin-top: 0.05rem;
+  }
+
+  p {
+    margin: 0;
+  }
+}
+
+:host-context(.dark) .onm-history-empty {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
+}
+
+.onm-table-scroll {
+  overflow-x: auto;
+  margin: 0 -0.15rem;
+  padding: 0 0.15rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.onm-table {
+  width: 100%;
+  min-width: 17rem;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.onm-th {
+  text-align: left;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  padding: 0.5rem 0.65rem 0.55rem;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+  background: #f8fafc;
+}
+
+:host-context(.dark) .onm-th {
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.onm-th--when { width: 1%; }
+.onm-th--title { min-width: 7rem; }
+.onm-th--body { min-width: 12rem; }
+
+.onm-tr:hover .onm-td {
+  background: #f8faffc0;
+}
+
+:host-context(.dark) .onm-tr:hover .onm-td {
+  background: rgba(30, 41, 59, 0.45);
+}
+
+.onm-td {
+  vertical-align: top;
+  padding: 0.65rem 0.65rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+  line-height: 1.45;
+}
+
+:host-context(.dark) .onm-td {
+  border-color: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
+}
+
+.onm-td--when {
+  white-space: nowrap;
+}
+
+.onm-td-date {
+  display: block;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+:host-context(.dark) .onm-td-date {
+  color: #f1f5f9;
+}
+
+.onm-td-time {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-top: 0.1rem;
+}
+
+:host-context(.dark) .onm-td-time {
+  color: #94a3b8;
+}
+
+.onm-td-missing {
+  color: #94a3b8;
+}
+
+.onm-td--title {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+:host-context(.dark) .onm-td--title {
+  color: #f1f5f9;
+}
+
+.onm-td--body {
+  font-size: 0.82rem;
+  color: #475569;
+  word-break: break-word;
+}
+
+:host-context(.dark) .onm-td--body {
+  color: #cbd5e1;
+}

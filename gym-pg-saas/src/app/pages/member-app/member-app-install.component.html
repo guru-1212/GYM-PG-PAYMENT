@@ -49,6 +49,12 @@
 
       <form class="mai-form" [formGroup]="mobileForm" (ngSubmit)="continue()">
         <p class="mai-form-title">Sign in with your registered details</p>
+        @if (credentialFromDevice()) {
+          <p class="mai-saved-hint">
+            <span class="material-icons-outlined" aria-hidden="true">phone_android</span>
+            We filled in the mobile and Aadhaar last 4 you last used on this phone for this property. You can change them if needed.
+          </p>
+        }
 
         <label class="mai-label" for="m-mobile">Registered mobile number</label>
         <input
@@ -91,7 +97,7 @@
         </button>
 
         <p class="mai-fine-print">
-          Your details stay on this property. We only use them to verify you're a registered tenant.
+          Your details stay on this property. We only use them to verify you're a registered tenant. After a successful sign-in, this browser can remember them for next time (stored only on your device).
         </p>
       </form>
     }

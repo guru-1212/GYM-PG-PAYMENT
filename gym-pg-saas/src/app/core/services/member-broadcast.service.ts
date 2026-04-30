@@ -43,8 +43,10 @@ export class MemberBroadcastService {
     ownerId: string,
     cb: (rows: OwnerBroadcast[]) => void,
     onError?: (err: unknown) => void,
+    options?: { limit?: number },
   ): Unsubscribe {
-    const q = query(this.broadcastsCol(ownerId), orderBy('createdAt', 'desc'), limit(40));
+    const lim = Math.min(500, Math.max(1, Math.floor(options?.limit ?? 40)));
+    const q = query(this.broadcastsCol(ownerId), orderBy('createdAt', 'desc'), limit(lim));
     return onSnapshot(
       q,
       (snap) => {

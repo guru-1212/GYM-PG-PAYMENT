@@ -9,9 +9,43 @@
         <p class="mah-brand-sub">Tenant app</p>
       </div>
     </div>
-    <button type="button" class="mah-logout" (click)="logout()" aria-label="Sign out">
-      <span class="material-icons-outlined">logout</span>
-    </button>
+    <div class="mah-topbar-actions">
+      <div class="mah-theme-group" role="group" aria-label="Color theme">
+        <button
+          type="button"
+          class="mah-theme-btn"
+          [class.is-on]="themePref() === 'light'"
+          (click)="setThemePref('light')"
+          aria-label="Light theme"
+          title="Light theme"
+        >
+          <span class="material-icons-outlined">light_mode</span>
+        </button>
+        <button
+          type="button"
+          class="mah-theme-btn"
+          [class.is-on]="themePref() === 'system'"
+          (click)="setThemePref('system')"
+          aria-label="Match device theme"
+          title="Match device"
+        >
+          <span class="material-icons-outlined">brightness_auto</span>
+        </button>
+        <button
+          type="button"
+          class="mah-theme-btn"
+          [class.is-on]="themePref() === 'dark'"
+          (click)="setThemePref('dark')"
+          aria-label="Dark theme"
+          title="Dark theme"
+        >
+          <span class="material-icons-outlined">dark_mode</span>
+        </button>
+      </div>
+      <button type="button" class="mah-logout" (click)="logout()" aria-label="Sign out">
+        <span class="material-icons-outlined">logout</span>
+      </button>
+    </div>
   </header>
 
   @if (dataLoadError(); as err) {
@@ -66,7 +100,7 @@
     >
       <span class="material-icons-outlined">receipt_long</span>
       Receipts
-      <span class="mah-tab-badge mah-badge-soft">{{ payments().length }}</span>
+      <span class="mah-tab-badge mah-badge-soft">{{ receiptLines().length }}</span>
     </button>
     @if (canUseComplaints()) {
       <button
@@ -142,18 +176,47 @@
     @if (broadcasts().length > 0) {
       <section class="mah-section mah-broadcasts" aria-labelledby="mah-bc-heading">
         <h2 id="mah-bc-heading" class="mah-h2">Messages from your owner</h2>
-        <p class="mah-section-sub">Your owner sent these to everyone at the property. You also get a push when notifications are enabled.</p>
-        <ul class="mah-bc-list">
-          @for (b of broadcasts(); track b.id) {
-            <li class="mah-bc-card">
-              <p class="mah-bc-title">{{ b.title }}</p>
-              <p class="mah-bc-body">{{ b.body }}</p>
-              @if (b.createdAt; as ca) {
-                <p class="mah-bc-time">{{ ca.toDate() | date: 'd MMM y, h:mm a' }}</p>
+        <p class="mah-section-sub">
+          Your owner sent these to everyone at the property. You also get a push when notifications are enabled.
+        </p>
+
+        @if (broadcastsToday().length > 0) {
+          <div class="mah-bc-today-wrap" role="region" aria-label="Today's messages from your owner">
+            <div class="mah-bc-today-banner">
+              <span class="material-icons-outlined mah-bc-today-icon" aria-hidden="true">mark_chat_unread</span>
+              <div class="mah-bc-today-banner-text">
+                <p class="mah-bc-today-label">Today</p>
+                <p class="mah-bc-today-hint">New or updated since midnight on your phone</p>
+              </div>
+            </div>
+            <ul class="mah-bc-list mah-bc-list--today">
+              @for (b of broadcastsToday(); track b.id) {
+                <li class="mah-bc-card mah-bc-card--today">
+                  <p class="mah-bc-title">{{ b.title }}</p>
+                  <p class="mah-bc-body">{{ b.body }}</p>
+                  @if (b.createdAt; as ca) {
+                    <p class="mah-bc-time">{{ ca.toDate() | date: 'h:mm a' }}</p>
+                  }
+                </li>
               }
-            </li>
-          }
-        </ul>
+            </ul>
+          </div>
+        }
+
+        @if (broadcastsEarlier().length > 0) {
+          <h3 class="mah-bc-earlier-h3">{{ broadcastsToday().length > 0 ? 'Earlier messages' : 'All messages' }}</h3>
+          <ul class="mah-bc-list">
+            @for (b of broadcastsEarlier(); track b.id) {
+              <li class="mah-bc-card">
+                <p class="mah-bc-title">{{ b.title }}</p>
+                <p class="mah-bc-body">{{ b.body }}</p>
+                @if (b.createdAt; as ca) {
+                  <p class="mah-bc-time">{{ ca.toDate() | date: 'd MMM y, h:mm a' }}</p>
+                }
+              </li>
+            }
+          </ul>
+        }
       </section>
     }
 
@@ -182,57 +245,119 @@
 
   <!-- ───────── RECEIPTS TAB ───────── -->
   @if (tab() === 'receipts') {
-    <section class="mah-section">
-      <h2 class="mah-h2">Rent receipts</h2>
-      @if (receiptRows().length === 0) {
+    <section class="mah-section mah-receipts-root">
+      <h2 class="mah-h2">Receipts</h2>
+      <p class="mah-section-sub mah-receipts-intro">
+        When one payment covers both an old balance and rent, you get two PDFs so each amount has its own receipt.
+      </p>
+      @if (receiptLines().length === 0) {
         <div class="mah-empty">
           <span class="material-icons-outlined">inbox</span>
           <p class="mah-empty-title">No payments yet</p>
           <p class="mah-empty-body">Once your owner records a rent payment, your receipt will appear here.</p>
         </div>
       } @else {
-        <div class="mah-receipts-card">
-          <div class="mah-table-head">
-            <span>Month</span>
-            <span>Amount</span>
-            <span>Method</span>
-            <span></span>
-          </div>
-          @for (row of receiptRows(); track row.payment.paymentId) {
-            <div class="mah-table-row">
-              <div class="mah-receipt-meta">
-                <span class="mah-receipt-month">{{ row.monthLabel }}</span>
-                <span class="mah-receipt-date">
-                  {{ row.receiptDate | date: 'd MMM y' }}
-                </span>
-                <span class="mah-receipt-no">#{{ row.receiptNumber }}</span>
+        @if (receiptLinesPending().length > 0) {
+          <div class="mah-receipt-block">
+            <h3 class="mah-h3">
+              <span class="material-icons-outlined mah-h3-icon">account_balance_wallet</span>
+              Pending balance receipts
+            </h3>
+            <p class="mah-section-sub mah-receipt-block-sub">Amount paid toward your previous pending balance.</p>
+            <div class="mah-receipts-card mah-receipts-card--pending">
+              <div class="mah-table-head">
+                <span>Reference</span>
+                <span>Amount</span>
+                <span>Method</span>
+                <span></span>
               </div>
-              <div class="mah-receipt-amount">
-                {{ row.payment.amount | currency: 'INR' : 'symbol-narrow' : '1.0-0' }}
-              </div>
-              <div class="mah-receipt-method">
-                <span class="mah-method-pill">{{ row.payment.method | titlecase }}</span>
-              </div>
-              <div class="mah-receipt-action">
-                <button
-                  type="button"
-                  class="mah-download"
-                  (click)="downloadReceipt(row)"
-                  [disabled]="row.isDownloading"
-                  [attr.aria-label]="'Download receipt for ' + row.monthLabel"
-                >
-                  @if (row.isDownloading) {
-                    <span class="mah-spinner" aria-hidden="true"></span>
-                    <span>Preparing…</span>
-                  } @else {
-                    <span class="material-icons-outlined">download</span>
-                    <span>Download the rent receipt for {{ row.monthLabel }}</span>
-                  }
-                </button>
-              </div>
+              @for (row of receiptLinesPending(); track row.downloadKey) {
+                <div class="mah-table-row">
+                  <div class="mah-receipt-meta">
+                    <span class="mah-receipt-kind">Pending paid</span>
+                    <span class="mah-receipt-month">{{ row.monthLabel }}</span>
+                    <span class="mah-receipt-date">{{ row.receiptDate | date: 'd MMM y' }}</span>
+                    <span class="mah-receipt-no">#{{ row.receiptNumber }}</span>
+                  </div>
+                  <div class="mah-receipt-amount">
+                    {{ row.amount | currency: 'INR' : 'symbol-narrow' : '1.0-0' }}
+                  </div>
+                  <div class="mah-receipt-method">
+                    <span class="mah-method-pill mah-method-pill--amber">{{ row.payment.method | titlecase }}</span>
+                  </div>
+                  <div class="mah-receipt-action">
+                    <button
+                      type="button"
+                      class="mah-download mah-download--secondary"
+                      (click)="downloadReceipt(row)"
+                      [disabled]="row.isDownloading"
+                      [attr.aria-label]="'Download pending balance receipt for ' + row.monthLabel"
+                    >
+                      @if (row.isDownloading) {
+                        <span class="mah-spinner mah-spinner--dark" aria-hidden="true"></span>
+                        <span>Preparing…</span>
+                      } @else {
+                        <span class="material-icons-outlined">download</span>
+                        <span>Download PDF</span>
+                      }
+                    </button>
+                  </div>
+                </div>
+              }
             </div>
-          }
-        </div>
+          </div>
+        }
+
+        @if (receiptLinesRent().length > 0) {
+          <div class="mah-receipt-block">
+            <h3 class="mah-h3">
+              <span class="material-icons-outlined mah-h3-icon">home_work</span>
+              Rent receipts
+            </h3>
+            <p class="mah-section-sub mah-receipt-block-sub">Rent portion for the billing month shown.</p>
+            <div class="mah-receipts-card mah-receipts-card--rent">
+              <div class="mah-table-head">
+                <span>Month</span>
+                <span>Amount</span>
+                <span>Method</span>
+                <span></span>
+              </div>
+              @for (row of receiptLinesRent(); track row.downloadKey) {
+                <div class="mah-table-row">
+                  <div class="mah-receipt-meta">
+                    <span class="mah-receipt-kind">Rent paid</span>
+                    <span class="mah-receipt-month">{{ row.monthLabel }}</span>
+                    <span class="mah-receipt-date">{{ row.receiptDate | date: 'd MMM y' }}</span>
+                    <span class="mah-receipt-no">#{{ row.receiptNumber }}</span>
+                  </div>
+                  <div class="mah-receipt-amount">
+                    {{ row.amount | currency: 'INR' : 'symbol-narrow' : '1.0-0' }}
+                  </div>
+                  <div class="mah-receipt-method">
+                    <span class="mah-method-pill">{{ row.payment.method | titlecase }}</span>
+                  </div>
+                  <div class="mah-receipt-action">
+                    <button
+                      type="button"
+                      class="mah-download"
+                      (click)="downloadReceipt(row)"
+                      [disabled]="row.isDownloading"
+                      [attr.aria-label]="'Download rent receipt for ' + row.monthLabel"
+                    >
+                      @if (row.isDownloading) {
+                        <span class="mah-spinner" aria-hidden="true"></span>
+                        <span>Preparing…</span>
+                      } @else {
+                        <span class="material-icons-outlined">download</span>
+                        <span>Download PDF</span>
+                      }
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
       }
     </section>
   }

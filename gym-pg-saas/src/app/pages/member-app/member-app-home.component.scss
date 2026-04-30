@@ -13,13 +13,11 @@
     #f8fafc;
 }
 
-@media (prefers-color-scheme: dark) {
-  :host {
-    background:
-      radial-gradient(at top left, rgba(20, 184, 166, 0.18), transparent 50%),
-      radial-gradient(at bottom right, rgba(99, 102, 241, 0.18), transparent 60%),
-      #020617;
-  }
+:host([data-mah-theme='dark']) {
+  background:
+    radial-gradient(at top left, rgba(20, 184, 166, 0.22), transparent 50%),
+    radial-gradient(at bottom right, rgba(99, 102, 241, 0.22), transparent 60%),
+    #020617;
 }
 
 /* Outer frame: centres the tenant app on wide screens without changing mobile layout. */
@@ -98,14 +96,6 @@
   margin: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  .mah-data-err {
-    color: #fecaca;
-    background: rgba(127, 29, 29, 0.35);
-    border-color: rgba(248, 113, 113, 0.25);
-  }
-}
-
 .mah-brand-text { min-width: 0; }
 
 .mah-brand-name {
@@ -125,6 +115,51 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #0d9488;
+}
+
+.mah-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.mah-theme-group {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem;
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.mah-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+
+  .material-icons-outlined {
+    font-size: 1.05rem;
+  }
+
+  &:hover {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.85);
+  }
+
+  &.is-on {
+    color: #0f766e;
+    background: white;
+    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.2);
+  }
 }
 
 .mah-logout {
@@ -289,6 +324,80 @@
   color: #0f172a;
 }
 
+.mah-h3 {
+  margin: 0.5rem 0.25rem 0.15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.mah-h3-icon {
+  font-size: 1.15rem;
+  color: #0d9488;
+}
+
+.mah-receipts-root .mah-receipts-intro {
+  margin-top: 0.15rem;
+}
+
+.mah-receipt-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mah-receipt-block-sub {
+  margin-top: 0 !important;
+  margin-bottom: 0.35rem !important;
+}
+
+.mah-receipt-kind {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #0d9488;
+}
+
+.mah-receipts-card--pending {
+  border-color: rgba(245, 158, 11, 0.35);
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.08);
+}
+
+.mah-receipts-card--rent {
+  border-color: rgba(13, 148, 136, 0.28);
+}
+
+.mah-method-pill--amber {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.mah-download--secondary {
+  background: linear-gradient(120deg, #fcd34d, #f59e0b);
+  border-color: rgba(180, 83, 9, 0.45);
+  color: #422006;
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.3);
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.04);
+  }
+
+  .material-icons-outlined {
+    color: #422006;
+  }
+}
+
+.mah-spinner--dark {
+  border-color: rgba(66, 32, 6, 0.35);
+  border-top-color: #422006;
+}
+
 .mah-section-sub {
   margin: 0 0.25rem 0.25rem;
   font-size: 0.8rem;
@@ -412,6 +521,75 @@
 /* ───────── Owner broadcasts (send to all members) ───────── */
 
 .mah-broadcasts {
+  .mah-bc-today-wrap {
+    margin-bottom: 1rem;
+    border-radius: 1rem;
+    border: 2px solid rgba(13, 148, 136, 0.55);
+    background: linear-gradient(145deg, #ecfdf5 0%, #f0fdfa 45%, #ffffff 100%);
+    box-shadow:
+      0 0 0 1px rgba(20, 184, 166, 0.2),
+      0 10px 28px rgba(13, 148, 136, 0.12);
+    overflow: hidden;
+  }
+
+  .mah-bc-today-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.65rem 0.9rem;
+    background: linear-gradient(120deg, #0d9488, #0f766e);
+    color: white;
+  }
+
+  .mah-bc-today-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    opacity: 0.95;
+  }
+
+  .mah-bc-today-banner-text {
+    min-width: 0;
+  }
+
+  .mah-bc-today-label {
+    margin: 0;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .mah-bc-today-hint {
+    margin: 0.1rem 0 0;
+    font-size: 0.68rem;
+    font-weight: 600;
+    opacity: 0.92;
+    line-height: 1.35;
+  }
+
+  .mah-bc-list--today {
+    padding: 0.65rem 0.65rem 0.75rem;
+  }
+
+  .mah-bc-card--today {
+    border: 1px solid rgba(13, 148, 136, 0.35);
+    background: #ffffff;
+    box-shadow: 0 4px 16px rgba(13, 148, 136, 0.1);
+  }
+
+  .mah-bc-card--today .mah-bc-title {
+    color: #0f766e;
+  }
+
+  .mah-bc-earlier-h3 {
+    margin: 0.75rem 0.25rem 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+  }
+
   .mah-bc-list {
     list-style: none;
     margin: 0;
@@ -829,14 +1007,36 @@
   .mah-profile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-/* ───────────────── Dark mode ───────────────── */
+/* ───────────────── Dark mode (tenant toggle + host attr) ───────────────── */
 
-@media (prefers-color-scheme: dark) {
+:host([data-mah-theme='dark']) {
+  .mah-data-err {
+    color: #fecaca;
+    background: rgba(127, 29, 29, 0.35);
+    border-color: rgba(248, 113, 113, 0.25);
+  }
+
   .mah-topbar {
-    background: rgba(15, 23, 42, 0.8);
+    background: rgba(15, 23, 42, 0.88);
     border-color: rgba(148, 163, 184, 0.15);
   }
   .mah-brand-name { color: #f1f5f9; }
+  .mah-theme-group {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(148, 163, 184, 0.15);
+  }
+  .mah-theme-btn {
+    color: #94a3b8;
+    &:hover {
+      color: #f1f5f9;
+      background: rgba(51, 65, 85, 0.5);
+    }
+    &.is-on {
+      color: #5eead4;
+      background: rgba(15, 118, 110, 0.35);
+      box-shadow: 0 2px 10px rgba(13, 148, 136, 0.25);
+    }
+  }
   .mah-logout {
     background: rgba(15, 23, 42, 0.7);
     color: #cbd5e1;
@@ -851,7 +1051,9 @@
   }
   .mah-tab { color: #94a3b8; }
   .mah-tab:hover { color: #f1f5f9; }
-  .mah-h2 { color: #f1f5f9; }
+  .mah-h2,
+  .mah-h3 { color: #f1f5f9; }
+  .mah-h3-icon { color: #5eead4; }
   .mah-section-sub { color: #94a3b8; }
   .mah-profile-card,
   .mah-receipts-card,
@@ -861,6 +1063,13 @@
     background: rgba(15, 23, 42, 0.85);
     border-color: rgba(148, 163, 184, 0.15);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  }
+  .mah-receipts-card--pending {
+    border-color: rgba(251, 191, 36, 0.35);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  }
+  .mah-receipts-card--rent {
+    border-color: rgba(20, 184, 166, 0.35);
   }
   .mah-profile-item {
     background: linear-gradient(135deg, rgba(20, 184, 166, 0.12), rgba(15, 23, 42, 0.7));
@@ -873,10 +1082,27 @@
   .mah-receipt-amount { color: #f1f5f9; }
   .mah-receipt-date,
   .mah-receipt-no { color: #94a3b8; }
+  .mah-receipt-kind { color: #5eead4; }
   .mah-method-pill {
     background: rgba(20, 184, 166, 0.18);
     color: #99f6e4;
     border-color: rgba(20, 184, 166, 0.35);
+  }
+  .mah-method-pill--amber {
+    background: rgba(120, 53, 15, 0.45);
+    color: #fde68a;
+    border-color: rgba(251, 191, 36, 0.35);
+  }
+  .mah-download--secondary {
+    background: linear-gradient(120deg, #b45309, #92400e);
+    border-color: rgba(251, 191, 36, 0.35);
+    color: #fffbeb;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    .material-icons-outlined { color: #fffbeb; }
+  }
+  .mah-spinner--dark {
+    border-color: rgba(255, 251, 235, 0.35);
+    border-top-color: #fffbeb;
   }
   .mah-empty {
     background: rgba(15, 23, 42, 0.7);
@@ -901,6 +1127,27 @@
   .mah-cf-label { color: #94a3b8; }
   .mah-complaint-msg { color: #e2e8f0; }
   .mah-complaint-time { color: #64748b; }
+  .mah-broadcasts .mah-bc-today-wrap {
+    border-color: rgba(45, 212, 191, 0.45);
+    background: linear-gradient(145deg, rgba(6, 78, 59, 0.55) 0%, rgba(15, 23, 42, 0.92) 55%, rgba(15, 23, 42, 0.95) 100%);
+    box-shadow:
+      0 0 0 1px rgba(20, 184, 166, 0.25),
+      0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+  .mah-broadcasts .mah-bc-today-banner {
+    background: linear-gradient(120deg, #0f766e, #115e59);
+  }
+  .mah-broadcasts .mah-bc-card--today {
+    background: rgba(15, 23, 42, 0.75);
+    border-color: rgba(45, 212, 191, 0.35);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  }
+  .mah-broadcasts .mah-bc-card--today .mah-bc-title {
+    color: #5eead4;
+  }
+  .mah-broadcasts .mah-bc-earlier-h3 {
+    color: #94a3b8;
+  }
   .mah-broadcasts .mah-bc-card {
     background: rgba(15, 23, 42, 0.85);
     border-color: rgba(148, 163, 184, 0.15);

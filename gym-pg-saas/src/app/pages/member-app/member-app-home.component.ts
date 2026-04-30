@@ -38,14 +38,20 @@ import {
 
 type MemberTab = 'home' | 'receipts' | 'complaint';
 
-interface ReceiptRow {
+type MemberReceiptKind = 'pending_balance' | 'rent';
+
+interface MemberReceiptLine {
   payment: Payment;
+  kind: MemberReceiptKind;
+  amount: number;
   monthLabel: string;
   receiptNumber: string;
-  /** Normalised for the template — avoids calling `.toDate()` on a missing `date`. */
   receiptDate: Date;
+  downloadKey: string;
   isDownloading: boolean;
 }
+
+type MemberAppThemePref = 'light' | 'dark' | 'system';
 
 @Component({
   selector: 'app-member-app-home',
@@ -53,6 +59,9 @@ interface ReceiptRow {
   imports: [DatePipe, CurrencyPipe, TitleCasePipe, ReactiveFormsModule],
   templateUrl: './member-app-home.component.html',
   styleUrl: './member-app-home.component.scss',
+  host: {
+    '[attr.data-mah-theme]': 'resolvedMahTheme()',
+  },
 })
 export class MemberAppHomeComponent implements OnInit, OnDestroy {
   private readonly fbApp = inject(FirebaseAppService);
@@ -76,7 +85,14 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
   readonly tab = signal<MemberTab>('home');
   readonly nowMs = signal(Date.now());
   readonly nextComplaintAtMs = signal<number | null>(null);
-  readonly downloadingPaymentId = signal<string | null>(null);
+  readonly downloadingKey = signal<string | null>(null);
+  /** Tenant-controlled appearance; persisted in localStorage. */
+  readonly themePref = signal<MemberAppThemePref>('system');
+  readonly systemIsDark = signal(false);
+  private themeMq: MediaQueryList | null = null;
+  private readonly themeMqHandler = (e: MediaQueryListEvent): void => {
+    this.systemIsDark.set(e.matches);
+  };
   /** Firestore / auth listener failure — surfaced so tenants are not staring at empty tabs. */
   readonly dataLoadError = signal<string | null>(null);
 
@@ -140,20 +156,68 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
     return 'Hi';
   });
 
-  readonly receiptRows = computed<ReceiptRow[]>(() => {
-    const downloading = this.downloadingPaymentId();
-    return this.payments().map((p) => {
-      const date = p.date?.toDate?.() ?? p.createdAt?.toDate?.() ?? new Date();
-      const monthLabel = date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-      return {
-        payment: p,
-        monthLabel,
-        receiptNumber: this.buildReceiptNumber(p),
-        receiptDate: date,
-        isDownloading: downloading === p.paymentId,
-      };
-    });
+  readonly resolvedMahTheme = computed((): 'light' | 'dark' => {
+    const p = this.themePref();
+    if (p === 'light' || p === 'dark') return p;
+    return this.systemIsDark() ? 'dark' : 'light';
   });
+
+  readonly receiptLines = computed<MemberReceiptLine[]>(() => {
+    const downloading = this.downloadingKey();
+    const m = this.member();
+    const dueMonth =
+      m?.dueDate?.toDate?.()?.toLocaleDateString('en-IN', {
+        month: 'long',
+        year: 'numeric',
+      }) ?? null;
+
+    const lines: MemberReceiptLine[] = [];
+    for (const p of this.payments()) {
+      const { pending, rent } = MemberAppHomeComponent.splitPaymentAmounts(p);
+      const date = p.date?.toDate?.() ?? p.createdAt?.toDate?.() ?? new Date();
+      const rentMonthLabel = date.toLocaleDateString('en-IN', {
+        month: 'long',
+        year: 'numeric',
+      });
+      const pendingMonthLabel = dueMonth || rentMonthLabel;
+
+      if (pending > 0) {
+        const key = `${p.paymentId}:pending`;
+        lines.push({
+          payment: p,
+          kind: 'pending_balance',
+          amount: pending,
+          monthLabel: pendingMonthLabel,
+          receiptDate: date,
+          receiptNumber: `${this.buildReceiptNumber(p)}-P`,
+          downloadKey: key,
+          isDownloading: downloading === key,
+        });
+      }
+      if (rent > 0) {
+        const key = `${p.paymentId}:rent`;
+        lines.push({
+          payment: p,
+          kind: 'rent',
+          amount: rent,
+          monthLabel: rentMonthLabel,
+          receiptDate: date,
+          receiptNumber: `${this.buildReceiptNumber(p)}-R`,
+          downloadKey: key,
+          isDownloading: downloading === key,
+        });
+      }
+    }
+    return lines;
+  });
+
+  readonly receiptLinesPending = computed(() =>
+    this.receiptLines().filter((l) => l.kind === 'pending_balance'),
+  );
+
+  readonly receiptLinesRent = computed(() =>
+    this.receiptLines().filter((l) => l.kind === 'rent'),
+  );
 
   /* --------------------------- complaint form --------------------------- */
 
@@ -296,6 +360,20 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
     }
 
     void this.push.registerDeviceToken(identity.ownerId, identity.memberId);
+
+    try {
+      const t = localStorage.getItem('memberAppTheme');
+      if (t === 'light' || t === 'dark' || t === 'system') {
+        this.themePref.set(t);
+      }
+    } catch {
+      /* non-fatal */
+    }
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      this.themeMq = window.matchMedia('(prefers-color-scheme: dark)');
+      this.systemIsDark.set(this.themeMq.matches);
+      this.themeMq.addEventListener('change', this.themeMqHandler);
+    }
   }
 
   ngOnDestroy(): void {
@@ -308,6 +386,8 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
       clearInterval(this.clockTimer);
       this.clockTimer = null;
     }
+    this.themeMq?.removeEventListener('change', this.themeMqHandler);
+    this.themeMq = null;
   }
 
   /* -------------------------------- actions -------------------------------- */
@@ -325,45 +405,64 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
     await this.router.navigateByUrl('/member-app/login');
   }
 
-  async downloadReceipt(row: ReceiptRow): Promise<void> {
+  setThemePref(pref: MemberAppThemePref): void {
+    this.themePref.set(pref);
+    try {
+      localStorage.setItem('memberAppTheme', pref);
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  async downloadReceipt(line: MemberReceiptLine): Promise<void> {
     const id = this.identity();
     if (!id) {
       this.toast.error('Could not load your details. Please refresh.');
       return;
     }
-    this.downloadingPaymentId.set(row.payment.paymentId);
+    this.downloadingKey.set(line.downloadKey);
     try {
-      const date = row.receiptDate;
-      // Build a synthetic ReceiptLinkData object using only data the member is
-      // already authorised to see — so we never need a Cloud Function or a
-      // server-issued token to download.
+      const date = line.receiptDate;
+      const pendingAfter = Math.max(0, Number(line.payment.pendingAmount) || 0);
+      const receiptKind = line.kind === 'pending_balance' ? 'pending_balance' : 'rent';
       const linkData: ReceiptLinkData = {
         memberId: id.memberId,
         ownerId: id.ownerId,
-        paymentId: row.payment.paymentId,
-        receiptNumber: row.receiptNumber,
+        paymentId: line.payment.paymentId,
+        receiptNumber: line.receiptNumber,
         receiptData: {
           memberName: this.memberName(),
-          amount: Number(row.payment.amount) || 0,
+          amount: line.amount,
           paymentDate: date,
-          paymentMethod: row.payment.method || 'cash',
+          paymentMethod: line.payment.method || 'cash',
           businessName: this.ownerStatus()?.businessName || id.ownerBusinessName || 'PayBook',
-          monthText: row.monthLabel,
-          pendingAmount: Math.max(0, Number(row.payment.pendingAmount) || 0),
+          monthText: line.monthLabel,
+          pendingAmount: line.kind === 'rent' ? pendingAfter : 0,
+          receiptKind,
+          ...(line.kind === 'rent' && pendingAfter > 0
+            ? {
+                pendingCarryForwardText: `Pending amount INR ${pendingAfter.toLocaleString(
+                  'en-IN',
+                )} will be charged in next cycle.`,
+              }
+            : {}),
         },
-        // These two are unused for the PDF generator but required by the type.
-        createdAt: row.payment.createdAt,
-        expiresAt: row.payment.createdAt,
+        createdAt: line.payment.createdAt,
+        expiresAt: line.payment.createdAt,
       };
       const blob = await this.receipts.generateReceiptPDF(linkData);
+      const slug =
+        line.kind === 'pending_balance'
+          ? 'pending-balance'
+          : 'rent';
       this.triggerDownload(
         blob,
-        `receipt-${row.monthLabel.replace(/\s+/g, '-')}-${row.receiptNumber}.pdf`,
+        `${slug}-receipt-${line.monthLabel.replace(/\s+/g, '-')}-${line.receiptNumber}.pdf`,
       );
     } catch (e) {
       this.toast.error('Could not generate receipt. Please try again.');
     } finally {
-      this.downloadingPaymentId.set(null);
+      this.downloadingKey.set(null);
     }
   }
 
@@ -421,6 +520,23 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
   }
 
   /* --------------------------- helpers --------------------------- */
+
+  /**
+   * How much of a payment cleared an existing pending balance vs rent,
+   * using `priorPendingAmount` when present (new payments).
+   */
+  private static splitPaymentAmounts(p: Payment): { pending: number; rent: number } {
+    const amount = Math.max(0, Number(p.amount) || 0);
+    const prior = Math.max(0, Number(p.priorPendingAmount) || 0);
+    if (p.isPartialPayment) {
+      const after = Math.max(0, Number(p.pendingAmount) || 0);
+      const towardPending = Math.max(0, prior - after);
+      const pending = Math.min(amount, towardPending);
+      return { pending, rent: Math.max(0, amount - pending) };
+    }
+    const pending = Math.min(amount, prior);
+    return { pending, rent: Math.max(0, amount - pending) };
+  }
 
   private buildReceiptNumber(p: Payment): string {
     // Stable, derivable receipt number — does not require a server stamp.
@@ -506,4 +622,29 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
   readonly openComplaintsCount = computed(
     () => this.complaints().filter((c) => c.status === 'open').length,
   );
+
+  /** Owner broadcasts sent on the member's local calendar day (uses live clock). */
+  readonly broadcastsToday = computed(() => {
+    const ref = new Date(this.nowMs());
+    return this.broadcasts().filter((b) => {
+      const t = b.createdAt?.toDate?.();
+      return t ? MemberAppHomeComponent.isSameLocalCalendarDay(t, ref) : false;
+    });
+  });
+
+  readonly broadcastsEarlier = computed(() => {
+    const ref = new Date(this.nowMs());
+    return this.broadcasts().filter((b) => {
+      const t = b.createdAt?.toDate?.();
+      return !t || !MemberAppHomeComponent.isSameLocalCalendarDay(t, ref);
+    });
+  });
+
+  private static isSameLocalCalendarDay(a: Date, b: Date): boolean {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  }
 }

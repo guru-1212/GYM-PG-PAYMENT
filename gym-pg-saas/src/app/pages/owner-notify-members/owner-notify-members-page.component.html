@@ -113,4 +113,51 @@
       </button>
     </form>
   </section>
+
+  <!-- ───────── Broadcast history (owner) ───────── -->
+  <section class="onm-card onm-history" aria-labelledby="onm-history-heading">
+    <h2 id="onm-history-heading" class="onm-h2">Messages you already sent</h2>
+    <p class="onm-muted onm-history-lead">
+      Newest first. Each row is one broadcast to every member with the tenant app (up to 100 recent).
+    </p>
+    @if (broadcastHistory().length === 0) {
+      <div class="onm-history-empty">
+        <span class="material-icons-outlined" aria-hidden="true">campaign</span>
+        <p>No messages sent yet. When you send one, it will appear here with the date and time.</p>
+      </div>
+    } @else {
+      <div class="onm-table-scroll">
+        <table class="onm-table">
+          <thead>
+            <tr>
+              <th scope="col" class="onm-th onm-th--when">Sent on</th>
+              <th scope="col" class="onm-th onm-th--title">Title</th>
+              <th scope="col" class="onm-th onm-th--body">Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (b of broadcastHistory(); track b.id) {
+              <tr class="onm-tr">
+                <td class="onm-td onm-td--when">
+                  @if (b.createdAt; as ca) {
+                    <span class="onm-td-date">{{ ca.toDate() | date: 'EEE, d MMM y' }}</span>
+                    <span class="onm-td-time">{{ ca.toDate() | date: 'h:mm a' }}</span>
+                  } @else {
+                    <span class="onm-td-missing">—</span>
+                  }
+                </td>
+                <td class="onm-td onm-td--title">{{ b.title }}</td>
+                <td
+                  class="onm-td onm-td--body"
+                  [attr.title]="b.body.length ? b.body : null"
+                >
+                  {{ truncateBody(b.body, 160) }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
 </div>

@@ -188,6 +188,7 @@ export class MemberService {
         method: input.paymentMethod,
         isPartialPayment,
         pendingAmount,
+        priorPendingAmount: 0,
         createdAt: serverTimestamp(),
       });
     }
@@ -313,6 +314,7 @@ export class MemberService {
         method: input.paymentMethod,
         isPartialPayment: pendingAmount > 0,
         pendingAmount,
+        priorPendingAmount: Math.max(0, Number(prevData?.pendingAmount) || 0),
         createdAt: serverTimestamp(),
       });
     }
