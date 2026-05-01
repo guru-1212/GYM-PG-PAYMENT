@@ -772,6 +772,32 @@
 
 @keyframes mah-spin { to { transform: rotate(360deg); } }
 
+/* ───────────────── Complaint tab (disabled state) ───────────────── */
+
+.mah-complaint-off {
+  padding: 1.15rem 1rem;
+  border-radius: 1rem;
+  background: rgba(254, 243, 199, 0.4);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  text-align: center;
+}
+
+.mah-complaint-off-icon {
+  display: block;
+  margin: 0 auto;
+  font-size: 2.25rem;
+  color: #d97706;
+}
+
+.mah-complaint-off-title {
+  margin: 0.5rem 0 0;
+}
+
+.mah-complaint-off-body {
+  margin: 0.35rem auto 0;
+  max-width: 26rem;
+}
+
 /* ───────────────── Complaint form ───────────────── */
 
 .mah-complaint-form {
@@ -1055,6 +1081,13 @@
   .mah-h3 { color: #f1f5f9; }
   .mah-h3-icon { color: #5eead4; }
   .mah-section-sub { color: #94a3b8; }
+  .mah-complaint-off {
+    background: rgba(120, 53, 15, 0.28);
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+  .mah-complaint-off-icon { color: #fbbf24; }
+  .mah-complaint-off-title { color: #f1f5f9; }
+  .mah-complaint-off-body { color: #cbd5e1; }
   .mah-profile-card,
   .mah-receipts-card,
   .mah-complaint-form,

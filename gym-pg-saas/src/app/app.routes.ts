@@ -60,8 +60,14 @@ export const routes: Routes = [
     canActivate: [authGuard],
     component: SubscriptionExpiredComponent,
   },
-  /* Complaints disabled: was PublicComplaintPageComponent */
-  { path: 'complaint/:ownerId', component: HomeComponent },
+  /** Public complaint form — no login; owner shares `/complaint/{ownerId}` or QR from dashboard. */
+  {
+    path: 'complaint/:ownerId',
+    loadComponent: () =>
+      import('./pages/public-complaint/public-complaint-page.component').then(
+        (m) => m.PublicComplaintPageComponent,
+      ),
+  },
   /** Public onboarding link a member receives to fill in their own details. */
   { path: 'member-onboarding/:token', component: MemberOnboardingComponent },
   /** Public receipt link a member receives to download their payment receipt. */

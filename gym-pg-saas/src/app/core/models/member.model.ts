@@ -57,6 +57,11 @@ export interface Member {
   advancePaid?: number;
   /** Internal lifecycle status for advance amount. */
   advanceStatus?: 'held' | 'returned';
+  /**
+   * When the current advance amount was last set or increased (for reporting).
+   * Optional for legacy rows — UI falls back to joinDate / createdAt.
+   */
+  advanceCollectedAt?: Timestamp;
   createdAt: Timestamp;
 
   /* ---------- Self-onboarding (member-uploaded photos & docs) ---------- */

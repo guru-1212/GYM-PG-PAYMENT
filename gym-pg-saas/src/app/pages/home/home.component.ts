@@ -1,4 +1,4 @@
-import { Component, HostListener, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -7,6 +7,13 @@ import { ToastService } from '../../core/services/toast.service';
 import { BrandLogoComponent } from '../../shared/brand-logo.component';
 import { ThemeToggleComponent } from '../../shared/theme-toggle.component';
 
+export type HomeHeroSlide = {
+  src: string;
+  title: string;
+  subtitle: string;
+  alt: string;
+};
+
 @Component({
   selector: 'app-home',
   standalone: true,
@@ -14,10 +21,66 @@ import { ThemeToggleComponent } from '../../shared/theme-toggle.component';
   templateUrl: './home.component.html',
   styleUrl: './home.component.scss',
 })
-export class HomeComponent {
+export class HomeComponent implements OnInit, OnDestroy {
   readonly ownerMobileNumber = '6300675014';
   readonly whatsappNumber = `91${this.ownerMobileNumber}`;
   mobileMenuOpen = false;
+
+  /** Banner images from `public/banners_carousel_home_page/` (served at site root). */
+  readonly heroCarouselSlides: HomeHeroSlide[] = [
+    {
+      src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163230.png')}`,
+      title: 'One dashboard for every room',
+      subtitle: 'See occupancy, rent status, and dues at a glance — built for Indian PGs & hostels.',
+      alt: 'Our PG Tracker — dashboard and room overview',
+    },
+    {
+      src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163342.png')}`,
+      title: 'Rent & payments without the chaos',
+      subtitle: 'Record cash, UPI, or card collections and keep a clean history per tenant.',
+      alt: 'Payment tracking and collection tools',
+    },
+    {
+      src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163506.png')}`,
+      title: 'Beds that never double-book',
+      subtitle: 'Floors, rooms, and beds mapped the way your property actually works.',
+      alt: 'Room and bed management',
+    },
+    {
+      src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163541.png')}`,
+      title: 'Tenants organised, always',
+      subtitle: 'Profiles, contacts, and status in one place — less calling, fewer mistakes.',
+      alt: 'Member and tenant management',
+    },
+    {
+      src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163604.png')}`,
+      title: 'Reminders that actually get paid',
+      subtitle: 'Nudge due and overdue rents before they snowball into bad debt.',
+      alt: 'Due dates and reminders',
+    },
+    {
+      src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163634.png')}`,
+      title: 'Reports your CA will love',
+      subtitle: 'Monthly earnings and exports when you need a clear paper trail.',
+      alt: 'Reports and monthly earnings',
+    },
+    {
+      src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163657.png')}`,
+      title: 'Bulk import in minutes',
+      subtitle: 'Bring your existing tenant list from Excel or CSV with validation built in.',
+      alt: 'Import members from spreadsheet',
+    },
+    {
+      src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163905.png')}`,
+      title: 'Start free. Scale when you grow',
+      subtitle: 'Sign up, set up your PG, and invite your team — no notebook required.',
+      alt: 'Get started with Our PG Tracker',
+    },
+  ];
+
+  readonly carouselIndex = signal(0);
+  readonly carouselPaused = signal(false);
+  private carouselTimer: ReturnType<typeof setInterval> | null = null;
 
   /** Desktop (`lg+`): compact header — Sign in opens role menu + optional install. */
   readonly desktopSignInOpen = signal(false);
@@ -42,6 +105,77 @@ export class HomeComponent {
 
   closeDesktopSignInMenu(): void {
     this.desktopSignInOpen.set(false);
+  }
+
+  ngOnInit(): void {
+    if (typeof matchMedia === 'undefined' || !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      this.startCarouselTimer();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.stopCarouselTimer();
+  }
+
+  private startCarouselTimer(): void {
+    this.stopCarouselTimer();
+    const n = this.heroCarouselSlides.length;
+    if (n <= 1) return;
+    this.carouselTimer = setInterval(() => {
+      if (!this.carouselPaused()) {
+        this.nextCarousel();
+      }
+    }, 6000);
+  }
+
+  private stopCarouselTimer(): void {
+    if (this.carouselTimer != null) {
+      clearInterval(this.carouselTimer);
+      this.carouselTimer = null;
+    }
+  }
+
+  nextCarousel(): void {
+    const n = this.heroCarouselSlides.length;
+    if (n === 0) return;
+    this.carouselIndex.update((i) => (i + 1) % n);
+  }
+
+  prevCarousel(): void {
+    const n = this.heroCarouselSlides.length;
+    if (n === 0) return;
+    this.carouselIndex.update((i) => (i - 1 + n) % n);
+  }
+
+  goCarousel(i: number): void {
+    if (i >= 0 && i < this.heroCarouselSlides.length) {
+      this.carouselIndex.set(i);
+    }
+  }
+
+  onCarouselPointerEnter(): void {
+    this.carouselPaused.set(true);
+  }
+
+  onCarouselPointerLeave(): void {
+    this.carouselPaused.set(false);
+  }
+
+  carouselTrackTransform(): string {
+    const n = this.heroCarouselSlides.length;
+    if (n <= 0) return 'translateX(0)';
+    const pct = (100 * this.carouselIndex()) / n;
+    return `translateX(-${pct}%)`;
+  }
+
+  onCarouselKeydown(ev: KeyboardEvent): void {
+    if (ev.key === 'ArrowLeft') {
+      this.prevCarousel();
+      ev.preventDefault();
+    } else if (ev.key === 'ArrowRight') {
+      this.nextCarousel();
+      ev.preventDefault();
+    }
   }
 
   @HostListener('document:click', ['$event'])

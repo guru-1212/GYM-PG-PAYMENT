@@ -116,12 +116,13 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
 
   readonly mobileMenuOpen = signal(false);
   readonly userMenuOpen = signal(false);
+  /** Header gear: theme / accent (moved out of sidebar). */
+  readonly appearanceMenuOpen = signal(false);
   readonly nowMs = signal(Date.now());
   readonly notificationsOpen = signal(false);
   readonly chatMessages = signal<OwnerAdminChatMessage[]>([]);
   readonly chatText = signal('');
   readonly unreadCount = signal(0);
-  // readonly complaintToggleBusy = signal(false);
   /** Mobile top bar: time-of-day greeting (follows `nowMs` tick). */
   readonly ownerHeaderGreeting = computed(() => {
     this.nowMs();
@@ -231,6 +232,18 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
     this.userMenuOpen.set(false);
   }
 
+  toggleAppearanceMenu(ev: MouseEvent): void {
+    ev.stopPropagation();
+    this.appearanceMenuOpen.update((v) => !v);
+    if (this.appearanceMenuOpen()) {
+      this.userMenuOpen.set(false);
+    }
+  }
+
+  closeAppearanceMenu(): void {
+    this.appearanceMenuOpen.set(false);
+  }
+
   async openNotifications(): Promise<void> {
     this.notificationsOpen.set(true);
     const ownerId = this.profile()?.ownerId;
@@ -292,7 +305,9 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   onDocumentClick(ev: MouseEvent): void {
     const el = ev.target as HTMLElement | null;
     if (el?.closest('[data-user-menu-root]')) return;
+    if (el?.closest('[data-appearance-menu-root]')) return;
     this.userMenuOpen.set(false);
+    this.appearanceMenuOpen.set(false);
   }
 
   @HostListener('document:keydown.escape')
@@ -303,30 +318,17 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
     if (this.userMenuOpen()) {
       this.closeUserMenu();
     }
+    if (this.appearanceMenuOpen()) {
+      this.closeAppearanceMenu();
+    }
   }
 
   async signOut(): Promise<void> {
     this.closeMobileMenu();
     this.closeUserMenu();
+    this.closeAppearanceMenu();
     await this.auth.signOut();
     await this.router.navigateByUrl('/login');
   }
 
-  /* Complaints disabled — restore when feature fixed
-  async setComplaintEnabled(enabled: boolean): Promise<void> {
-    const ownerId = this.profile()?.ownerId;
-    if (!ownerId || this.complaintToggleBusy()) return;
-    const profile = this.profile();
-    if (!profile) return;
-    this.complaintToggleBusy.set(true);
-    this.auth.profile.set({ ...profile, complaintEnabled: enabled });
-    try {
-      await this.complaintApi.setComplaintEnabled(ownerId, enabled);
-    } catch {
-      this.auth.profile.set({ ...profile, complaintEnabled: Boolean(profile.complaintEnabled) });
-    } finally {
-      this.complaintToggleBusy.set(false);
-    }
-  }
-  */
 }

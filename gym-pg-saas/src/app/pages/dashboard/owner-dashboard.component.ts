@@ -76,6 +76,18 @@ function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+/** Date used to bucket a member's advance for monthly reports (newest field wins). */
+function advanceAttributionDate(m: Member): Date | null {
+  const a = m.advanceCollectedAt;
+  if (a && typeof (a as Timestamp).toDate === 'function') {
+    const d = (a as Timestamp).toDate();
+    if (d && !Number.isNaN(d.getTime())) return d;
+  }
+  const j = timestampToDate(m.joinDate);
+  if (j) return j;
+  return timestampToDate(m.createdAt) ?? coerceFirestoreDate(m.createdAt as unknown);
+}
+
 function compactRupee(v: number): string {
   if (v >= 10000000) return '₹' + (v / 10000000).toFixed(1).replace(/\.0$/, '') + 'Cr';
   if (v >= 100000) return '₹' + (v / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
@@ -223,6 +235,10 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly pgLayout = signal<PgLayout | null>(null);
   readonly showMonthEarnings = signal(false);
   readonly showMonthlyEarningsModal = signal(false);
+  /** Advance (security deposit) — monthly breakdown modal. */
+  readonly advanceCollectionModalOpen = signal(false);
+  /** `YYYY-MM` when drilling into one month; null = month list. */
+  readonly advanceCollectionMonthKey = signal<string | null>(null);
   readonly recentJoinersExpanded = signal(false);
   readonly memberDetailTarget = signal<Member | null>(null);
   readonly showScrollTopButton = signal(false);
@@ -638,6 +654,91 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     }, 0);
     return monthlySum;
   });
+
+  /** Sum of advance currently marked held (not returned). */
+  readonly totalAdvanceHeld = computed(() =>
+    this.members().reduce((sum, m) => {
+      if ((m.advanceStatus ?? 'held') === 'returned') return sum;
+      return sum + Math.max(0, Number(m.advancePaid) || 0);
+    }, 0),
+  );
+
+  /** Advance amounts attributed to the current calendar month (member + date). */
+  readonly advanceAttributedThisMonth = computed(() => {
+    if (this.loading()) return 0;
+    const now = new Date();
+    const y = now.getFullYear();
+    const mo = now.getMonth();
+    let sum = 0;
+    for (const m of this.members()) {
+      const amt = Math.max(0, Number(m.advancePaid) || 0);
+      if (amt <= 0) continue;
+      const d = advanceAttributionDate(m);
+      if (!d || d.getFullYear() !== y || d.getMonth() !== mo) continue;
+      sum += amt;
+    }
+    return sum;
+  });
+
+  /** Month keys (desc) with totals for the advance modal landing view. */
+  readonly advanceCollectionByMonth = computed(() => {
+    this.i18n.lang();
+    const map = new Map<string, { total: number; count: number }>();
+    for (const m of this.members()) {
+      const amt = Math.max(0, Number(m.advancePaid) || 0);
+      if (amt <= 0) continue;
+      const d = advanceAttributionDate(m);
+      if (!d) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const cur = map.get(key) ?? { total: 0, count: 0 };
+      cur.total += amt;
+      cur.count += 1;
+      map.set(key, cur);
+    }
+    return [...map.entries()]
+      .map(([key, v]) => ({ key, total: v.total, count: v.count }))
+      .sort((a, b) => (a.key < b.key ? 1 : -1));
+  });
+
+  readonly advanceRowsForSelectedMonth = computed(() => {
+    const key = this.advanceCollectionMonthKey();
+    if (!key) return [];
+    return this.members()
+      .filter((m) => {
+        const amt = Math.max(0, Number(m.advancePaid) || 0);
+        if (amt <= 0) return false;
+        const d = advanceAttributionDate(m);
+        if (!d) return false;
+        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        return k === key;
+      })
+      .map((m) => ({
+        memberId: m.memberId,
+        memberName: `${m.firstName || ''} ${m.lastName || ''}`.trim() || '—',
+        mobile: (m.mobile || '').trim(),
+        amount: Math.max(0, Number(m.advancePaid) || 0),
+        attributedDate: advanceAttributionDate(m)!,
+        held: (m.advanceStatus ?? 'held') !== 'returned',
+      }))
+      .sort((a, b) => b.attributedDate.getTime() - a.attributedDate.getTime());
+  });
+
+  advanceMonthLabel(key: string): string {
+    const [y, mo] = key.split('-').map(Number);
+    if (!y || !mo) return key;
+    const lang = this.i18n.lang() === 'te' ? 'te-IN' : 'en-IN';
+    return new Date(y, mo - 1, 1).toLocaleDateString(lang, { month: 'long', year: 'numeric' });
+  }
+
+  openAdvanceCollectionModal(): void {
+    this.advanceCollectionMonthKey.set(null);
+    this.advanceCollectionModalOpen.set(true);
+  }
+
+  closeAdvanceCollectionModal(): void {
+    this.advanceCollectionModalOpen.set(false);
+    this.advanceCollectionMonthKey.set(null);
+  }
 
   readonly pendingCount = computed(() => {
     const end = endOfToday();

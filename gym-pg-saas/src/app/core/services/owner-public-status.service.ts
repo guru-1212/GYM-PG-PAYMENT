@@ -65,7 +65,7 @@ export class OwnerPublicStatusService {
           businessType: profile.businessType,
           planEndDate,
           planActive,
-          complaintEnabled: Boolean(profile.complaintEnabled),
+          complaintEnabled: profile.complaintEnabled !== false,
           tenantMemberAppEnabled: profile.featureFlags?.tenantMemberAppEnabled !== false,
           updatedAt: serverTimestamp(),
         },
@@ -97,7 +97,7 @@ export class OwnerPublicStatusService {
         businessType: (data['businessType'] === 'gym' ? 'gym' : 'pg'),
         planEndDate: (data['planEndDate'] as Timestamp | null) ?? null,
         planActive: Boolean(data['planActive']),
-        complaintEnabled: Boolean(data['complaintEnabled']),
+        complaintEnabled: data['complaintEnabled'] !== false,
         tenantMemberAppEnabled: data['tenantMemberAppEnabled'] !== false,
         updatedAt: (data['updatedAt'] as Timestamp | undefined) ?? undefined,
       });

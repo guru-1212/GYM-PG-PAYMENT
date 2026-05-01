@@ -171,6 +171,7 @@ export class MemberService {
       pendingAmount,
       advancePaid,
       advanceStatus: 'held',
+      ...(advancePaid > 0 ? { advanceCollectedAt: serverTimestamp() } : {}),
       profilePhotoUrl,
       aadhaarFrontUrl,
       aadhaarBackUrl,
@@ -270,6 +271,8 @@ export class MemberService {
     const due = input.dueDate || firstDueFromJoin(join, sub);
     const pendingAmount = Math.max(0, Number(input.pendingAmount) || 0);
     const paidAmount = Math.max(0, Number(input.paidAmount) || 0);
+    const prevAdvance = Math.max(0, Number(prevData?.advancePaid) || 0);
+    const newAdvance = Math.max(0, Number(input.advancePaid) || 0);
     const payload: Record<string, any> = {
       firstName: input.firstName.trim(),
       lastName: input.lastName?.trim() || '',
@@ -289,8 +292,11 @@ export class MemberService {
       status: input.status,
       subscriptionType: sub,
       pendingAmount,
-      advancePaid: Math.max(0, Number(input.advancePaid) || 0),
+      advancePaid: newAdvance,
     };
+    if (newAdvance > prevAdvance) {
+      payload['advanceCollectedAt'] = serverTimestamp();
+    }
     if (typeof input.profilePhotoUrl === 'string') {
       payload['profilePhotoUrl'] = input.profilePhotoUrl.trim();
     }

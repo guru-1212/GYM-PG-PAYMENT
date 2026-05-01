@@ -2,15 +2,14 @@ import { Injectable, inject } from '@angular/core';
 import { getAuth } from 'firebase/auth';
 import {
   Timestamp,
+  addDoc,
   collection,
   doc,
-  getDoc,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   where,
-  writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { Member } from '../models/member.model';
@@ -211,23 +210,8 @@ export class MemberSelfService {
   }
 
   /**
-   * Next allowed complaint time (ms since epoch), or `null` if the member may
-   * complain immediately. Backed by `complaintLimits/{memberId}`.
-   */
-  async getNextComplaintAllowedAtMs(memberId: string): Promise<number | null> {
-    const ref = doc(this.fb.db, 'complaintLimits', memberId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return null;
-    const last = snap.get('lastCreatedAt') as Timestamp | undefined;
-    if (!last?.toDate) return null;
-    const lastMs = last.toDate().getTime();
-    const next = lastMs + 24 * 60 * 60 * 1000;
-    return next > Date.now() ? next : null;
-  }
-
-  /**
-   * Atomically create a complaint row + bump the 24h rate-limit doc.
-   * Firestore rules enforce `source`, field sizes, and the cooldown window.
+   * Create an in-app complaint for this member. Firestore rules enforce `source`,
+   * field sizes, and tenant access.
    */
   async submitComplaint(input: SubmitMemberComplaintInput): Promise<void> {
     const identity = await this.getIdentity();
@@ -245,43 +229,25 @@ export class MemberSelfService {
     }
 
     const db = this.fb.db;
-    const complaintsCol = collection(db, 'complaints');
-    const limitRef = doc(db, 'complaintLimits', input.memberId);
-    const limitSnap = await getDoc(limitRef);
-
-    const batch = writeBatch(db);
-    const complaintRef = doc(complaintsCol);
-    batch.set(complaintRef, {
-      ownerId: input.ownerId,
-      memberId: input.memberId,
-      memberMobile: input.memberMobile,
-      memberName: input.memberName,
-      roomNumber: input.roomNumber,
-      floorNumber: input.floorNumber,
-      bedNumber: input.bedNumber,
-      category,
-      message,
-      source: 'member_app',
-      status: 'open',
-      createdAt: serverTimestamp(),
-    });
-
-    if (!limitSnap.exists()) {
-      batch.set(limitRef, {
+    try {
+      await addDoc(collection(db, 'complaints'), {
         ownerId: input.ownerId,
         memberId: input.memberId,
-        lastCreatedAt: serverTimestamp(),
+        memberMobile: input.memberMobile,
+        memberName: input.memberName,
+        roomNumber: input.roomNumber,
+        floorNumber: input.floorNumber,
+        bedNumber: input.bedNumber,
+        category,
+        message,
+        source: 'member_app',
+        status: 'open',
+        createdAt: serverTimestamp(),
       });
-    } else {
-      batch.update(limitRef, { lastCreatedAt: serverTimestamp() });
-    }
-
-    try {
-      await batch.commit();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       if (/permission|insufficient/i.test(msg)) {
-        throw new Error('You can only raise one complaint every 24 hours. Please try again later.');
+        throw new Error('Could not send complaint. Check your connection or ask your owner if complaints are enabled.');
       }
       throw e instanceof Error ? e : new Error('Could not send complaint.');
     }

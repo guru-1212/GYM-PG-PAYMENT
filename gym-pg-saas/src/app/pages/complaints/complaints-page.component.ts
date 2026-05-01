@@ -28,6 +28,7 @@ export class ComplaintsPageComponent implements OnInit, OnDestroy {
   private unsub: (() => void) | null = null;
 
   readonly loading = signal(true);
+  readonly complaintSettingsBusy = signal(false);
   readonly complaints = signal<Complaint[]>([]);
   readonly statusFilter = signal<StatusFilter>('all');
   readonly categoryFilter = signal<string>('');
@@ -43,6 +44,9 @@ export class ComplaintsPageComponent implements OnInit, OnDestroy {
     () => this.complaints().filter((c) => c.status === 'resolved').length,
   );
   readonly totalCount = computed(() => this.complaints().length);
+
+  /** Matches tenant app + `publicOwnerStatus`: on unless explicitly `false` on the owner profile. */
+  readonly tenantComplaintsOnline = computed(() => this.auth.profile()?.complaintEnabled !== false);
 
   readonly categories = computed(() => {
     const set = new Set<string>();
@@ -91,6 +95,26 @@ export class ComplaintsPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.unsub?.();
+  }
+
+  async setTenantComplaintsOnline(enabled: boolean): Promise<void> {
+    const ownerId = this.auth.profile()?.ownerId;
+    const profile = this.auth.profile();
+    if (!ownerId || !profile || this.complaintSettingsBusy()) return;
+    this.complaintSettingsBusy.set(true);
+    try {
+      await this.complaintsApi.setComplaintEnabled(ownerId, enabled);
+      this.auth.profile.set({ ...profile, complaintEnabled: enabled });
+      this.toast.success(
+        enabled
+          ? 'Tenants can raise complaints from the member app.'
+          : 'Online complaints are turned off for tenants.',
+      );
+    } catch {
+      this.toast.error('Could not save settings. Try again.');
+    } finally {
+      this.complaintSettingsBusy.set(false);
+    }
   }
 
   setStatusFilter(s: StatusFilter): void {

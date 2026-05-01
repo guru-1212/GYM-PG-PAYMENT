@@ -199,7 +199,7 @@
                       type="button"
                       class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                       [disabled]="busyId() === o.ownerId"
-                      (click)="setOwnerInactive(o)"
+                      (click)="openInactiveConfirm(o)"
                     >
                       Mark Inactive
                     </button>
@@ -306,7 +306,7 @@
                       type="button"
                       class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                       [disabled]="busyId() === o.ownerId"
-                      (click)="setOwnerActive(o)"
+                      (click)="openActiveConfirm(o)"
                     >
                       Mark Active
                     </button>
@@ -398,7 +398,7 @@
                 type="button"
                 class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 [disabled]="busyId() === o.ownerId"
-                (click)="setOwnerInactive(o)"
+                (click)="openInactiveConfirm(o)"
               >
                 Mark Inactive
               </button>
@@ -432,7 +432,7 @@
                 type="button"
                 class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                 [disabled]="busyId() === o.ownerId"
-                (click)="setOwnerActive(o)"
+                (click)="openActiveConfirm(o)"
               >
                 Mark Active
               </button>
@@ -511,6 +511,83 @@
     }
   </div>
 </div>
+
+<app-modal
+  [open]="!!inactiveConfirmOwner()"
+  [title]="'admin.markInactiveTitle' | t"
+  [closable]="!inactiveConfirmBusy()"
+  [backdropClose]="false"
+  (closed)="closeInactiveConfirm()"
+>
+  @if (inactiveConfirmOwner(); as io) {
+    <p class="text-sm text-slate-600 dark:text-slate-300">
+      {{ 'admin.markInactiveBody' | t: { name: io.name || io.email || io.ownerId } }}
+    </p>
+    <label class="mt-4 block">
+      <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{
+        'admin.markInactiveAdminPassword' | t
+      }}</span>
+      <input
+        type="password"
+        autocomplete="current-password"
+        class="saas-input mt-1.5 w-full"
+        [value]="inactiveConfirmPassword()"
+        (input)="inactiveConfirmPassword.set($any($event.target).value)"
+        (keydown.enter)="confirmInactiveOwner()"
+      />
+    </label>
+    <div class="mt-5 flex flex-wrap justify-end gap-2">
+      <button
+        type="button"
+        class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        [disabled]="inactiveConfirmBusy()"
+        (click)="closeInactiveConfirm()"
+      >
+        {{ 'admin.cancel' | t }}
+      </button>
+      <button
+        type="button"
+        class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+        [disabled]="inactiveConfirmBusy()"
+        (click)="confirmInactiveOwner()"
+      >
+        {{ 'admin.markInactiveConfirm' | t }}
+      </button>
+    </div>
+  }
+</app-modal>
+
+<app-modal
+  [open]="!!activeConfirmOwner()"
+  [title]="'admin.activateOwnerTitle' | t"
+  [closable]="!activeConfirmBusy()"
+  [backdropClose]="false"
+  (closed)="closeActiveConfirm()"
+>
+  @if (activeConfirmOwner(); as ao) {
+    <p class="text-sm text-slate-600 dark:text-slate-300">
+      {{ 'admin.activateOwnerBody' | t: { name: ao.name || ao.email || ao.ownerId } }}
+    </p>
+    <div class="mt-5 flex flex-wrap justify-end gap-2">
+      <button
+        type="button"
+        class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        [disabled]="activeConfirmBusy()"
+        (click)="closeActiveConfirm()"
+      >
+        {{ 'admin.cancel' | t }}
+      </button>
+      <button
+        type="button"
+        class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+        [disabled]="activeConfirmBusy()"
+        (click)="confirmActivateOwner()"
+      >
+        {{ 'admin.activateOwnerConfirm' | t }}
+      </button>
+    </div>
+  }
+</app-modal>
 
 <!-- Subscription Modal -->
 <app-subscription-modal

@@ -137,35 +137,6 @@ export class ComplaintService {
     }
   }
 
-  async hasComplaintInLast24Hours(ownerId: string, mobile: string): Promise<boolean> {
-    const normalized = this.normalizeMobile(mobile);
-    if (!ownerId?.trim() || normalized.length !== 10) return false;
-    if (!this.fb.auth.currentUser) {
-      return false;
-    }
-    const last24 = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    try {
-      // Firestore Index Required:
-      // Collection: complaints
-      // Fields:
-      // ownerId (Asc)
-      // memberMobile (Asc)
-      // createdAt (Asc)
-      const q = query(
-        collection(this.fb.db, 'complaints'),
-        where('ownerId', '==', ownerId.trim()),
-        where('memberMobile', '==', normalized),
-        where('createdAt', '>=', Timestamp.fromDate(last24)),
-        orderBy('createdAt', 'asc'),
-        limit(1),
-      );
-      const snap = await getDocs(q);
-      return !snap.empty;
-    } catch (e) {
-      this.rethrowFirestoreError(e, 'hasComplaintInLast24Hours');
-    }
-  }
-
   async submitComplaint(input: { ownerId: string; memberMobile: string; message: string }): Promise<void> {
     const ownerId = input.ownerId.trim();
     const mobile = this.normalizeMobile(input.memberMobile);

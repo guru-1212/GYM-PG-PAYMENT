@@ -341,6 +341,88 @@
       </form>
     </section>
 
+    <!-- Hero banner carousel (images in public/banners_carousel_home_page) — at end of page -->
+    <section
+      id="highlights-carousel"
+      class="home-carousel-section"
+      aria-roledescription="carousel"
+      aria-labelledby="highlights-carousel-title"
+      tabindex="0"
+      (pointerenter)="onCarouselPointerEnter()"
+      (pointerleave)="onCarouselPointerLeave()"
+      (keydown)="onCarouselKeydown($event)"
+    >
+      <header class="mb-5 text-center sm:mb-6">
+        <h2 id="highlights-carousel-title" class="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+          See Our PG Tracker in action
+        </h2>
+        <p class="mx-auto mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400 sm:text-base">
+          A quick tour of the owner app — rooms, rent collections, tenants, and insights in one place.
+        </p>
+      </header>
+      <div class="home-carousel-viewport">
+        <div
+          class="home-carousel-track"
+          [ngStyle]="{
+            width: heroCarouselSlides.length * 100 + '%',
+            transform: carouselTrackTransform(),
+          }"
+        >
+          @for (slide of heroCarouselSlides; track slide.src; let i = $index) {
+            <div class="home-carousel-slide" [style.flex]="'0 0 ' + 100 / heroCarouselSlides.length + '%'">
+              <div class="home-carousel-slide-inner">
+                <img
+                  class="home-carousel-img"
+                  [src]="slide.src"
+                  [alt]="slide.alt"
+                  [attr.fetchpriority]="i === 0 ? 'high' : null"
+                  [attr.loading]="i === 0 ? 'eager' : 'lazy'"
+                  draggable="false"
+                />
+                <div class="home-carousel-overlay" aria-hidden="true"></div>
+                <div class="home-carousel-copy">
+                  <p class="home-carousel-eyebrow">Our PG Tracker</p>
+                  <h2 class="home-carousel-title">{{ slide.title }}</h2>
+                  <p class="home-carousel-subtitle">{{ slide.subtitle }}</p>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+
+        <button
+          type="button"
+          class="home-carousel-nav home-carousel-nav--prev"
+          (click)="prevCarousel()"
+          aria-label="Previous slide"
+        >
+          <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          class="home-carousel-nav home-carousel-nav--next"
+          (click)="nextCarousel()"
+          aria-label="Next slide"
+        >
+          <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="home-carousel-dots" role="tablist" aria-label="Choose slide">
+        @for (slide of heroCarouselSlides; track slide.src; let i = $index) {
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="carouselIndex() === i"
+            [attr.aria-label]="'Slide ' + (i + 1)"
+            class="home-carousel-dot"
+            [class.home-carousel-dot--active]="carouselIndex() === i"
+            (click)="goCarousel(i)"
+          ></button>
+        }
+      </div>
+    </section>
+
     <footer class="rounded-2xl border border-white/60 bg-white/60 p-4 text-center text-xs text-slate-500 backdrop-blur-xl">
       © 2026 Our PG Tracker — PG management, rent tracking &amp; tenant management made simple. v-30/04 v1.0.4 AI + member Pro1
     </footer>

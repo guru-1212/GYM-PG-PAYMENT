@@ -78,7 +78,7 @@
   </section>
 
   <!-- ───────── Top tabs ───────── -->
-  <nav class="mah-tabs" [class.mah-tabs--dual]="!canUseComplaints()" role="tablist">
+  <nav class="mah-tabs" role="tablist">
     <button
       type="button"
       role="tab"
@@ -102,22 +102,20 @@
       Receipts
       <span class="mah-tab-badge mah-badge-soft">{{ receiptLines().length }}</span>
     </button>
-    @if (canUseComplaints()) {
-      <button
-        type="button"
-        role="tab"
-        [attr.aria-selected]="tab() === 'complaint'"
-        class="mah-tab"
-        [class.is-active]="tab() === 'complaint'"
-        (click)="setTab('complaint')"
-      >
-        <span class="material-icons-outlined">support_agent</span>
-        Complaint
-        @if (openComplaintsCount() > 0) {
-          <span class="mah-tab-badge mah-badge-warn">{{ openComplaintsCount() }}</span>
-        }
-      </button>
-    }
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'complaint'"
+      class="mah-tab"
+      [class.is-active]="tab() === 'complaint'"
+      (click)="setTab('complaint')"
+    >
+      <span class="material-icons-outlined">support_agent</span>
+      Complaint
+      @if (openComplaintsCount() > 0) {
+        <span class="mah-tab-badge mah-badge-warn">{{ openComplaintsCount() }}</span>
+      }
+    </button>
   </nav>
 
   <!-- ───────── HOME TAB ───────── -->
@@ -222,7 +220,7 @@
 
     <section class="mah-section">
       <h2 class="mah-h2">Quick actions</h2>
-      <div class="mah-quick" [class.mah-quick--single]="!canUseComplaints()">
+      <div class="mah-quick">
         <button type="button" class="mah-quick-btn" (click)="setTab('receipts')">
           <span class="material-icons-outlined">receipt_long</span>
           <span class="mah-quick-text">
@@ -230,15 +228,13 @@
             <small>Any month, anytime</small>
           </span>
         </button>
-        @if (canUseComplaints()) {
-          <button type="button" class="mah-quick-btn" (click)="setTab('complaint')">
-            <span class="material-icons-outlined">support_agent</span>
-            <span class="mah-quick-text">
-              <strong>Raise a complaint</strong>
-              <small>1 per day to your owner</small>
-            </span>
-          </button>
-        }
+        <button type="button" class="mah-quick-btn" (click)="setTab('complaint')">
+          <span class="material-icons-outlined">support_agent</span>
+          <span class="mah-quick-text">
+            <strong>Raise a complaint</strong>
+            <small>Open the Complaint tab</small>
+          </span>
+        </button>
       </div>
     </section>
   }
@@ -363,88 +359,91 @@
   }
 
   <!-- ───────── COMPLAINT TAB ───────── -->
-  @if (tab() === 'complaint' && canUseComplaints()) {
-    <section class="mah-section">
-      <h2 class="mah-h2">Raise a complaint</h2>
-      <p class="mah-section-sub">
-        Your message goes straight to your owner's complaint box. You can raise <strong>one complaint every 24 hours</strong>.
-      </p>
+  @if (tab() === 'complaint') {
+    @if (canUseComplaints()) {
+      <section class="mah-section">
+        <h2 class="mah-h2">Raise a complaint</h2>
+        <p class="mah-section-sub">
+          Your message goes straight to your owner's complaint box. You can send as many complaints as you need.
+        </p>
 
-      <form class="mah-complaint-form" [formGroup]="form" (ngSubmit)="submitComplaint()">
-        <label class="mah-cf-label" for="cat">Category</label>
-        <select id="cat" class="mah-select" formControlName="category">
-          @for (c of categories; track c) {
-            <option [value]="c">{{ c }}</option>
+        <form class="mah-complaint-form" [formGroup]="form" (ngSubmit)="submitComplaint()">
+          <label class="mah-cf-label" for="cat">Category</label>
+          <select id="cat" class="mah-select" formControlName="category">
+            @for (c of categories; track c) {
+              <option [value]="c">{{ c }}</option>
+            }
+          </select>
+
+          <label class="mah-cf-label" for="msg">Describe the issue</label>
+          <textarea
+            id="msg"
+            class="mah-textarea"
+            rows="5"
+            maxlength="4000"
+            formControlName="message"
+            placeholder="Briefly describe the issue. Include the room/area if relevant."
+          ></textarea>
+          @if (form.controls.message.touched && form.controls.message.invalid) {
+            <p class="mah-cf-err">Please describe the issue (minimum 5 characters).</p>
           }
-        </select>
 
-        <label class="mah-cf-label" for="msg">Describe the issue</label>
-        <textarea
-          id="msg"
-          class="mah-textarea"
-          rows="5"
-          maxlength="4000"
-          formControlName="message"
-          placeholder="Briefly describe the issue. Include the room/area if relevant."
-        ></textarea>
-        @if (form.controls.message.touched && form.controls.message.invalid) {
-          <p class="mah-cf-err">Please describe the issue (minimum 5 characters).</p>
-        }
+          <button
+            type="submit"
+            class="mah-cf-submit"
+            [disabled]="submittingComplaint() || form.invalid"
+          >
+            {{ submittingComplaint() ? 'Sending…' : 'Send to owner' }}
+          </button>
+        </form>
+      </section>
 
-        @if (!canRaiseComplaint() && cooldownText()) {
-          <div class="mah-cooldown">
-            <span class="material-icons-outlined">schedule</span>
-            <span>You can raise the next complaint in <strong>{{ cooldownText() }}</strong>.</span>
+      <section class="mah-section">
+        <h2 class="mah-h2">Your complaint history</h2>
+        @if (complaints().length === 0) {
+          <div class="mah-empty mah-empty-soft">
+            <p class="mah-empty-body">No complaints raised yet.</p>
           </div>
-        }
-
-        <button
-          type="submit"
-          class="mah-cf-submit"
-          [disabled]="submittingComplaint() || !canRaiseComplaint() || form.invalid"
-        >
-          {{ submittingComplaint() ? 'Sending…' : 'Send to owner' }}
-        </button>
-      </form>
-    </section>
-
-    <section class="mah-section">
-      <h2 class="mah-h2">Your complaint history</h2>
-      @if (complaints().length === 0) {
-        <div class="mah-empty mah-empty-soft">
-          <p class="mah-empty-body">No complaints raised yet.</p>
-        </div>
-      } @else {
-        <ul class="mah-complaint-list">
-          @for (c of complaints(); track c.complaintId) {
-            <li class="mah-complaint-item" [class.is-resolved]="c.status === 'resolved'">
-              <div class="mah-complaint-head">
-                <span class="mah-complaint-cat">{{ c.category }}</span>
-                <span
-                  class="mah-complaint-status"
-                  [class.mah-status-open]="c.status === 'open'"
-                  [class.mah-status-resolved]="c.status === 'resolved'"
-                >
-                  {{ c.status === 'open' ? 'Pending' : 'Resolved' }}
-                </span>
-              </div>
-              <p class="mah-complaint-msg">{{ c.message }}</p>
-              @if (c.resolutionNote) {
-                <p class="mah-complaint-note">
-                  <span class="material-icons-outlined">turn_right</span>
-                  {{ c.resolutionNote }}
-                </p>
-              }
-              <p class="mah-complaint-time">
-                @if (c.createdAt; as ca) {
-                  {{ ca.toDate() | date: 'd MMM y, h:mm a' }}
+        } @else {
+          <ul class="mah-complaint-list">
+            @for (c of complaints(); track c.complaintId) {
+              <li class="mah-complaint-item" [class.is-resolved]="c.status === 'resolved'">
+                <div class="mah-complaint-head">
+                  <span class="mah-complaint-cat">{{ c.category }}</span>
+                  <span
+                    class="mah-complaint-status"
+                    [class.mah-status-open]="c.status === 'open'"
+                    [class.mah-status-resolved]="c.status === 'resolved'"
+                  >
+                    {{ c.status === 'open' ? 'Pending' : 'Resolved' }}
+                  </span>
+                </div>
+                <p class="mah-complaint-msg">{{ c.message }}</p>
+                @if (c.resolutionNote) {
+                  <p class="mah-complaint-note">
+                    <span class="material-icons-outlined">turn_right</span>
+                    {{ c.resolutionNote }}
+                  </p>
                 }
-              </p>
-            </li>
-          }
-        </ul>
-      }
-    </section>
+                <p class="mah-complaint-time">
+                  @if (c.createdAt; as ca) {
+                    {{ ca.toDate() | date: 'd MMM y, h:mm a' }}
+                  }
+                </p>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    } @else {
+      <section class="mah-section">
+        <div class="mah-complaint-off" role="status">
+          <span class="material-icons-outlined mah-complaint-off-icon" aria-hidden="true">info</span>
+          <h2 class="mah-h2 mah-complaint-off-title">Complaints not available online</h2>
+          <p class="mah-section-sub mah-complaint-off-body">{{ complaintsUnavailableMessage() }}</p>
+        </div>
+      </section>
+    }
   }
   </div>
 </div>

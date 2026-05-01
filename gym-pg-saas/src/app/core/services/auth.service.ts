@@ -1,11 +1,13 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   ConfirmationResult,
+  EmailAuthProvider,
   RecaptchaVerifier,
   User,
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
@@ -664,6 +666,22 @@ export class AuthService {
       }
       throw e;
     }
+  }
+
+  /**
+   * Re-authenticate the signed-in user with email + password (sensitive admin actions).
+   * Requires the account to have an email link (email/password sign-in).
+   */
+  async reauthenticateWithPassword(password: string): Promise<void> {
+    await this.fb.auth.authStateReady();
+    const user = this.fb.auth.currentUser;
+    if (!user?.email) {
+      const e = new Error('no-email-for-reauth');
+      e.name = 'NoEmailForReauth';
+      throw e;
+    }
+    const cred = EmailAuthProvider.credential(user.email, password);
+    await reauthenticateWithCredential(user, cred);
   }
 
   async signOut(): Promise<void> {

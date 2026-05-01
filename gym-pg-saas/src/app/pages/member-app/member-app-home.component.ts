@@ -4,7 +4,6 @@ import {
   OnDestroy,
   OnInit,
   computed,
-  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -84,7 +83,6 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
   readonly complaints = signal<MemberComplaint[]>([]);
   readonly tab = signal<MemberTab>('home');
   readonly nowMs = signal(Date.now());
-  readonly nextComplaintAtMs = signal<number | null>(null);
   readonly downloadingKey = signal<string | null>(null);
   /** Tenant-controlled appearance; persisted in localStorage. */
   readonly themePref = signal<MemberAppThemePref>('system');
@@ -96,37 +94,32 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
   /** Firestore / auth listener failure — surfaced so tenants are not staring at empty tabs. */
   readonly dataLoadError = signal<string | null>(null);
 
-  /** Live cooldown until the member can raise the next complaint. */
-  readonly cooldownText = computed(() => {
-    const next = this.nextComplaintAtMs();
-    if (!next) return '';
-    const diff = Math.max(0, next - this.nowMs());
-    if (diff <= 0) return '';
-    const totalSec = Math.floor(diff / 1000);
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    if (h > 0) return `${h}h ${m}m ${s}s`;
-    if (m > 0) return `${m}m ${s}s`;
-    return `${s}s`;
-  });
-
-  readonly canRaiseComplaint = computed(() => {
-    const next = this.nextComplaintAtMs();
-    if (!next) return true;
-    return next <= this.nowMs();
-  });
-
   /**
    * In-app complaints: admin must not have revoked tenant app
-   * (`publicOwnerStatus.tenantMemberAppEnabled`). When owner explicitly turns
-   * complaints off in their profile, `complaintEnabled` on the mirror also hides it.
+   * (`publicOwnerStatus.tenantMemberAppEnabled`). When the mirror doc is missing,
+   * default to on — same as Firestore rules (legacy allow). Owner can turn off via
+   * `complaintEnabled === false` on the mirror.
    */
   readonly canUseComplaints = computed(() => {
     const st = this.ownerStatus();
-    if (!st) return false;
+    if (!st) return true;
     if (st.tenantMemberAppEnabled === false) return false;
     return st.complaintEnabled !== false;
+  });
+
+  /** Shown on the Complaint tab when `canUseComplaints()` is false (tab stays visible). */
+  readonly complaintsUnavailableMessage = computed(() => {
+    const st = this.ownerStatus();
+    if (!st) {
+      return 'Property settings are still loading. If this message stays, check your connection and reopen the app.';
+    }
+    if (st.tenantMemberAppEnabled === false) {
+      return 'This property has had tenant app access turned off. Please contact your owner.';
+    }
+    if (st.complaintEnabled === false) {
+      return 'Your owner has turned off raising complaints in this app. Please call or WhatsApp them, or speak to them at the property.';
+    }
+    return '';
   });
 
   /** Plan-expiry empathy state — drives the "ask owner" banner on Home. */
@@ -237,14 +230,6 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
   private unsubBroadcasts: (() => void) | null = null;
   private clockTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor() {
-    effect(() => {
-      if (this.tab() === 'complaint' && !this.canUseComplaints()) {
-        this.tab.set('home');
-      }
-    });
-  }
-
   async ngOnInit(): Promise<void> {
     const auth = getAuth(this.fbApp.app);
     const user = auth.currentUser;
@@ -322,14 +307,6 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
       (rows) => {
         this.complaints.set(rows);
         this.dataLoadError.set(null);
-        // Re-derive cooldown after each new complaint lands.
-        const last = rows[0]?.createdAt?.toDate?.()?.getTime();
-        if (last) {
-          const next = last + 24 * 60 * 60 * 1000;
-          this.nextComplaintAtMs.set(next > Date.now() ? next : null);
-        } else {
-          this.nextComplaintAtMs.set(null);
-        }
       },
       onSnapErr('complaints'),
     );
@@ -347,17 +324,8 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
       onSnapErr('owner messages'),
     );
 
-    // Tick once a second so the cooldown countdown + greeting stay live without
-    // a separate listener per derived value.
+    // Tick once a second so the greeting + plan banner stay live without extra listeners.
     this.clockTimer = setInterval(() => this.nowMs.set(Date.now()), 1000);
-
-    // Best-effort initial cooldown read so the form disables immediately on load.
-    try {
-      const next = await this.self.getNextComplaintAllowedAtMs(identity.memberId);
-      if (next) this.nextComplaintAtMs.set(next);
-    } catch {
-      /* non-fatal */
-    }
 
     void this.push.registerDeviceToken(identity.ownerId, identity.memberId);
 
@@ -393,10 +361,6 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
   /* -------------------------------- actions -------------------------------- */
 
   setTab(tab: MemberTab): void {
-    if (tab === 'complaint' && !this.canUseComplaints()) {
-      this.toast.error('Complaints are not available for this property right now.');
-      return;
-    }
     this.tab.set(tab);
   }
 
@@ -475,12 +439,6 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
       this.form.markAllAsTouched();
       return;
     }
-    if (!this.canRaiseComplaint()) {
-      this.toast.error(
-        `You can raise the next complaint after ${this.cooldownText()}.`,
-      );
-      return;
-    }
     const id = this.identity();
     if (!id) {
       this.toast.error('Could not load your details. Please refresh.');
@@ -509,8 +467,6 @@ export class MemberAppHomeComponent implements OnInit, OnDestroy {
       });
       this.form.reset({ category: 'Plumbing', message: '' });
       this.toast.success('Complaint sent. Your owner will see it right away.');
-      // Tick the cooldown immediately for snappy UX (the listener will confirm).
-      this.nextComplaintAtMs.set(Date.now() + 24 * 60 * 60 * 1000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not send complaint.';
       this.toast.error(msg);

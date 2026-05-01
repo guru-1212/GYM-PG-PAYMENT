@@ -104,7 +104,17 @@ service cloud.firestore {
         && request.auth.uid == ownerId
         && request.resource.data.role == 'owner'
         && request.resource.data.status == 'pending';
-      allow update: if isAdmin();
+      /**
+       * Admins: full owner-doc updates (approval, plan, flags, etc.).
+       * Approved owners: may only patch `complaintEnabled` on their own doc
+       * (tenant member-app + public complaint settings UX).
+       */
+      allow update: if isAdmin()
+        || (
+          isApprovedOwner()
+          && request.auth.uid == ownerId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['complaintEnabled'])
+        );
       allow delete: if false;
 
       /**
@@ -511,10 +521,8 @@ service cloud.firestore {
     }
 
     /**
-     * Per-member rate-limit doc for in-app complaints (1 every 24h).
-     * Doc id == memberId. The Member PWA writes this in the same client-side
-     * batch as the complaint create — if the 24h window hasn't elapsed,
-     * Firestore rejects the upsert and the batch fails atomically.
+     * Optional per-member doc (legacy / analytics). Member PWA no longer batches
+     * writes here; kept permissive so older app versions can still bump `lastCreatedAt`.
      */
     match /complaintLimits/{memberId} {
       function memberAppTenantOkFromToken() {
@@ -526,22 +534,15 @@ service cloud.firestore {
           && request.auth.token.role == 'member_app'
           && request.auth.token.memberId == memberId;
       }
-      function lastCreatedOlderThan24h() {
-        return resource.data.lastCreatedAt is timestamp
-          && resource.data.lastCreatedAt < request.time - duration.value(24, 'h');
-      }
       allow read: if memberAppOwnsLimit()
         || (isApprovedOwner() && resource.data.ownerId == request.auth.uid);
-      // First-ever complaint by this member: doc didn't exist, member_app creates it.
       allow create: if memberAppOwnsLimit()
         && memberAppTenantOkFromToken()
         && request.resource.data.ownerId == request.auth.token.ownerId
         && request.resource.data.memberId == memberId
         && request.resource.data.lastCreatedAt == request.time;
-      // Subsequent complaints: only if 24h have passed since last create.
       allow update: if memberAppOwnsLimit()
         && memberAppTenantOkFromToken()
-        && lastCreatedOlderThan24h()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastCreatedAt'])
         && request.resource.data.lastCreatedAt == request.time;
       allow delete: if false;
