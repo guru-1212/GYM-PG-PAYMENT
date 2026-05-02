@@ -583,13 +583,14 @@ export class AuthService {
       const { getFunctions, httpsCallable, httpsCallableFromURL } = await import('firebase/functions');
       const fns = getFunctions(this.fb.app, 'us-central1');
       const callTimeout = 110_000;
-      /** Prefer explicit env override (local dev + prod Firebase), then same-origin Hosting rewrite on deployed host. */
+      /**
+       * Only call through an explicit URL (e.g. Firebase Hosting `/api-fn/...` rewrite if you need same-origin).
+       * Auto same-origin was removed: on some hosts (notably Vercel external rewrites) the `Authorization`
+       * header may not reach Cloud Functions, which surfaces as HTTP 401 and our "OTP session expired" copy.
+       * Default: SDK → `*.cloudfunctions.net` (works from the browser when callable CORS/invoker are normal).
+       */
       const configured = environment.resetOwnerPasswordCallableUrl?.trim() || null;
-      const sameOrigin =
-        typeof window !== 'undefined' && !/^localhost$|^127\.0\.0\.1$/i.test(window.location.hostname)
-          ? `${window.location.origin}/api-fn/resetOwnerPasswordWithPhoneOtp`
-          : null;
-      const callableUrl = configured || sameOrigin || null;
+      const callableUrl = configured || null;
       const call = callableUrl
         ? httpsCallableFromURL<{ newPassword: string }, { ok: true }>(fns, callableUrl, {
             timeout: callTimeout,

@@ -35,11 +35,10 @@ export const selectedFirebase: FirebaseOptions = useProdFirebase ? firebaseProd 
 export const verifyMemberCallableUrl: string | null = null;
 
 /**
- * Optional full URL for the owner phone-OTP password reset callable (Hosting rewrite).
- * Live builds use same-origin `/api-fn/resetOwnerPasswordWithPhoneOtp` automatically.
- * On **localhost** with production Firebase, some networks block `*.cloudfunctions.net`;
- * set this to your deployed site (e.g. `https://ourpgtracker.in/api-fn/resetOwnerPasswordWithPhoneOtp`)
- * so the reset flow matches the behaviour you verified on the test/staging project.
+ * Optional full URL for the owner phone-OTP password reset callable.
+ * Leave **null** to use the default `us-central1-*.cloudfunctions.net` endpoint (recommended on Vercel).
+ * Set to your **Firebase Hosting** same-origin rewrite if you rely on `/api-fn/...` (ad-block resilience).
+ * On **localhost**, if `*.cloudfunctions.net` is blocked, point this at a live site's `/api-fn/...` URL.
  */
 export const resetOwnerPasswordCallableUrl: string | null = null;
 
