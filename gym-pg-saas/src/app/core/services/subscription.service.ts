@@ -32,6 +32,8 @@ export class SubscriptionService {
       status: 'approved',
       planStartDate: serverTimestamp(),
       planEndDate: endDate,
+      'featureFlags.tenantMemberAppEnabled': true,
+      complaintEnabled: true,
     });
 
     // Optional: Create admin payment record if you want to track revenue

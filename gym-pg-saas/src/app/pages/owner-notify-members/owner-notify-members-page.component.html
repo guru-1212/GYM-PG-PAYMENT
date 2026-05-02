@@ -1,10 +1,10 @@
 <div class="onm">
   <div class="onm-topbar">
     <div class="onm-head">
-      <h1 class="onm-title">Notify members</h1>
+      <p class="onm-kicker">Tenant access</p>
+      <h1 class="onm-title">Member App QR</h1>
       <p class="onm-sub">
-        One install QR for your property. Members on your list verify with their registered mobile number once, then open the app from their home screen.
-        Broadcast messages below; push when the device allows it and Functions are deployed.
+        Print this QR once and stick it in your common area. Every tenant on your member list scans the same QR — they verify with their <strong>registered mobile + last 4 digits of Aadhaar</strong> and the app installs to their phone.
       </p>
     </div>
     @if (profile()?.ownerId) {
@@ -12,39 +12,152 @@
     }
   </div>
 
-  <section class="onm-card">
-    <h2 class="onm-h2">Member app install (one link for everyone)</h2>
-    <p class="onm-muted">
-      This QR does not change when you open this page again. Only members you added can use it, with the mobile number on their record.
-      Each member can complete first-time sign-in only once (use the installed app after that).
-    </p>
-    <button type="button" class="onm-btn onm-btn--secondary" [disabled]="qrBusy()" (click)="loadInstallLink()">
-      {{ qrBusy() ? 'Loading…' : qrUrl() ? 'Refresh QR display' : 'Load install link' }}
-    </button>
-    @if (qrUrl()) {
-      <div class="onm-qr-wrap">
-        @if (qrDataUrl(); as png) {
+  <!-- ───────── QR poster card ───────── -->
+  <section class="onm-qr-card">
+    <div class="onm-qr-stage">
+      @if (qrDataUrl(); as png) {
+        <div class="onm-qr-frame">
           <img class="onm-qr" [src]="png" width="280" height="280" alt="Member app install QR code" />
-        } @else if (qrBusy()) {
-          <p class="onm-muted">Preparing QR image…</p>
-        } @else {
-          <p class="onm-muted">QR preview unavailable. Members can still use the link below.</p>
-        }
-        <p class="onm-url"><code>{{ qrUrl() }}</code></p>
+        </div>
+        <p class="onm-qr-property">{{ propertyName() }}</p>
+        <p class="onm-qr-hint">Members scan this, then sign in with mobile + last 4 of Aadhaar</p>
+      } @else if (qrBusy()) {
+        <div class="onm-qr-placeholder">
+          <span class="onm-spinner" aria-hidden="true"></span>
+          <p>Preparing your QR…</p>
+        </div>
+      } @else {
+        <div class="onm-qr-placeholder onm-qr-error">
+          <span class="material-icons-outlined">qr_code_scanner</span>
+          <p>QR unavailable. Tap reload below.</p>
+        </div>
+      }
+    </div>
+
+    <div class="onm-actions">
+      <button
+        type="button"
+        class="onm-btn onm-btn--primary"
+        [disabled]="!qrHiResDataUrl()"
+        (click)="printPoster()"
+      >
+        <span class="material-icons-outlined">print</span>
+        Print poster
+      </button>
+      <button
+        type="button"
+        class="onm-btn onm-btn--secondary"
+        [disabled]="!qrHiResDataUrl()"
+        (click)="downloadQr()"
+      >
+        <span class="material-icons-outlined">download</span>
+        Download QR (PNG)
+      </button>
+      <button
+        type="button"
+        class="onm-btn onm-btn--secondary"
+        [disabled]="!qrUrl() || copying()"
+        (click)="copyLink()"
+      >
+        <span class="material-icons-outlined">link</span>
+        {{ copying() ? 'Copied' : 'Copy link' }}
+      </button>
+      <button
+        type="button"
+        class="onm-btn onm-btn--ghost"
+        [disabled]="qrBusy()"
+        (click)="loadInstallLink()"
+      >
+        <span class="material-icons-outlined">refresh</span>
+        Reload
+      </button>
+    </div>
+
+    @if (qrUrl(); as u) {
+      <div class="onm-url-row">
+        <span class="onm-url-label">Install link</span>
+        <code class="onm-url">{{ u }}</code>
       </div>
     }
+
+    <div class="onm-tips">
+      <div class="onm-tip">
+        <span class="material-icons-outlined">verified_user</span>
+        <span>The same QR is permanent for your property — you only print it once.</span>
+      </div>
+      <div class="onm-tip">
+        <span class="material-icons-outlined">phonelink_lock</span>
+        <span>Each member can complete first-time sign-in only once, on a single phone.</span>
+      </div>
+      <div class="onm-tip">
+        <span class="material-icons-outlined">groups</span>
+        <span>Only members on your list (with matching mobile + last 4 of Aadhaar) can pass verification.</span>
+      </div>
+    </div>
   </section>
 
+  <!-- ───────── Broadcast card ───────── -->
   <section class="onm-card">
     <h2 class="onm-h2">Send a message to all members</h2>
+    <p class="onm-muted">
+      Reaches every tenant who has the app installed. They see it inside the app and as a push notification (when Cloud Functions are deployed).
+    </p>
     <form [formGroup]="form" (ngSubmit)="sendBroadcast()" class="onm-form">
       <label class="onm-label" for="nb-title">Title</label>
-      <input id="nb-title" class="onm-input" type="text" formControlName="title" placeholder="e.g. Food notice" />
+      <input id="nb-title" class="onm-input" type="text" formControlName="title" placeholder="e.g. Water tank cleaning notice" />
       <label class="onm-label" for="nb-body">Message</label>
       <textarea id="nb-body" class="onm-textarea" rows="5" formControlName="body" placeholder="Message body"></textarea>
-      <button type="submit" class="onm-btn onm-btn--primary" [disabled]="sendBusy()">
+      <button type="submit" class="onm-btn onm-btn--primary onm-send" [disabled]="sendBusy()">
+        <span class="material-icons-outlined">send</span>
         {{ sendBusy() ? 'Sending…' : 'Send to all member devices' }}
       </button>
     </form>
+  </section>
+
+  <!-- ───────── Broadcast history (owner) ───────── -->
+  <section class="onm-card onm-history" aria-labelledby="onm-history-heading">
+    <h2 id="onm-history-heading" class="onm-h2">Messages you already sent</h2>
+    <p class="onm-muted onm-history-lead">
+      Newest first. Each row is one broadcast to every member with the tenant app (up to 100 recent).
+    </p>
+    @if (broadcastHistory().length === 0) {
+      <div class="onm-history-empty">
+        <span class="material-icons-outlined" aria-hidden="true">campaign</span>
+        <p>No messages sent yet. When you send one, it will appear here with the date and time.</p>
+      </div>
+    } @else {
+      <div class="onm-table-scroll">
+        <table class="onm-table">
+          <thead>
+            <tr>
+              <th scope="col" class="onm-th onm-th--when">Sent on</th>
+              <th scope="col" class="onm-th onm-th--title">Title</th>
+              <th scope="col" class="onm-th onm-th--body">Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (b of broadcastHistory(); track b.id) {
+              <tr class="onm-tr">
+                <td class="onm-td onm-td--when">
+                  @if (b.createdAt; as ca) {
+                    <span class="onm-td-date">{{ ca.toDate() | date: 'EEE, d MMM y' }}</span>
+                    <span class="onm-td-time">{{ ca.toDate() | date: 'h:mm a' }}</span>
+                  } @else {
+                    <span class="onm-td-missing">—</span>
+                  }
+                </td>
+                <td class="onm-td onm-td--title">{{ b.title }}</td>
+                <td
+                  class="onm-td onm-td--body"
+                  [attr.title]="b.body.length ? b.body : null"
+                >
+                  {{ truncateBody(b.body, 160) }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
   </section>
 </div>

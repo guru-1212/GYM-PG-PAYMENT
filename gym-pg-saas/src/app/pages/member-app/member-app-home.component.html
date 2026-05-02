@@ -1,35 +1,449 @@
-<div class="mah">
-  <header class="mah-head">
-    <div class="mah-head-main">
-      <p class="mah-kicker">Member</p>
-      <h1 class="mah-title">{{ welcomeHi() }}</h1>
-      <p class="mah-welcome-text">{{ welcomeBody() }}</p>
-      <p class="mah-welcome-hint">{{ welcomeNote() }}</p>
+<div class="mah-shell">
+  <div class="mah">
+  <!-- ───────── Top app bar ───────── -->
+  <header class="mah-topbar">
+    <div class="mah-brand">
+      <span class="material-icons-outlined mah-brand-icon">apartment</span>
+      <div class="mah-brand-text">
+        <p class="mah-brand-name">{{ ownerStatus()?.businessName || identity()?.ownerBusinessName || 'Your property' }}</p>
+        <p class="mah-brand-sub">Tenant app</p>
+      </div>
     </div>
-    <div class="mah-actions">
-      @if (ownerId(); as oid) {
-        <app-notification-bell mode="member" [ownerId]="oid" />
-      }
-      <button type="button" class="mah-out" (click)="logout()">Sign out</button>
+    <div class="mah-topbar-actions">
+      <div class="mah-theme-group" role="group" aria-label="Color theme">
+        <button
+          type="button"
+          class="mah-theme-btn"
+          [class.is-on]="themePref() === 'light'"
+          (click)="setThemePref('light')"
+          aria-label="Light theme"
+          title="Light theme"
+        >
+          <span class="material-icons-outlined">light_mode</span>
+        </button>
+        <button
+          type="button"
+          class="mah-theme-btn"
+          [class.is-on]="themePref() === 'system'"
+          (click)="setThemePref('system')"
+          aria-label="Match device theme"
+          title="Match device"
+        >
+          <span class="material-icons-outlined">brightness_auto</span>
+        </button>
+        <button
+          type="button"
+          class="mah-theme-btn"
+          [class.is-on]="themePref() === 'dark'"
+          (click)="setThemePref('dark')"
+          aria-label="Dark theme"
+          title="Dark theme"
+        >
+          <span class="material-icons-outlined">dark_mode</span>
+        </button>
+      </div>
+      <button type="button" class="mah-logout" (click)="logout()" aria-label="Sign out">
+        <span class="material-icons-outlined">logout</span>
+      </button>
     </div>
   </header>
 
-  <section class="mah-section">
-    <h2 class="mah-h2">Recent messages</h2>
-    @if (rows().length === 0) {
-      <p class="mah-empty">No messages yet. When your owner sends an update, it will appear here and as a push notification if you allow notifications.</p>
-    } @else {
-      <ul class="mah-list">
-        @for (b of rows(); track b.id) {
-          <li class="mah-card">
-            <p class="mah-card-title">{{ b.title }}</p>
-            <p class="mah-card-body">{{ b.body }}</p>
-            @if (b.createdAt; as ca) {
-              <p class="mah-card-meta">{{ ca.toDate() | date: 'medium' }}</p>
-            }
-          </li>
-        }
-      </ul>
+  @if (dataLoadError(); as err) {
+    <div class="mah-data-err" role="alert">
+      <span class="material-icons-outlined">cloud_off</span>
+      <p>{{ err }}</p>
+    </div>
+  }
+
+  <!-- ───────── Greeting ───────── -->
+  <section class="mah-greeting">
+    <p class="mah-hello">{{ greetingText() }},</p>
+    <h1 class="mah-name">{{ memberName() }}</h1>
+    @if (planExpired()) {
+      <div class="mah-plan-warn">
+        <span class="material-icons-outlined">warning</span>
+        <div>
+          <p class="mah-plan-warn-title">Plan paused</p>
+          <p class="mah-plan-warn-body">
+            Your owner's subscription has expired. Please contact your owner to know the reason or to extend it.
+          </p>
+        </div>
+      </div>
+    } @else if (planExpiryLine()) {
+      <!-- <div class="mah-plan-ok">
+        <span class="material-icons-outlined">verified</span>
+        <span>Plan active until <strong>{{ planExpiryLine() }}</strong></span>
+      </div> -->
     }
   </section>
+
+  <!-- ───────── Top tabs ───────── -->
+  <nav class="mah-tabs" role="tablist">
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'home'"
+      class="mah-tab"
+      [class.is-active]="tab() === 'home'"
+      (click)="setTab('home')"
+    >
+      <span class="material-icons-outlined">home</span>
+      Home
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'receipts'"
+      class="mah-tab"
+      [class.is-active]="tab() === 'receipts'"
+      (click)="setTab('receipts')"
+    >
+      <span class="material-icons-outlined">receipt_long</span>
+      Receipts
+      <span class="mah-tab-badge mah-badge-soft">{{ receiptLines().length }}</span>
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="tab() === 'complaint'"
+      class="mah-tab"
+      [class.is-active]="tab() === 'complaint'"
+      (click)="setTab('complaint')"
+    >
+      <span class="material-icons-outlined">support_agent</span>
+      Complaint
+      @if (openComplaintsCount() > 0) {
+        <span class="mah-tab-badge mah-badge-warn">{{ openComplaintsCount() }}</span>
+      }
+    </button>
+  </nav>
+
+  <!-- ───────── HOME TAB ───────── -->
+  @if (tab() === 'home') {
+    @if (profileLines(); as p) {
+      <section class="mah-section">
+        <h2 class="mah-h2">Your details</h2>
+        <div class="mah-profile-card">
+          <div class="mah-profile-grid">
+            <div class="mah-profile-item">
+              <span class="mah-profile-label">Room</span>
+              <span class="mah-profile-value">{{ p.room }}</span>
+            </div>
+            <div class="mah-profile-item">
+              <span class="mah-profile-label">Floor</span>
+              <span class="mah-profile-value">{{ p.floor }}</span>
+            </div>
+            @if (p.bed) {
+              <div class="mah-profile-item">
+                <span class="mah-profile-label">Bed</span>
+                <span class="mah-profile-value">{{ p.bed }}</span>
+              </div>
+            }
+            <div class="mah-profile-item">
+              <span class="mah-profile-label">Joined on</span>
+              <span class="mah-profile-value">{{ p.joinedOn }}</span>
+            </div>
+            <div class="mah-profile-item">
+              <span class="mah-profile-label">Next due</span>
+              <span class="mah-profile-value">{{ p.dueOn }}</span>
+            </div>
+            <div class="mah-profile-item">
+              <span class="mah-profile-label">Rent</span>
+              <span class="mah-profile-value">{{ p.rentAmount | currency: 'INR' : 'symbol-narrow' : '1.0-0' }}</span>
+            </div>
+          </div>
+
+          @if (p.pendingAmount > 0) {
+            <div class="mah-pending">
+              <span class="material-icons-outlined">priority_high</span>
+              <span>
+                Pending balance:
+                <strong>{{ p.pendingAmount | currency: 'INR' : 'symbol-narrow' : '1.0-0' }}</strong>
+              </span>
+            </div>
+          } @else {
+            <div class="mah-pending mah-pending-ok">
+              <span class="material-icons-outlined">check_circle</span>
+              <span>No pending dues. You are all clear.</span>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    @if (broadcasts().length > 0) {
+      <section class="mah-section mah-broadcasts" aria-labelledby="mah-bc-heading">
+        <h2 id="mah-bc-heading" class="mah-h2">Messages from your owner</h2>
+        <p class="mah-section-sub">
+          Your owner sent these to everyone at the property. You also get a push when notifications are enabled.
+        </p>
+
+        @if (broadcastsToday().length > 0) {
+          <div class="mah-bc-today-wrap" role="region" aria-label="Today's messages from your owner">
+            <div class="mah-bc-today-banner">
+              <span class="material-icons-outlined mah-bc-today-icon" aria-hidden="true">mark_chat_unread</span>
+              <div class="mah-bc-today-banner-text">
+                <p class="mah-bc-today-label">Today</p>
+                <p class="mah-bc-today-hint">New or updated since midnight on your phone</p>
+              </div>
+            </div>
+            <ul class="mah-bc-list mah-bc-list--today">
+              @for (b of broadcastsToday(); track b.id) {
+                <li class="mah-bc-card mah-bc-card--today">
+                  <p class="mah-bc-title">{{ b.title }}</p>
+                  <p class="mah-bc-body">{{ b.body }}</p>
+                  @if (b.createdAt; as ca) {
+                    <p class="mah-bc-time">{{ ca.toDate() | date: 'h:mm a' }}</p>
+                  }
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (broadcastsEarlier().length > 0) {
+          <h3 class="mah-bc-earlier-h3">{{ broadcastsToday().length > 0 ? 'Earlier messages' : 'All messages' }}</h3>
+          <ul class="mah-bc-list">
+            @for (b of broadcastsEarlier(); track b.id) {
+              <li class="mah-bc-card">
+                <p class="mah-bc-title">{{ b.title }}</p>
+                <p class="mah-bc-body">{{ b.body }}</p>
+                @if (b.createdAt; as ca) {
+                  <p class="mah-bc-time">{{ ca.toDate() | date: 'd MMM y, h:mm a' }}</p>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+
+    <section class="mah-section">
+      <h2 class="mah-h2">Quick actions</h2>
+      <div class="mah-quick">
+        <button type="button" class="mah-quick-btn" (click)="setTab('receipts')">
+          <span class="material-icons-outlined">receipt_long</span>
+          <span class="mah-quick-text">
+            <strong>Download receipt</strong>
+            <small>Any month, anytime</small>
+          </span>
+        </button>
+        <button type="button" class="mah-quick-btn" (click)="setTab('complaint')">
+          <span class="material-icons-outlined">support_agent</span>
+          <span class="mah-quick-text">
+            <strong>Raise a complaint</strong>
+            <small>Open the Complaint tab</small>
+          </span>
+        </button>
+      </div>
+    </section>
+  }
+
+  <!-- ───────── RECEIPTS TAB ───────── -->
+  @if (tab() === 'receipts') {
+    <section class="mah-section mah-receipts-root">
+      <h2 class="mah-h2">Receipts</h2>
+      <p class="mah-section-sub mah-receipts-intro">
+        When one payment covers both an old balance and rent, you get two PDFs so each amount has its own receipt.
+      </p>
+      @if (receiptLines().length === 0) {
+        <div class="mah-empty">
+          <span class="material-icons-outlined">inbox</span>
+          <p class="mah-empty-title">No payments yet</p>
+          <p class="mah-empty-body">Once your owner records a rent payment, your receipt will appear here.</p>
+        </div>
+      } @else {
+        @if (receiptLinesPending().length > 0) {
+          <div class="mah-receipt-block">
+            <h3 class="mah-h3">
+              <span class="material-icons-outlined mah-h3-icon">account_balance_wallet</span>
+              Pending balance receipts
+            </h3>
+            <p class="mah-section-sub mah-receipt-block-sub">Amount paid toward your previous pending balance.</p>
+            <div class="mah-receipts-card mah-receipts-card--pending">
+              <div class="mah-table-head">
+                <span>Reference</span>
+                <span>Amount</span>
+                <span>Method</span>
+                <span></span>
+              </div>
+              @for (row of receiptLinesPending(); track row.downloadKey) {
+                <div class="mah-table-row">
+                  <div class="mah-receipt-meta">
+                    <span class="mah-receipt-kind">Pending paid</span>
+                    <span class="mah-receipt-month">{{ row.monthLabel }}</span>
+                    <span class="mah-receipt-date">{{ row.receiptDate | date: 'd MMM y' }}</span>
+                    <span class="mah-receipt-no">#{{ row.receiptNumber }}</span>
+                  </div>
+                  <div class="mah-receipt-amount">
+                    {{ row.amount | currency: 'INR' : 'symbol-narrow' : '1.0-0' }}
+                  </div>
+                  <div class="mah-receipt-method">
+                    <span class="mah-method-pill mah-method-pill--amber">{{ row.payment.method | titlecase }}</span>
+                  </div>
+                  <div class="mah-receipt-action">
+                    <button
+                      type="button"
+                      class="mah-download mah-download--secondary"
+                      (click)="downloadReceipt(row)"
+                      [disabled]="row.isDownloading"
+                      [attr.aria-label]="'Download pending balance receipt for ' + row.monthLabel"
+                    >
+                      @if (row.isDownloading) {
+                        <span class="mah-spinner mah-spinner--dark" aria-hidden="true"></span>
+                        <span>Preparing…</span>
+                      } @else {
+                        <span class="material-icons-outlined">download</span>
+                        <span>Download PDF</span>
+                      }
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        @if (receiptLinesRent().length > 0) {
+          <div class="mah-receipt-block">
+            <h3 class="mah-h3">
+              <span class="material-icons-outlined mah-h3-icon">home_work</span>
+              Rent receipts
+            </h3>
+            <p class="mah-section-sub mah-receipt-block-sub">Rent portion for the billing month shown.</p>
+            <div class="mah-receipts-card mah-receipts-card--rent">
+              <div class="mah-table-head">
+                <span>Month</span>
+                <span>Amount</span>
+                <span>Method</span>
+                <span></span>
+              </div>
+              @for (row of receiptLinesRent(); track row.downloadKey) {
+                <div class="mah-table-row">
+                  <div class="mah-receipt-meta">
+                    <span class="mah-receipt-kind">Rent paid</span>
+                    <span class="mah-receipt-month">{{ row.monthLabel }}</span>
+                    <span class="mah-receipt-date">{{ row.receiptDate | date: 'd MMM y' }}</span>
+                    <span class="mah-receipt-no">#{{ row.receiptNumber }}</span>
+                  </div>
+                  <div class="mah-receipt-amount">
+                    {{ row.amount | currency: 'INR' : 'symbol-narrow' : '1.0-0' }}
+                  </div>
+                  <div class="mah-receipt-method">
+                    <span class="mah-method-pill">{{ row.payment.method | titlecase }}</span>
+                  </div>
+                  <div class="mah-receipt-action">
+                    <button
+                      type="button"
+                      class="mah-download"
+                      (click)="downloadReceipt(row)"
+                      [disabled]="row.isDownloading"
+                      [attr.aria-label]="'Download rent receipt for ' + row.monthLabel"
+                    >
+                      @if (row.isDownloading) {
+                        <span class="mah-spinner" aria-hidden="true"></span>
+                        <span>Preparing…</span>
+                      } @else {
+                        <span class="material-icons-outlined">download</span>
+                        <span>Download PDF</span>
+                      }
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
+    </section>
+  }
+
+  <!-- ───────── COMPLAINT TAB ───────── -->
+  @if (tab() === 'complaint') {
+    @if (canUseComplaints()) {
+      <section class="mah-section">
+        <h2 class="mah-h2">Raise a complaint</h2>
+        <p class="mah-section-sub">
+          Your message goes straight to your owner's complaint box. You can send as many complaints as you need.
+        </p>
+
+        <form class="mah-complaint-form" [formGroup]="form" (ngSubmit)="submitComplaint()">
+          <label class="mah-cf-label" for="cat">Category</label>
+          <select id="cat" class="mah-select" formControlName="category">
+            @for (c of categories; track c) {
+              <option [value]="c">{{ c }}</option>
+            }
+          </select>
+
+          <label class="mah-cf-label" for="msg">Describe the issue</label>
+          <textarea
+            id="msg"
+            class="mah-textarea"
+            rows="5"
+            maxlength="4000"
+            formControlName="message"
+            placeholder="Briefly describe the issue. Include the room/area if relevant."
+          ></textarea>
+          @if (form.controls.message.touched && form.controls.message.invalid) {
+            <p class="mah-cf-err">Please describe the issue (minimum 5 characters).</p>
+          }
+
+          <button
+            type="submit"
+            class="mah-cf-submit"
+            [disabled]="submittingComplaint() || form.invalid"
+          >
+            {{ submittingComplaint() ? 'Sending…' : 'Send to owner' }}
+          </button>
+        </form>
+      </section>
+
+      <section class="mah-section">
+        <h2 class="mah-h2">Your complaint history</h2>
+        @if (complaints().length === 0) {
+          <div class="mah-empty mah-empty-soft">
+            <p class="mah-empty-body">No complaints raised yet.</p>
+          </div>
+        } @else {
+          <ul class="mah-complaint-list">
+            @for (c of complaints(); track c.complaintId) {
+              <li class="mah-complaint-item" [class.is-resolved]="c.status === 'resolved'">
+                <div class="mah-complaint-head">
+                  <span class="mah-complaint-cat">{{ c.category }}</span>
+                  <span
+                    class="mah-complaint-status"
+                    [class.mah-status-open]="c.status === 'open'"
+                    [class.mah-status-resolved]="c.status === 'resolved'"
+                  >
+                    {{ c.status === 'open' ? 'Pending' : 'Resolved' }}
+                  </span>
+                </div>
+                <p class="mah-complaint-msg">{{ c.message }}</p>
+                @if (c.resolutionNote) {
+                  <p class="mah-complaint-note">
+                    <span class="material-icons-outlined">turn_right</span>
+                    {{ c.resolutionNote }}
+                  </p>
+                }
+                <p class="mah-complaint-time">
+                  @if (c.createdAt; as ca) {
+                    {{ ca.toDate() | date: 'd MMM y, h:mm a' }}
+                  }
+                </p>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    } @else {
+      <section class="mah-section">
+        <div class="mah-complaint-off" role="status">
+          <span class="material-icons-outlined mah-complaint-off-icon" aria-hidden="true">info</span>
+          <h2 class="mah-h2 mah-complaint-off-title">Complaints not available online</h2>
+          <p class="mah-section-sub mah-complaint-off-body">{{ complaintsUnavailableMessage() }}</p>
+        </div>
+      </section>
+    }
+  }
+  </div>
 </div>

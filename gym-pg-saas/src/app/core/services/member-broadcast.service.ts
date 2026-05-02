@@ -39,20 +39,33 @@ export class MemberBroadcastService {
     });
   }
 
-  watchBroadcasts(ownerId: string, cb: (rows: OwnerBroadcast[]) => void): Unsubscribe {
-    const q = query(this.broadcastsCol(ownerId), orderBy('createdAt', 'desc'), limit(40));
-    return onSnapshot(q, (snap) => {
-      const rows: OwnerBroadcast[] = [];
-      snap.forEach((d) => {
-        const data = d.data() as Record<string, unknown>;
-        rows.push({
-          id: d.id,
-          title: String(data['title'] ?? ''),
-          body: String(data['body'] ?? ''),
-          createdAt: (data['createdAt'] as OwnerBroadcast['createdAt']) ?? null,
+  watchBroadcasts(
+    ownerId: string,
+    cb: (rows: OwnerBroadcast[]) => void,
+    onError?: (err: unknown) => void,
+    options?: { limit?: number },
+  ): Unsubscribe {
+    const lim = Math.min(500, Math.max(1, Math.floor(options?.limit ?? 40)));
+    const q = query(this.broadcastsCol(ownerId), orderBy('createdAt', 'desc'), limit(lim));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const rows: OwnerBroadcast[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as Record<string, unknown>;
+          rows.push({
+            id: d.id,
+            title: String(data['title'] ?? ''),
+            body: String(data['body'] ?? ''),
+            createdAt: (data['createdAt'] as OwnerBroadcast['createdAt']) ?? null,
+          });
         });
-      });
-      cb(rows);
-    });
+        cb(rows);
+      },
+      (err) => {
+        onError?.(err);
+        cb([]);
+      },
+    );
   }
 }

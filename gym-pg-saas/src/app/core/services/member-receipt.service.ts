@@ -33,6 +33,8 @@ export interface ReceiptLinkData {
     pendingPaidAmount?: number;
     pendingMonthText?: string;
     pendingCarryForwardText?: string;
+    /** When set, PDF header/total labels match a split tenant receipt (pending vs rent). */
+    receiptKind?: 'combined' | 'pending_balance' | 'rent';
   };
   createdAt: Timestamp;
   expiresAt: Timestamp;
@@ -214,6 +216,19 @@ export class MemberReceiptService {
     const pendingMonthText = receiptData.pendingMonthText?.trim() || '';
     const paymentMethod =
       receiptData.paymentMethod.charAt(0).toUpperCase() + receiptData.paymentMethod.slice(1).toLowerCase();
+    const receiptKind = receiptData.receiptKind || 'combined';
+    const headerTitle =
+      receiptKind === 'pending_balance'
+        ? 'PENDING BALANCE RECEIPT'
+        : receiptKind === 'rent'
+          ? 'RENT PAYMENT RECEIPT'
+          : 'PAYMENT RECEIPT';
+    const totalLabel =
+      receiptKind === 'pending_balance'
+        ? 'PENDING BALANCE PAID'
+        : receiptKind === 'rent'
+          ? 'RENT AMOUNT PAID'
+          : 'TOTAL AMOUNT PAID';
 
     // Outer border
     doc.setDrawColor(226, 232, 240);
@@ -226,7 +241,7 @@ export class MemberReceiptService {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(17);
-    doc.text('PAYMENT RECEIPT', margin, 25);
+    doc.text(headerTitle, margin, 25);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.text(String(receiptData.businessName || 'PayBook').toUpperCase(), pageW - margin, 25, { align: 'right' });
@@ -331,7 +346,7 @@ export class MemberReceiptService {
     doc.roundedRect(margin, totalY, contentW, 24, 2, 2, 'F');
     doc.setTextColor(148, 163, 184);
     doc.setFontSize(10);
-    doc.text('TOTAL AMOUNT PAID', margin + 5, totalY + 9);
+    doc.text(totalLabel, margin + 5, totalY + 9);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);

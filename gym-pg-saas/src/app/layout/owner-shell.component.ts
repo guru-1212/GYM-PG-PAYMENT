@@ -5,8 +5,8 @@ import { AuthService } from '../core/services/auth.service';
 import { InAppNotificationService } from '../core/services/in-app-notification.service';
 import { NotificationService } from '../core/services/notification.service';
 import { OwnerAdminChatService } from '../core/services/owner-admin-chat.service';
-// Complaints disabled — restore when feature fixed
-// import { ComplaintService } from '../core/services/complaint.service';
+import { OwnerPublicStatusService } from '../core/services/owner-public-status.service';
+import { ComplaintService } from '../core/services/complaint.service';
 import { TranslationService } from '../core/services/translation.service';
 import { ModalComponent } from '../shared/modal.component';
 import { TranslatePipe } from '../shared/pipes/translate.pipe';
@@ -61,7 +61,8 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   private readonly chat = inject(OwnerAdminChatService);
   private readonly inApp = inject(InAppNotificationService);
   private readonly notifications = inject(NotificationService);
-  // private readonly complaintApi = inject(ComplaintService);
+  private readonly complaintApi = inject(ComplaintService);
+  private readonly ownerPublicStatus = inject(OwnerPublicStatusService);
   private readonly router = inject(Router);
   readonly i18n = inject(TranslationService);
 
@@ -89,18 +90,39 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   readonly canViewMonthlyEarnings = computed(() => !this.isSupervisor());
   /** Analytics dashboard — owner-only (financial + member data). */
   readonly canViewAnalytics = computed(() => !this.isSupervisor());
+  /**
+   * Audit log — owner-only and admin-gated.
+   * Visible only when the signed-in user is an owner AND admin has enabled
+   * `featureFlags.auditLogEnabled` for them. Supervisors never see this tab.
+   */
+  readonly canViewAuditLog = computed(
+    () =>
+      this.profile()?.role === 'owner' &&
+      this.profile()?.featureFlags?.auditLogEnabled === true,
+  );
+
+  /** Tenant QR + broadcast page — hidden when admin revoked `tenantMemberAppEnabled`. */
+  readonly canSeeMemberAppQrLink = computed(
+    () =>
+      this.profile()?.role === 'owner' &&
+      this.profile()?.featureFlags?.tenantMemberAppEnabled !== false,
+  );
 
   /** Unread in-app alerts for the signed-in owner scope (sidebar badge). */
   readonly ownerInAppUnread = signal(0);
 
+  /** Open (unresolved) tenant complaints — drives the Complaint Box badge. */
+  readonly openComplaintsCount = signal(0);
+
   readonly mobileMenuOpen = signal(false);
   readonly userMenuOpen = signal(false);
+  /** Header gear: theme / accent (moved out of sidebar). */
+  readonly appearanceMenuOpen = signal(false);
   readonly nowMs = signal(Date.now());
   readonly notificationsOpen = signal(false);
   readonly chatMessages = signal<OwnerAdminChatMessage[]>([]);
   readonly chatText = signal('');
   readonly unreadCount = signal(0);
-  // readonly complaintToggleBusy = signal(false);
   /** Mobile top bar: time-of-day greeting (follows `nowMs` tick). */
   readonly ownerHeaderGreeting = computed(() => {
     this.nowMs();
@@ -153,30 +175,42 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   private unsubThread: (() => void) | null = null;
   private unsubUnread: (() => void) | null = null;
   private unsubOwnerInApp: (() => void) | null = null;
+  private unsubComplaints: (() => void) | null = null;
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     effect(() => {
-      const ownerId = this.profile()?.ownerId;
+      const profile = this.profile();
+      const ownerId = profile?.ownerId;
       this.unsubThread?.();
       this.unsubUnread?.();
       this.unsubOwnerInApp?.();
+      this.unsubComplaints?.();
       this.chatMessages.set([]);
       this.unreadCount.set(0);
       this.ownerInAppUnread.set(0);
+      this.openComplaintsCount.set(0);
       if (!ownerId) return;
+      // Owner-only resources. Supervisors live under their own shell now;
+      // running these listeners in their session triggers permission-denied
+      // (chats are owner-uid-scoped) and fills the console with noise.
+      if (profile?.role !== 'owner') return;
       this.unsubThread = this.chat.watchThread(ownerId, (messages) => this.chatMessages.set(messages));
       this.unsubUnread = this.chat.watchOwnerUnreadCount(ownerId, (count) => this.unreadCount.set(count));
       this.unsubOwnerInApp = this.inApp.watchOwnerNotifications(ownerId, (rows) => {
         this.ownerInAppUnread.set(rows.filter((r) => !r.read).length);
       });
-      /* Complaints disabled — restore when feature fixed
-      const p = this.profile();
-      if (p?.role === 'owner') {
-        void this.complaintApi.publishPublicComplaintSettings(ownerId, Boolean(p.complaintEnabled));
-      }
-      void this.complaintApi.syncMemberMobileLookupsForOwner(ownerId);
-      */
+      // Keep the public mirror doc fresh on every profile tick (plan extended,
+      // business name updated, etc.) so the Member PWA always sees correct
+      // info without ever reading the owner doc directly.
+      void this.ownerPublicStatus.publishStatus(profile);
+      // Complaint Box badge: count open complaints in real time.
+      this.unsubComplaints = this.complaintApi.watchComplaintsForOwner(
+        ownerId,
+        (rows) => {
+          this.openComplaintsCount.set(rows.filter((r) => r.status === 'open').length);
+        },
+      );
     });
   }
 
@@ -196,6 +230,18 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
 
   closeUserMenu(): void {
     this.userMenuOpen.set(false);
+  }
+
+  toggleAppearanceMenu(ev: MouseEvent): void {
+    ev.stopPropagation();
+    this.appearanceMenuOpen.update((v) => !v);
+    if (this.appearanceMenuOpen()) {
+      this.userMenuOpen.set(false);
+    }
+  }
+
+  closeAppearanceMenu(): void {
+    this.appearanceMenuOpen.set(false);
   }
 
   async openNotifications(): Promise<void> {
@@ -248,6 +294,7 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
     this.unsubThread?.();
     this.unsubUnread?.();
     this.unsubOwnerInApp?.();
+    this.unsubComplaints?.();
     if (this.countdownTimer) {
       clearInterval(this.countdownTimer);
       this.countdownTimer = null;
@@ -258,7 +305,9 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
   onDocumentClick(ev: MouseEvent): void {
     const el = ev.target as HTMLElement | null;
     if (el?.closest('[data-user-menu-root]')) return;
+    if (el?.closest('[data-appearance-menu-root]')) return;
     this.userMenuOpen.set(false);
+    this.appearanceMenuOpen.set(false);
   }
 
   @HostListener('document:keydown.escape')
@@ -269,30 +318,17 @@ export class OwnerShellComponent implements OnInit, OnDestroy {
     if (this.userMenuOpen()) {
       this.closeUserMenu();
     }
+    if (this.appearanceMenuOpen()) {
+      this.closeAppearanceMenu();
+    }
   }
 
   async signOut(): Promise<void> {
     this.closeMobileMenu();
     this.closeUserMenu();
+    this.closeAppearanceMenu();
     await this.auth.signOut();
     await this.router.navigateByUrl('/login');
   }
 
-  /* Complaints disabled — restore when feature fixed
-  async setComplaintEnabled(enabled: boolean): Promise<void> {
-    const ownerId = this.profile()?.ownerId;
-    if (!ownerId || this.complaintToggleBusy()) return;
-    const profile = this.profile();
-    if (!profile) return;
-    this.complaintToggleBusy.set(true);
-    this.auth.profile.set({ ...profile, complaintEnabled: enabled });
-    try {
-      await this.complaintApi.setComplaintEnabled(ownerId, enabled);
-    } catch {
-      this.auth.profile.set({ ...profile, complaintEnabled: Boolean(profile.complaintEnabled) });
-    } finally {
-      this.complaintToggleBusy.set(false);
-    }
-  }
-  */
 }

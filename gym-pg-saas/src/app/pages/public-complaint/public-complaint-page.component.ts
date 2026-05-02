@@ -88,17 +88,6 @@ export class PublicComplaintPageComponent {
       }
 
       try {
-        const alreadySubmitted = await this.complaintsApi.hasComplaintInLast24Hours(ownerId, mobile);
-        if (alreadySubmitted) {
-          this.errorMessage.set('Already submitted today');
-          return;
-        }
-      } catch (e) {
-        this.errorMessage.set(this.mapComplaintError(e, 'dailyLimitCheck'));
-        return;
-      }
-
-      try {
         await this.complaintsApi.submitComplaint({ ownerId, memberMobile: mobile, message });
         this.submitSuccess.set(true);
         this.form.reset({ mobile, message: '' });
@@ -110,10 +99,7 @@ export class PublicComplaintPageComponent {
     }
   }
 
-  private mapComplaintError(
-    err: unknown,
-    stage: 'memberCheck' | 'dailyLimitCheck' | 'submit',
-  ): string {
+  private mapComplaintError(err: unknown, stage: 'memberCheck' | 'submit'): string {
     const fromObj =
       err && typeof err === 'object' && 'code' in err ? String((err as { code: string }).code) : '';
     const msg = err instanceof Error ? err.message : '';
@@ -123,7 +109,6 @@ export class PublicComplaintPageComponent {
       (msg.includes('failed-precondition') ? 'failed-precondition' : '');
     if (code.includes('permission-denied')) {
       if (stage === 'memberCheck') return 'Configuration error: member validation blocked by Firebase rules';
-      if (stage === 'dailyLimitCheck') return 'Configuration error: daily limit check blocked by Firebase rules';
       return 'Configuration error: complaint submit blocked by Firebase rules';
     }
     if (code.includes('failed-precondition')) {

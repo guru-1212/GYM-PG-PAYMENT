@@ -6,14 +6,18 @@ import { loginGuard } from './core/guards/login.guard';
 import { ownerGuard } from './core/guards/owner.guard';
 import { pendingApprovalGuard } from './core/guards/pending-approval.guard';
 import {
+  auditLogFeatureGuard,
   noSupervisorGuard,
   permissionGuard,
   supervisorFeatureGuard,
+  tenantMemberAppFeatureGuard,
 } from './core/guards/permission.guard';
 import { subscriptionGuard } from './core/guards/subscription.guard';
+import { supervisorShellGuard } from './core/guards/supervisor-shell.guard';
 import { memberAppHomeGuard } from './core/guards/member-app.guard';
 import { AdminShellComponent } from './layout/admin-shell.component';
 import { OwnerShellComponent } from './layout/owner-shell.component';
+import { SupervisorShellComponent } from './layout/supervisor-shell.component';
 import { AccountRejectedComponent } from './pages/account-rejected/account-rejected.component';
 import { AdminDashboardComponent } from './pages/admin/admin-dashboard.component';
 import { AdminOwnersComponent } from './pages/admin/admin-owners.component';
@@ -28,9 +32,8 @@ import { PendingApprovalComponent } from './pages/pending-approval/pending-appro
 import { RoomsPageComponent } from './pages/rooms/rooms-page.component';
 import { MonthlyEarningsPageComponent } from './pages/monthly-earnings/monthly-earnings-page.component';
 import { SubscriptionExpiredComponent } from './pages/subscription-expired/subscription-expired.component';
-// Complaints feature temporarily disabled — re-enable imports + routes when fixed.
-// import { PublicComplaintPageComponent } from './pages/public-complaint/public-complaint-page.component';
-// import { ComplaintsPageComponent } from './pages/complaints/complaints-page.component';
+import { SupervisorDashboardComponent } from './pages/supervisor-dashboard/supervisor-dashboard.component';
+import { ComplaintsPageComponent } from './pages/complaints/complaints-page.component';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', component: HomeComponent },
@@ -57,12 +60,30 @@ export const routes: Routes = [
     canActivate: [authGuard],
     component: SubscriptionExpiredComponent,
   },
-  /* Complaints disabled: was PublicComplaintPageComponent */
-  { path: 'complaint/:ownerId', component: HomeComponent },
+  /** Public complaint form — no login; owner shares `/complaint/{ownerId}` or QR from dashboard. */
+  {
+    path: 'complaint/:ownerId',
+    loadComponent: () =>
+      import('./pages/public-complaint/public-complaint-page.component').then(
+        (m) => m.PublicComplaintPageComponent,
+      ),
+  },
   /** Public onboarding link a member receives to fill in their own details. */
   { path: 'member-onboarding/:token', component: MemberOnboardingComponent },
   /** Public receipt link a member receives to download their payment receipt. */
   { path: 'member-receipt/:token', component: MemberReceiptComponent },
+  /** PWA `start_url` — routes tenants away from the public marketing home page. */
+  {
+    path: 'member-app/entry',
+    loadComponent: () =>
+      import('./pages/member-app/member-app-entry.component').then((m) => m.MemberAppEntryComponent),
+  },
+  /** Tenant sign-in hub (restores install URL from localStorage when possible). */
+  {
+    path: 'member-app/login',
+    loadComponent: () =>
+      import('./pages/member-app/member-app-login.component').then((m) => m.MemberAppLoginComponent),
+  },
   {
     path: 'member-app/install/:code',
     loadComponent: () =>
@@ -82,6 +103,44 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       { path: 'dashboard', component: AdminDashboardComponent },
       { path: 'owners', component: AdminOwnersComponent },
+    ],
+  },
+  /**
+   * Supervisor shell — completely independent route tree from owner shell.
+   *
+   * Reuses Members / Payments / Rooms components because the data scope is
+   * still the parent owner (supervisor.profile.ownerId === parentOwnerId).
+   * Permission guards on each leaf route enforce the per-account flags.
+   * `subscriptionGuard` runs because supervisors inherit the parent owner's
+   * plan (auth merges parent.planEndDate into the supervisor profile).
+   */
+  {
+    path: 'supervisor',
+    canActivate: [authGuard, supervisorShellGuard, subscriptionGuard],
+    component: SupervisorShellComponent,
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      { path: 'dashboard', component: SupervisorDashboardComponent },
+      {
+        path: 'members',
+        canActivate: [permissionGuard('canViewMembers')],
+        component: MembersComponent,
+      },
+      {
+        path: 'inactive-members',
+        canActivate: [permissionGuard('canViewInactiveMembers')],
+        component: MembersComponent,
+      },
+      {
+        path: 'payments',
+        canActivate: [permissionGuard('canViewPayments')],
+        component: PaymentsPageComponent,
+      },
+      {
+        path: 'rooms',
+        canActivate: [permissionGuard('canViewRooms')],
+        component: RoomsPageComponent,
+      },
     ],
   },
   {
@@ -131,8 +190,28 @@ export const routes: Routes = [
             (m) => m.AnalyticsPageComponent,
           ),
       },
-      // Notify members page temporarily disabled.
-      { path: 'notify-members', redirectTo: 'notifications', pathMatch: 'full' },
+      {
+        path: 'audit-log',
+        canActivate: [auditLogFeatureGuard],
+        loadComponent: () =>
+          import('./pages/audit-log/audit-log-page.component').then(
+            (m) => m.AuditLogPageComponent,
+          ),
+      },
+      /**
+       * Member App QR generator + broadcast hub.
+       * Owner-only; supervisors don't issue install codes.
+       */
+      {
+        path: 'member-app-qr',
+        canActivate: [noSupervisorGuard, tenantMemberAppFeatureGuard],
+        loadComponent: () =>
+          import('./pages/owner-notify-members/owner-notify-members-page.component').then(
+            (m) => m.OwnerNotifyMembersPageComponent,
+          ),
+      },
+      // Legacy redirect — anything that linked to /notify-members lands on the new page.
+      { path: 'notify-members', redirectTo: 'member-app-qr', pathMatch: 'full' },
       {
         path: 'notifications',
         loadComponent: () =>
@@ -140,8 +219,11 @@ export const routes: Routes = [
             (m) => m.OwnerNotificationsPageComponent,
           ),
       },
-      /* Complaints disabled: was ComplaintsPageComponent */
-      { path: 'complaints', redirectTo: 'dashboard', pathMatch: 'full' },
+      {
+        path: 'complaints',
+        canActivate: [noSupervisorGuard],
+        component: ComplaintsPageComponent,
+      },
     ],
   },
   { path: '**', redirectTo: 'login' },

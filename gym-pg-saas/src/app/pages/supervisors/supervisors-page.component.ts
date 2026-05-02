@@ -1,8 +1,17 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Unsubscribe } from 'firebase/firestore';
-import { DEFAULT_SUPERVISOR_QUOTA, Supervisor, SupervisorPermissions } from '../../core/models/supervisor.model';
+import {
+  DEFAULT_SUPERVISOR_QUOTA,
+  Supervisor,
+  SupervisorPermissions,
+  normalizeSupervisorPermissions,
+} from '../../core/models/supervisor.model';
 import { AuthService } from '../../core/services/auth.service';
+import {
+  AllowedIpEntry,
+  IpRestrictionService,
+} from '../../core/services/ip-restriction.service';
 import { SupervisorService } from '../../core/services/supervisor.service';
 import { ToastService } from '../../core/services/toast.service';
 import { defaultSupervisorPermissions } from '../../core/utils/supervisor.util';
@@ -16,13 +25,15 @@ interface PermissionRow {
 
 const PERMISSION_ROWS: readonly PermissionRow[] = [
   { key: 'canViewMembers', labelKey: 'supervisors.perm.canViewMembers' },
+  { key: 'canAddMembers', labelKey: 'supervisors.perm.canAddMembers' },
   { key: 'canEditMembers', labelKey: 'supervisors.perm.canEditMembers' },
+  { key: 'canDeleteMembers', labelKey: 'supervisors.perm.canDeleteMembers' },
+  { key: 'canViewInactiveMembers', labelKey: 'supervisors.perm.canViewInactiveMembers' },
+  { key: 'canShareOnboardingLink', labelKey: 'supervisors.perm.canShareOnboardingLink' },
   { key: 'canViewPayments', labelKey: 'supervisors.perm.canViewPayments' },
   { key: 'canRecordPayments', labelKey: 'supervisors.perm.canRecordPayments' },
   { key: 'canViewRooms', labelKey: 'supervisors.perm.canViewRooms' },
   { key: 'canEditRooms', labelKey: 'supervisors.perm.canEditRooms' },
-  { key: 'canViewInactiveMembers', labelKey: 'supervisors.perm.canViewInactiveMembers' },
-  { key: 'canShareOnboardingLink', labelKey: 'supervisors.perm.canShareOnboardingLink' },
 ];
 
 @Component({
@@ -35,6 +46,7 @@ export class SupervisorsPageComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly supervisors = inject(SupervisorService);
+  private readonly ipRestriction = inject(IpRestrictionService);
   private readonly toast = inject(ToastService);
 
   readonly rows = signal<Supervisor[]>([]);
@@ -59,7 +71,9 @@ export class SupervisorsPageComponent implements OnInit, OnDestroy {
     name: ['', [Validators.required, Validators.maxLength(60)]],
     password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(64)]],
     canViewMembers: [true],
+    canAddMembers: [false],
     canEditMembers: [false],
+    canDeleteMembers: [false],
     canViewPayments: [true],
     canRecordPayments: [false],
     canViewRooms: [true],
@@ -72,13 +86,16 @@ export class SupervisorsPageComponent implements OnInit, OnDestroy {
   readonly editForm = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(60)]],
     canViewMembers: [false],
+    canAddMembers: [false],
     canEditMembers: [false],
+    canDeleteMembers: [false],
     canViewPayments: [false],
     canRecordPayments: [false],
     canViewRooms: [false],
     canEditRooms: [false],
     canViewInactiveMembers: [false],
     canShareOnboardingLink: [false],
+    ipRestrictionEnabled: [false],
   });
 
   /** Form for resetting password (separate so the password field is isolated). */
@@ -86,7 +103,21 @@ export class SupervisorsPageComponent implements OnInit, OnDestroy {
     password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(64)]],
   });
 
+  /** Form for adding a new allowed IP inside the edit modal. */
+  readonly addIpForm = this.fb.group({
+    ip: ['', [Validators.required, Validators.maxLength(64)]],
+    label: ['', [Validators.required, Validators.maxLength(40)]],
+  });
+
+  // ---- IP allowlist editor state (lives inside the edit modal) ----
+  readonly allowedIps = signal<AllowedIpEntry[]>([]);
+  readonly ipDetectBusy = signal(false);
+  readonly ipAddBusy = signal(false);
+  /** The currently-detected public IP shown in the "your IP is …" hint. */
+  readonly detectedSelfIp = signal<string | null>(null);
+
   private unsub: Unsubscribe | null = null;
+  private allowedIpsUnsub: Unsubscribe | null = null;
 
   async ngOnInit(): Promise<void> {
     const ownerId = this.auth.profile()?.ownerId;
@@ -101,6 +132,67 @@ export class SupervisorsPageComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.unsub?.();
     this.unsub = null;
+    this.allowedIpsUnsub?.();
+    this.allowedIpsUnsub = null;
+  }
+
+  // ----------------------- IP allowlist actions -----------------------
+
+  /**
+   * "Use my current IP" — calls ipify to fetch the owner's public IP and
+   * fills the form. The owner can then label it (e.g. "PG WiFi") before
+   * saving. We deliberately don't auto-save: the label is required and
+   * a one-tap-save would result in unlabelled IPs.
+   */
+  async detectMyIp(): Promise<void> {
+    if (this.ipDetectBusy()) return;
+    this.ipDetectBusy.set(true);
+    try {
+      const ip = await this.ipRestriction.detectPublicIp();
+      if (!ip) {
+        this.toast.error("Couldn't detect your IP. Check your connection and try again.");
+        return;
+      }
+      this.detectedSelfIp.set(ip);
+      this.addIpForm.patchValue({ ip });
+    } catch {
+      this.toast.error('IP detection failed.');
+    } finally {
+      this.ipDetectBusy.set(false);
+    }
+  }
+
+  async submitAddIp(): Promise<void> {
+    const target = this.editing();
+    if (!target || this.addIpForm.invalid || this.ipAddBusy()) return;
+    this.ipAddBusy.set(true);
+    try {
+      const v = this.addIpForm.value;
+      await this.ipRestriction.addAllowedIp(target.supervisorId, {
+        ip: String(v.ip || ''),
+        label: String(v.label || ''),
+      });
+      this.toast.success('IP added to allowlist');
+      this.addIpForm.reset({ ip: '', label: '' });
+      this.detectedSelfIp.set(null);
+    } catch (e) {
+      const msg = (e as { message?: string })?.message || 'Could not add IP';
+      this.toast.error(msg);
+    } finally {
+      this.ipAddBusy.set(false);
+    }
+  }
+
+  async deleteAllowedIp(entry: AllowedIpEntry): Promise<void> {
+    const target = this.editing();
+    if (!target) return;
+    if (!confirm(`Remove "${entry.label}" (${entry.ip}) from the allowlist?`)) return;
+    try {
+      await this.ipRestriction.deleteAllowedIp(target.supervisorId, entry.id);
+      this.toast.success('IP removed');
+    } catch {
+      this.toast.error('Could not remove IP');
+    }
   }
 
   // --------------------------- create ---------------------------
@@ -128,7 +220,9 @@ export class SupervisorsPageComponent implements OnInit, OnDestroy {
     const v = this.createForm.value;
     const permissions: SupervisorPermissions = {
       canViewMembers: !!v.canViewMembers,
+      canAddMembers: !!v.canAddMembers,
       canEditMembers: !!v.canEditMembers,
+      canDeleteMembers: !!v.canDeleteMembers,
       canViewPayments: !!v.canViewPayments,
       canRecordPayments: !!v.canRecordPayments,
       canViewRooms: !!v.canViewRooms,
@@ -158,21 +252,41 @@ export class SupervisorsPageComponent implements OnInit, OnDestroy {
 
   openEdit(s: Supervisor): void {
     this.editing.set(s);
+    const perms = normalizeSupervisorPermissions(s.permissions);
     this.editForm.reset({
       name: s.name,
-      canViewMembers: s.permissions.canViewMembers,
-      canEditMembers: s.permissions.canEditMembers,
-      canViewPayments: s.permissions.canViewPayments,
-      canRecordPayments: s.permissions.canRecordPayments,
-      canViewRooms: s.permissions.canViewRooms,
-      canEditRooms: s.permissions.canEditRooms,
-      canViewInactiveMembers: s.permissions.canViewInactiveMembers,
-      canShareOnboardingLink: s.permissions.canShareOnboardingLink,
+      canViewMembers: perms.canViewMembers,
+      canAddMembers: perms.canAddMembers,
+      canEditMembers: perms.canEditMembers,
+      canDeleteMembers: perms.canDeleteMembers,
+      canViewPayments: perms.canViewPayments,
+      canRecordPayments: perms.canRecordPayments,
+      canViewRooms: perms.canViewRooms,
+      canEditRooms: perms.canEditRooms,
+      canViewInactiveMembers: perms.canViewInactiveMembers,
+      canShareOnboardingLink: perms.canShareOnboardingLink,
+      ipRestrictionEnabled: !!s.ipRestrictionEnabled,
     });
+
+    // Subscribe to this supervisor's allowed-IP list. Live updates so the
+    // owner sees newly-added or deleted entries immediately, even if the
+    // edit was triggered from another tab.
+    this.allowedIpsUnsub?.();
+    this.allowedIpsUnsub = this.ipRestriction.watchAllowedIps(
+      s.supervisorId,
+      (rows) => this.allowedIps.set(rows),
+    );
+
+    this.addIpForm.reset({ ip: '', label: '' });
+    this.detectedSelfIp.set(null);
   }
 
   closeEdit(): void {
     this.editing.set(null);
+    this.allowedIpsUnsub?.();
+    this.allowedIpsUnsub = null;
+    this.allowedIps.set([]);
+    this.detectedSelfIp.set(null);
   }
 
   async submitEdit(): Promise<void> {
@@ -181,7 +295,9 @@ export class SupervisorsPageComponent implements OnInit, OnDestroy {
     const v = this.editForm.value;
     const permissions: SupervisorPermissions = {
       canViewMembers: !!v.canViewMembers,
+      canAddMembers: !!v.canAddMembers,
       canEditMembers: !!v.canEditMembers,
+      canDeleteMembers: !!v.canDeleteMembers,
       canViewPayments: !!v.canViewPayments,
       canRecordPayments: !!v.canRecordPayments,
       canViewRooms: !!v.canViewRooms,
@@ -194,6 +310,7 @@ export class SupervisorsPageComponent implements OnInit, OnDestroy {
       await this.supervisors.updateSupervisor(target.supervisorId, {
         name: String(v.name || '').trim(),
         permissions,
+        ipRestrictionEnabled: !!v.ipRestrictionEnabled,
       });
       this.toast.success('Supervisor updated');
       this.editing.set(null);

@@ -3,14 +3,31 @@ import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
 /**
- * Guards the owner-shell routes. Supervisors share this shell (they need
- * member/payment views scoped to their parent owner), so we let them pass
- * the same way an approved owner does. Admins still get bounced to the
- * admin shell, and disabled supervisors are treated like inactive owners.
+ * Guards the owner-shell routes (/dashboard, /members, /payments, …).
+ *
+ * Supervisors get redirected to their dedicated shell at /supervisor/*.
+ * Keeping owner and supervisor flows on completely separate URL trees
+ * eliminates the race conditions that arose when both roles shared the
+ * owner shell (chat listeners hitting permission-denied, conditional
+ * navigation, stale subscription guard state, etc.).
  */
 export const ownerGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
+
+  // Wait for auth.loading() to settle so we don't bounce a still-hydrating
+  // session to /login. Matches the pattern in permission.guard.ts.
+  if (auth.loading()) {
+    await new Promise<void>((resolve) => {
+      const t = setInterval(() => {
+        if (!auth.loading()) {
+          clearInterval(t);
+          resolve();
+        }
+      }, 50);
+    });
+  }
+
   let p = auth.profile();
   if (!p) p = await auth.refreshProfile();
   if (!p) {
@@ -23,7 +40,9 @@ export const ownerGuard: CanActivateFn = async () => {
     if (p.status === 'inactive') {
       return router.createUrlTree(['/account-rejected']);
     }
-    return true;
+    // Send supervisors into their own shell instead of allowing them to
+    // share the owner shell. Their components live under /supervisor/*.
+    return router.createUrlTree(['/supervisor/dashboard']);
   }
   if (p.status === 'pending') {
     return router.createUrlTree(['/pending-approval']);

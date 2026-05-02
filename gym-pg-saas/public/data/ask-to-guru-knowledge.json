@@ -1,0 +1,179 @@
+{
+  "pageContexts": [
+    {
+      "id": "dashboard",
+      "title": "Dashboard page",
+      "routePatterns": ["/dashboard", "/supervisor/dashboard"],
+      "intro": "I can guide you through quick stats, actions, and what to do next from here.",
+      "suggestionIds": ["dashboard-usage", "add-tenant", "mark-rent-paid", "monthly-reports"]
+    },
+    {
+      "id": "members",
+      "title": "Members page",
+      "routePatterns": ["/members", "/inactive-members", "/supervisor/members", "/supervisor/inactive-members"],
+      "intro": "I can help with tenant onboarding, member filters, and member-wise actions.",
+      "suggestionIds": ["add-tenant", "tenant-list", "payment-history", "mark-rent-paid"]
+    },
+    {
+      "id": "payments",
+      "title": "Payments page",
+      "routePatterns": ["/payments", "/supervisor/payments"],
+      "intro": "I can help with collecting rent, updating dues, and checking payment records.",
+      "suggestionIds": ["mark-rent-paid", "payment-history", "monthly-reports"]
+    },
+    {
+      "id": "rooms",
+      "title": "Rooms page",
+      "routePatterns": ["/rooms", "/supervisor/rooms"],
+      "intro": "I can help you manage room setup, bed occupancy, and room allocation flow.",
+      "suggestionIds": ["manage-rooms", "add-tenant", "tenant-list"]
+    },
+    {
+      "id": "analytics",
+      "title": "Analytics page",
+      "routePatterns": ["/analytics", "/monthly-earnings"],
+      "intro": "I can help you understand reports, trends, and business performance.",
+      "suggestionIds": ["monthly-reports", "dashboard-usage", "audit-log"]
+    },
+    {
+      "id": "supervisors",
+      "title": "Supervisors page",
+      "routePatterns": ["/supervisors"],
+      "intro": "I can guide you with supervisor setup, permission control, and role management.",
+      "suggestionIds": ["supervisors", "add-tenant", "manage-rooms"]
+    },
+    {
+      "id": "audit-log",
+      "title": "Audit Log page",
+      "routePatterns": ["/audit-log"],
+      "intro": "I can help you read activity history and track changes done by users.",
+      "suggestionIds": ["audit-log", "monthly-reports", "contact-admin"]
+    },
+    {
+      "id": "admin",
+      "title": "Admin page",
+      "routePatterns": ["/admin/dashboard", "/admin/owners"],
+      "intro": "I can assist with owner account management and admin controls on this page.",
+      "suggestionIds": ["contact-admin", "add-property", "monthly-reports"]
+    },
+    {
+      "id": "general",
+      "title": "this page",
+      "routePatterns": ["/"],
+      "intro": "I can help with app usage and next actions available from here.",
+      "suggestionIds": ["dashboard-usage", "add-tenant", "mark-rent-paid", "contact-admin"]
+    }
+  ],
+  "items": [
+    {
+      "id": "add-tenant",
+      "title": "Add Tenant",
+      "questionVariations": ["How do I add a tenant?", "How can I create a new tenant?", "Add member in app", "I want to add a new tenant"],
+      "keywords": ["add tenant", "add member", "new tenant", "tenant onboarding", "member"],
+      "answer": "To add a tenant, open Dashboard or Members, click Add Member, fill name, mobile, room details and rent info, then save. The tenant will appear in active members immediately.",
+      "quickActionLabel": "Add Tenant",
+      "relatedSuggestionIds": ["manage-rooms", "mark-rent-paid", "tenant-list"],
+      "pageTags": ["dashboard", "members", "general"]
+    },
+    {
+      "id": "mark-rent-paid",
+      "title": "Mark Rent Paid",
+      "questionVariations": ["How do I mark rent paid?", "Record rent payment", "How to update paid amount", "Tenant paid rent what should I do"],
+      "keywords": ["rent paid", "payment", "mark paid", "collect payment", "dues"],
+      "answer": "To mark rent paid, open Payments or tenant profile, select the tenant, click Pay/Add Payment, enter amount, date, and method, then save. Dues update instantly.",
+      "quickActionLabel": "Mark Rent Paid",
+      "relatedSuggestionIds": ["payment-history", "monthly-reports", "tenant-list"],
+      "pageTags": ["payments", "members", "dashboard", "general"]
+    },
+    {
+      "id": "monthly-reports",
+      "title": "View Reports",
+      "questionVariations": ["How can I view reports?", "Where is monthly earnings report?", "Show me business analytics", "How to check income report"],
+      "keywords": ["reports", "analytics", "monthly earnings", "income", "dashboard report"],
+      "answer": "For reports, open Monthly Earnings or Analytics from sidebar. You can review collections, pending dues, monthly trends, and apply filters by date.",
+      "quickActionLabel": "View Reports",
+      "relatedSuggestionIds": ["dashboard-usage", "payment-history", "audit-log"],
+      "pageTags": ["analytics", "dashboard", "admin", "general"]
+    },
+    {
+      "id": "add-property",
+      "title": "Add New Property",
+      "questionVariations": ["How do I add a new property?", "Create another PG", "Add one more branch", "Can I add multiple properties"],
+      "keywords": ["new property", "add pg", "new branch", "business setup", "property"],
+      "answer": "To add another property or branch, contact admin via in-app admin chat or WhatsApp and share new property details. Admin can enable separate setup.",
+      "quickActionLabel": "Add New Property",
+      "relatedSuggestionIds": ["contact-admin", "manage-rooms", "supervisors"],
+      "pageTags": ["admin", "general"]
+    },
+    {
+      "id": "manage-rooms",
+      "title": "Manage Rooms",
+      "questionVariations": ["How do I manage rooms?", "Add room and beds", "Update room occupancy", "Room management steps"],
+      "keywords": ["rooms", "beds", "occupancy", "vacant", "room setup"],
+      "answer": "Open Rooms from sidebar, add floor/room details, configure beds, and save. Update occupancy whenever tenants are allocated or vacated.",
+      "quickActionLabel": "Manage Rooms",
+      "relatedSuggestionIds": ["add-tenant", "tenant-list", "monthly-reports"],
+      "pageTags": ["rooms", "dashboard", "general"]
+    },
+    {
+      "id": "tenant-list",
+      "title": "View Tenant List",
+      "questionVariations": ["Where can I see all tenants?", "Show active members", "How to check inactive tenants", "Open member list"],
+      "keywords": ["tenant list", "member list", "active members", "inactive members", "search tenants"],
+      "answer": "Open Members to see active tenants. Use Inactive Members tab for exited tenants. Search and filters help you quickly find specific profiles.",
+      "quickActionLabel": "View Tenant List",
+      "relatedSuggestionIds": ["add-tenant", "mark-rent-paid", "payment-history"],
+      "pageTags": ["members", "dashboard", "general"]
+    },
+    {
+      "id": "payment-history",
+      "title": "Check Payment History",
+      "questionVariations": ["How to see payment history?", "Show member payment records", "Where is rent history", "Past payments details"],
+      "keywords": ["payment history", "rent history", "transactions", "dues history", "receipt"],
+      "answer": "Open member profile from Members, then go to payment history section. You can view all transactions, pending amounts, and receipt details.",
+      "quickActionLabel": "Check Payment History",
+      "relatedSuggestionIds": ["mark-rent-paid", "monthly-reports", "tenant-list"],
+      "pageTags": ["payments", "members", "general"]
+    },
+    {
+      "id": "dashboard-usage",
+      "title": "Use Dashboard",
+      "questionVariations": ["How do I use dashboard?", "What can I see on dashboard", "Dashboard overview help", "Guide me through dashboard"],
+      "keywords": ["dashboard", "overview", "summary", "quick stats", "owner dashboard"],
+      "answer": "Dashboard gives a quick snapshot of members, dues, and collections. Use action cards to jump to add member, collect rent, and review trends.",
+      "quickActionLabel": "Use Dashboard",
+      "relatedSuggestionIds": ["add-tenant", "mark-rent-paid", "monthly-reports"],
+      "pageTags": ["dashboard", "general"]
+    },
+    {
+      "id": "supervisors",
+      "title": "Manage Supervisors",
+      "questionVariations": ["How can I add supervisor?", "Supervisor account setup", "Can I give staff limited access", "Manage supervisor permissions"],
+      "keywords": ["supervisor", "staff access", "permissions", "roles", "sub account"],
+      "answer": "Open Supervisors page, add supervisor details, then select permissions for members, payments, and rooms. You can edit or disable access later.",
+      "quickActionLabel": "Manage Supervisors",
+      "relatedSuggestionIds": ["add-tenant", "manage-rooms", "monthly-reports"],
+      "pageTags": ["supervisors", "general"]
+    },
+    {
+      "id": "audit-log",
+      "title": "View Audit Log",
+      "questionVariations": ["What is audit log?", "How to see who changed data", "Track user actions in app", "Where is activity log"],
+      "keywords": ["audit", "activity", "changes", "history", "security log"],
+      "answer": "Open Audit Log from sidebar to review key actions done in your account, including member updates, payment changes, and security-related events.",
+      "quickActionLabel": "View Audit Log",
+      "relatedSuggestionIds": ["monthly-reports", "dashboard-usage", "contact-admin"],
+      "pageTags": ["audit-log", "analytics", "general"]
+    },
+    {
+      "id": "contact-admin",
+      "title": "Contact Admin",
+      "questionVariations": ["How do I contact admin?", "Need support from admin", "I need manual help", "App issue who to contact"],
+      "keywords": ["contact admin", "support", "help", "whatsapp", "issue"],
+      "answer": "You can contact admin from profile menu or use the WhatsApp option in assistant. Share your exact issue and tenant/account details for faster help.",
+      "quickActionLabel": "Contact Admin",
+      "relatedSuggestionIds": ["add-property", "monthly-reports", "dashboard-usage"],
+      "pageTags": ["all", "general", "admin"]
+    }
+  ]
+}

@@ -104,7 +104,17 @@ service cloud.firestore {
         && request.auth.uid == ownerId
         && request.resource.data.role == 'owner'
         && request.resource.data.status == 'pending';
-      allow update: if isAdmin();
+      /**
+       * Admins: full owner-doc updates (approval, plan, flags, etc.).
+       * Approved owners: may only patch `complaintEnabled` on their own doc
+       * (tenant member-app + public complaint settings UX).
+       */
+      allow update: if isAdmin()
+        || (
+          isApprovedOwner()
+          && request.auth.uid == ownerId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['complaintEnabled'])
+        );
       allow delete: if false;
 
       /**
@@ -164,13 +174,39 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/memberOnboardingLinks/$(token)).data.ownerId == resource.data.ownerId;
       }
 
+      /**
+       * Granular member-mutation perms.
+       *
+       * `canEditMembers` covers ANY existing-row mutation including the
+       * approve-self-onboarding flow. `canAddMembers` is a strictly narrower
+      * gate for creates only. `canDeleteMembers` is the strictest, separate
+       * so an owner can grant Add/Edit but withhold Delete.
+       *
+       * Legacy supervisors created before the split will only have the
+       * `canEditMembers` flag — clients normalise legacy to all-three on
+       * read, and rules read all three names directly so an owner can fully
+       * lock a supervisor down by saving with the new schema.
+       */
+      /**
+       * Member PWA (custom token, role=member_app) is allowed to read **only
+       * their own** member doc — never list, never any other member.
+       * This is what powers the tenant home card (room/floor/joinedAt/dueDate).
+       */
+      function isMemberAppOwnDoc() {
+        return signedIn()
+          && request.auth.token.role == 'member_app'
+          && request.auth.token.memberId == memberId
+          && request.auth.token.ownerId == resource.data.ownerId;
+      }
+
       allow read: if isAdmin()
         || (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
-        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canViewMembers'));
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canViewMembers'))
+        || isMemberAppOwnDoc();
       allow create: if (isApprovedOwner()
           && request.resource.data.ownerId == request.auth.uid)
         || (isActiveSupervisorOf(request.resource.data.ownerId)
-          && supervisorPerm('canEditMembers'));
+          && supervisorPerm('canAddMembers'));
       allow update: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
         || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canEditMembers'))
         || (
@@ -182,7 +218,7 @@ service cloud.firestore {
           && pendingSelfOnboardingPayloadOk()
         );
       allow delete: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
-        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canEditMembers'));
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canDeleteMembers'));
     }
 
     /**
@@ -321,17 +357,48 @@ service cloud.firestore {
     }
 
     match /payments/{paymentId} {
+      /**
+       * Audit-log integrity check.
+       *
+       * If the new payment includes a `recordedBy` field (the client always
+       * stamps it, but we keep the check guarded so legacy rows / future
+       * server-side writes stay compatible), it MUST equal the signed-in
+       * user's UID. This prevents a malicious supervisor from impersonating
+       * the owner in the recorded-by trail. The owner trusts this field
+       * downstream when reconciling cash, so it has to be tamper-proof.
+       */
+      function recordedByMatchesCaller() {
+        return !('recordedBy' in request.resource.data)
+          || request.resource.data.recordedBy == request.auth.uid;
+      }
+
+      /**
+       * Member PWA may read **only its own** payment rows. Both ownerId AND
+       * memberId on the row must match the custom-token claims — otherwise
+       * a tenant could enumerate other members' rows by ownerId alone.
+       */
+      function isMemberAppOwnPayment() {
+        return signedIn()
+          && request.auth.token.role == 'member_app'
+          && request.auth.token.memberId == resource.data.memberId
+          && request.auth.token.ownerId == resource.data.ownerId;
+      }
+
       allow read: if isAdmin()
         || (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
-        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canViewPayments'));
-      allow create: if (isApprovedOwner()
-          && request.resource.data.ownerId == request.auth.uid)
-        || (
-          isActiveSupervisorOf(request.resource.data.ownerId)
-          && supervisorPerm('canRecordPayments')
-        );
+        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canViewPayments'))
+        || isMemberAppOwnPayment();
+      allow create: if (
+          (isApprovedOwner() && request.resource.data.ownerId == request.auth.uid)
+          || (
+            isActiveSupervisorOf(request.resource.data.ownerId)
+            && supervisorPerm('canRecordPayments')
+          )
+        )
+        && recordedByMatchesCaller();
       /**
        * Correct recorded sums: (a) `amount` collected, or (b) `pendingAmount` on partial rows only.
+       * Preserves live behaviour; `recordedBy` must stay caller-scoped when present.
        */
       allow update: if (
           (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
@@ -344,6 +411,7 @@ service cloud.firestore {
         && request.resource.data.method == resource.data.method
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.isPartialPayment == resource.data.isPartialPayment
+        && recordedByMatchesCaller()
         && (
           (
             request.resource.data.diff(resource.data).changedKeys().hasOnly(['amount'])
@@ -464,20 +532,118 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /**
+     * Public, read-only mirror of fields from `owners/{ownerId}` that the
+     * Member PWA needs WITHOUT giving member_app tokens broad access to the
+     * owner doc (which holds PII / billing data). The owner shell keeps this
+     * doc in sync. Members read this to learn:
+     *   - the PG / Gym display name
+     *   - the owner's `planEndDate` (member plan = owner plan; if owner
+     *     subscription expires, the member sees the empathy state)
+     *   - whether complaints are currently enabled
+     *
+     * Doc id MUST equal the ownerId. No nested collections.
+     */
+    match /publicOwnerStatus/{ownerId} {
+      allow read: if true;
+      allow create, update: if isApprovedOwner()
+        && request.auth.uid == ownerId
+        && request.resource.data.ownerId == ownerId;
+      allow delete: if false;
+    }
+
+    /**
+     * Optional per-member doc (legacy / analytics). Member PWA no longer batches
+     * writes here; kept permissive so older app versions can still bump `lastCreatedAt`.
+     */
+    match /complaintLimits/{memberId} {
+      function memberAppTenantOkFromToken() {
+        return !exists(/databases/$(database)/documents/publicOwnerStatus/$(request.auth.token.ownerId))
+          || get(/databases/$(database)/documents/publicOwnerStatus/$(request.auth.token.ownerId)).data.tenantMemberAppEnabled != false;
+      }
+      function memberAppOwnsLimit() {
+        return signedIn()
+          && request.auth.token.role == 'member_app'
+          && request.auth.token.memberId == memberId;
+      }
+      allow read: if memberAppOwnsLimit()
+        || (isApprovedOwner() && resource.data.ownerId == request.auth.uid);
+      allow create: if memberAppOwnsLimit()
+        && memberAppTenantOkFromToken()
+        && request.resource.data.ownerId == request.auth.token.ownerId
+        && request.resource.data.memberId == memberId
+        && request.resource.data.lastCreatedAt == request.time;
+      allow update: if memberAppOwnsLimit()
+        && memberAppTenantOkFromToken()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastCreatedAt'])
+        && request.resource.data.lastCreatedAt == request.time;
+      allow delete: if false;
+    }
+
     match /complaints/{complaintId} {
-      allow read: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid) || isAdmin();
+      /**
+       * Tenant PWA features (complaints) require `publicOwnerStatus.tenantMemberAppEnabled`
+       * not to be explicitly false. Missing mirror doc = legacy allow.
+       */
+      function memberAppTenantOk(oid) {
+        return !exists(/databases/$(database)/documents/publicOwnerStatus/$(oid))
+          || get(/databases/$(database)/documents/publicOwnerStatus/$(oid)).data.tenantMemberAppEnabled != false;
+      }
 
-      allow create: if request.resource.data.ownerId is string
-        && request.resource.data.memberMobile is string
-        && request.resource.data.message is string
-        && request.resource.data.message.size() >= 5
-        && request.resource.data.message.size() <= 8000
-        && request.resource.data.status == 'open'
-        && exists(/databases/$(database)/documents/publicOwnerComplaintSettings/$(request.resource.data.ownerId))
-        && get(/databases/$(database)/documents/publicOwnerComplaintSettings/$(request.resource.data.ownerId)).data.complaintEnabled == true
-        && exists(/databases/$(database)/documents/owners/$(request.resource.data.ownerId)/complaintMemberMobiles/$(request.resource.data.memberMobile));
+      /** Member PWA creating an in-app complaint for themselves. */
+      function isMemberAppCreatingOwnComplaint() {
+        return signedIn()
+          && request.auth.token.role == 'member_app'
+          && request.resource.data.ownerId == request.auth.token.ownerId
+          && request.resource.data.memberId == request.auth.token.memberId
+          && memberAppTenantOk(request.resource.data.ownerId)
+          && request.resource.data.source == 'member_app'
+          && request.resource.data.status == 'open'
+          && request.resource.data.message is string
+          && request.resource.data.message.size() >= 5
+          && request.resource.data.message.size() <= 4000
+          && request.resource.data.category is string
+          && request.resource.data.category.size() >= 2
+          && request.resource.data.category.size() <= 60
+          && request.resource.data.createdAt == request.time;
+      }
 
-      allow update, delete: if false;
+      /** Owner reading complaints they own; supervisor with member-view perm too. */
+      function canReadComplaintAsStaff() {
+        return isAdmin()
+          || (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+          || (
+            isActiveSupervisorOf(resource.data.ownerId)
+            && supervisorPerm('canViewMembers')
+          );
+      }
+
+      /** Member PWA reading their own complaint history. */
+      function isMemberAppReadingOwnComplaint() {
+        return signedIn()
+          && request.auth.token.role == 'member_app'
+          && request.auth.token.memberId == resource.data.memberId
+          && request.auth.token.ownerId == resource.data.ownerId;
+      }
+
+      /** Owner-only resolve: flip status from 'open' to 'resolved' (+ optional note). */
+      function isOwnerResolvingComplaint() {
+        return isApprovedOwner()
+          && resource.data.ownerId == request.auth.uid
+          && resource.data.status == 'open'
+          && request.resource.data.status == 'resolved'
+          && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'resolvedAt', 'resolvedBy', 'resolutionNote']);
+      }
+
+      allow read: if canReadComplaintAsStaff()
+        || isMemberAppReadingOwnComplaint();
+
+      allow create: if isMemberAppCreatingOwnComplaint();
+
+      allow update: if isOwnerResolvingComplaint();
+
+      allow delete: if false;
     }
 
     /**
@@ -520,13 +686,36 @@ service cloud.firestore {
     /**
      * Supervisor sub-accounts. Doc id = Firebase Auth UID of the supervisor.
      *  - Read: the supervisor themselves, their parent owner, or admin.
-     *  - Create / update / delete: only the parent owner. The owner doc must be
-     *    approved AND have `featureFlags.supervisorEnabled == true`. The
-     *    supervisor count cap is enforced via `supervisorCounters/{ownerId}`
-     *    (rules can't `list`, so we keep a counter doc the client batches with
-     *    the create / delete).
+     *  - Create / delete: only the parent owner.
+     *  - Update:
+     *      • Owner can change anything (name/status/permissions/IP toggle/etc.)
+     *      • Supervisor themselves can ONLY touch their own session fields
+     *        (`activeSessionId`, `activeSessionDevice`, `activeSessionLoginAt`,
+     *        `activeSessionIp`) — never permissions or status. This lets the
+     *        client claim a single-device session without the owner having
+     *        to be online.
      */
     match /supervisors/{supervisorUid} {
+      function isOwnerForThisSupervisor() {
+        return isApprovedOwner()
+          && resource.data.ownerId == request.auth.uid;
+      }
+      function ownerEditUntouchedRoot() {
+        return request.resource.data.ownerId == resource.data.ownerId
+          && request.resource.data.role == 'supervisor';
+      }
+      function selfSessionFieldsOnly() {
+        // Supervisor can only flip these four fields. role / ownerId / perms
+        // / IP toggle / status MUST stay untouched.
+        return request.auth.uid == supervisorUid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'activeSessionId',
+            'activeSessionDevice',
+            'activeSessionLoginAt',
+            'activeSessionIp',
+          ]);
+      }
+
       allow read: if signedIn() && (
         request.auth.uid == supervisorUid
         || isAdmin()
@@ -540,13 +729,38 @@ service cloud.firestore {
         && request.resource.data.userId is string
         && request.resource.data.permissions is map;
 
-      allow update: if isApprovedOwner()
-        && resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerId == resource.data.ownerId
-        && request.resource.data.role == 'supervisor';
+      allow update: if (isOwnerForThisSupervisor() && ownerEditUntouchedRoot())
+        || selfSessionFieldsOnly();
 
       allow delete: if isApprovedOwner()
         && resource.data.ownerId == request.auth.uid;
+
+      /**
+       * Per-supervisor IP allowlist. Owner manages the list; the supervisor
+       * themselves can READ it (so the login flow can match the current
+       * public IP and produce a clear error when blocked). Admin can read
+       * for support diagnostics.
+       */
+      match /allowedIps/{ipDocId} {
+        function parentSupervisorOwnerId() {
+          return get(/databases/$(database)/documents/supervisors/$(supervisorUid)).data.ownerId;
+        }
+        allow read: if signedIn() && (
+          request.auth.uid == supervisorUid
+          || isAdmin()
+          || (isApprovedOwner() && parentSupervisorOwnerId() == request.auth.uid)
+        );
+        allow create: if isApprovedOwner()
+          && parentSupervisorOwnerId() == request.auth.uid
+          && request.resource.data.ip is string
+          && request.resource.data.label is string
+          && request.resource.data.label.size() > 0
+          && request.resource.data.label.size() <= 40
+          && request.resource.data.addedBy == request.auth.uid;
+        allow update: if false;
+        allow delete: if isApprovedOwner()
+          && parentSupervisorOwnerId() == request.auth.uid;
+      }
     }
 
     /**
@@ -608,9 +822,51 @@ service cloud.firestore {
       allow create: if isApprovedOwner()
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.active == true;
+      // Updating the QR is a member-onboarding action — either Add or Edit
+      // permission is sufficient (creating one == issuing onboarding access).
       allow update: if (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
-        || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canEditMembers'));
+        || (
+          isActiveSupervisorOf(resource.data.ownerId)
+          && (supervisorPerm('canAddMembers') || supervisorPerm('canEditMembers'))
+        );
       allow delete: if false;
+    }
+
+    /**
+     * Audit log: every actor-driven mutation (payments, member edits,
+     * onboarding link generation, supervisor lifecycle, login, etc.)
+     * appends a single immutable row here.
+     *
+     * Read scope: owner + active supervisors of the owner + admin.
+     * Supervisors can READ the trail so the audit page works in their
+     * shell too — but they can only WRITE rows attributed to themselves
+     * (`performedBy == request.auth.uid` is mandatory on every create).
+     *
+     * Documents are write-once; updates and deletes are forbidden so a
+     * malicious supervisor can't rewrite history.
+     */
+    match /owners/{ownerId}/auditLogs/{auditId} {
+      function performedByMatchesCaller() {
+        return request.resource.data.performedBy is string
+          && request.resource.data.performedBy == request.auth.uid;
+      }
+      function canReadAuditTrail() {
+        return isAdmin()
+          || (isApprovedOwner() && request.auth.uid == ownerId)
+          || isActiveSupervisorOf(ownerId);
+      }
+      function canWriteAuditEntry() {
+        return (isApprovedOwner() && request.auth.uid == ownerId)
+          || isActiveSupervisorOf(ownerId);
+      }
+      allow read: if canReadAuditTrail();
+      allow create: if canWriteAuditEntry()
+        && performedByMatchesCaller()
+        && request.resource.data.ownerId == ownerId
+        && request.resource.data.action is string
+        && request.resource.data.entityType is string
+        && request.resource.data.description is string;
+      allow update, delete: if false;
     }
 
     /** Owner / supervisor in-app + FCM companion notifications. */
@@ -620,12 +876,17 @@ service cloud.firestore {
           || (isApprovedOwner() && request.auth.uid == ownerId)
           || (isActiveSupervisorOf(ownerId) && supervisorPerm('canViewMembers'));
       }
+      function canWriteAppNotification() {
+        return (isApprovedOwner() && request.auth.uid == ownerId)
+          || (
+            isActiveSupervisorOf(ownerId)
+            && (supervisorPerm('canAddMembers') || supervisorPerm('canEditMembers'))
+          );
+      }
       allow read: if canReadOwnerScoped();
-      allow create: if (isApprovedOwner() && request.auth.uid == ownerId)
-        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canEditMembers'));
+      allow create: if canWriteAppNotification();
       // Includes merge-upserts for deduped alerts (stable doc ids), not only read flips.
-      allow update: if (isApprovedOwner() && request.auth.uid == ownerId)
-        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canEditMembers'));
+      allow update: if canWriteAppNotification();
       allow delete: if false;
     }
 
@@ -640,8 +901,12 @@ service cloud.firestore {
         || (isApprovedOwner() && request.auth.uid == ownerId)
         || (isActiveSupervisorOf(ownerId) && supervisorPerm('canViewMembers'))
         || memberAppForThisOwner();
+      // Broadcast = "send to members"; treat as a member-edit-side action.
       allow create: if (isApprovedOwner() && request.auth.uid == ownerId)
-        || (isActiveSupervisorOf(ownerId) && supervisorPerm('canEditMembers'));
+        || (
+          isActiveSupervisorOf(ownerId)
+          && (supervisorPerm('canAddMembers') || supervisorPerm('canEditMembers'))
+        );
       allow update, delete: if false;
     }
 

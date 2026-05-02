@@ -20,6 +20,19 @@ export interface OwnerFeatureFlags {
   supervisorEnabled?: boolean;
   /** WhatsApp auto-integration (placeholder for now; real wiring later). */
   whatsappEnabled?: boolean;
+  /**
+   * Audit log visibility.
+   * When `true`, the owner sees the "Audit Log" sidebar tab and can open
+   * `/audit-log`. Audit entries are still written for everyone — this flag
+   * only gates the *owner-facing* view of them.
+   */
+  auditLogEnabled?: boolean;
+  /**
+   * Tenant PWA: QR install link + in-app complaints. Set `true` when admin
+   * approves the owner; admin may set `false` to revoke. Absence is treated
+   * as enabled for legacy approved owners.
+   */
+  tenantMemberAppEnabled?: boolean;
 }
 
 export interface Owner {
