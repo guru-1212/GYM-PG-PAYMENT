@@ -1,0 +1,36 @@
+﻿> Building...
+ΓêÜ Building...
+Application bundle generation failed. [25.978 seconds]
+
+node.exe : X [ERROR] TS4111: Property 'advanceStatus' comes from an index signature, so it must be accessed with 
+['advanceStatus']. [plugin angular-compiler]
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (X [ERROR] TS411...gular-compiler]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+    src/app/core/services/member.service.ts:305:14:
+      305 Γöé       payload.advanceStatus = 'returned';
+          Γò╡               ~~~~~~~~~~~~~
+
+
+X [ERROR] TS4111: Property 'scheduledVacateYyyyMmDd' comes from an index signature, so it must be accessed with 
+['scheduledVacateYyyyMmDd']. [plugin angular-compiler]
+
+    src/app/core/services/member.service.ts:306:14:
+      306 Γöé       payload.scheduledVacateYyyyMmDd = deleteField();
+          Γò╡               ~~~~~~~~~~~~~~~~~~~~~~~
+
+
+X [ERROR] TS2345: Argument of type 'Record<string, unknown>' is not assignable to parameter of type '{ [x: string]: 
+FieldValue | Partial<unknown> | undefined; }'.
+  'string' index signatures are incompatible.
+    Type 'unknown' is not assignable to type 'FieldValue | Partial<unknown> | undefined'. [plugin angular-compiler]
+
+    src/app/core/services/member.service.ts:308:58:
+      308 Γöé     await updateDoc(doc(this.fb.db, 'members', memberId), payload);
+          Γò╡                                                           ~~~~~~~
+
+

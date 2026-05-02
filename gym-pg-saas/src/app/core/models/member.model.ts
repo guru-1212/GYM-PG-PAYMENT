@@ -49,6 +49,11 @@ export interface Member {
   amount: number;
   dueDate: Timestamp;
   status: MemberStatus;
+  /**
+   * Optional calendar date (YYYY-MM-DD) when the member is expected to vacate.
+   * When this date is on or before "today" (local), the app marks them inactive and clears the field.
+   */
+  scheduledVacateYyyyMmDd?: string;
   /** Defaults to monthly when missing (legacy). */
   subscriptionType?: SubscriptionType;
   /** Remaining balance when a partial payment is recorded. */

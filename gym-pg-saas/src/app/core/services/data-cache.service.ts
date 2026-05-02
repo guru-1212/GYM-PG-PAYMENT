@@ -91,6 +91,7 @@ export class DataCacheService {
       this.memberUnsub = this.memberApi.watchMembersForOwner(ownerId, (list) => {
         this._members.set(list);
         this.setLoading('members', false);
+        void this.memberApi.applyScheduledVacatesIfDue(ownerId, list);
       });
 
       return this._members();

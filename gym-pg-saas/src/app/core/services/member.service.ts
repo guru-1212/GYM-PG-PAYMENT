@@ -17,7 +17,7 @@ import { Observable } from 'rxjs';
 import type { SubscriptionType } from '../models/member.model';
 import type { PaymentMethod } from '../models/payment.model';
 import { Member } from '../models/member.model';
-import { dateToTimestamp, firstDueFromJoin } from '../utils/date.utils';
+import { dateToTimestamp, firstDueFromJoin, yyyyMmDdFromLocalDate } from '../utils/date.utils';
 import { AuthService } from './auth.service';
 import { FirebaseAppService } from './firebase-app.service';
 import { InAppNotificationService } from './in-app-notification.service';
@@ -300,9 +300,50 @@ export class MemberService {
   }
 
   async updateMemberStatus(memberId: string, status: Member['status']): Promise<void> {
-    const payload: { status: Member['status']; advanceStatus?: 'held' | 'returned' } = { status };
-    if (status === 'inactive') payload.advanceStatus = 'returned';
-    await updateDoc(doc(this.fb.db, 'members', memberId), payload);
+    const ref = doc(this.fb.db, 'members', memberId);
+    if (status === 'inactive') {
+      await updateDoc(ref, {
+        status,
+        advanceStatus: 'returned',
+        scheduledVacateYyyyMmDd: deleteField(),
+      });
+    } else {
+      await updateDoc(ref, { status });
+    }
+  }
+
+  /** Set or clear planned vacate date (YYYY-MM-DD). Pass null/empty to remove. */
+  async setMemberScheduledVacate(memberId: string, yyyyMmDd: string | null): Promise<void> {
+    const ref = doc(this.fb.db, 'members', memberId);
+    const v = String(yyyyMmDd ?? '').trim();
+    if (!v) {
+      await updateDoc(ref, { scheduledVacateYyyyMmDd: deleteField() });
+      return;
+    }
+    await updateDoc(ref, { scheduledVacateYyyyMmDd: v });
+  }
+
+  /**
+   * Marks active members inactive when their scheduled vacate date is on or before today (local).
+   * Idempotent; safe to call after each members snapshot.
+   */
+  async applyScheduledVacatesIfDue(ownerId: string, list: Member[]): Promise<void> {
+    const today = yyyyMmDdFromLocalDate(new Date());
+    const due = list.filter(
+      (m) =>
+        m.ownerId === ownerId &&
+        m.status === 'active' &&
+        typeof m.scheduledVacateYyyyMmDd === 'string' &&
+        m.scheduledVacateYyyyMmDd.length >= 8 &&
+        m.scheduledVacateYyyyMmDd <= today,
+    );
+    for (const m of due) {
+      try {
+        await this.updateMemberStatus(m.memberId, 'inactive');
+      } catch (e) {
+        console.warn('applyScheduledVacatesIfDue failed', m.memberId, e);
+      }
+    }
   }
 
   /** Apply member-submitted onboarding data after owner approves. */

@@ -18,6 +18,7 @@ import { MemberReceiptService } from '../../core/services/member-receipt.service
 // import { ComplaintService } from '../../core/services/complaint.service';
 import { ToastService } from '../../core/services/toast.service';
 import { TranslationService } from '../../core/services/translation.service';
+import { BedMapSeatGridComponent } from '../../shared/bed-map-seat-grid/bed-map-seat-grid.component';
 import { ModalComponent } from '../../shared/modal.component';
 import { MonthlyEarningsDetailedComponent } from '../../shared/monthly-earnings-detailed.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -143,7 +144,7 @@ export interface QueueRow {
 @Component({
   selector: 'app-owner-dashboard',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, NgClass, RouterLink, ReactiveFormsModule, ModalComponent,  MonthlyEarningsDetailedComponent, TranslatePipe],
+  imports: [DatePipe, DecimalPipe, NgClass, RouterLink, ReactiveFormsModule, ModalComponent,  MonthlyEarningsDetailedComponent, BedMapSeatGridComponent, TranslatePipe],
   templateUrl: './owner-dashboard.component.html',
   styles: [`
     input[type='number']::-webkit-outer-spin-button,

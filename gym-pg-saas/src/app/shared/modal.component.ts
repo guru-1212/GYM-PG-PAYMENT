@@ -1,18 +1,21 @@
+import { NgClass } from '@angular/common';
 import { Component, input, output } from '@angular/core';
 
 @Component({
   selector: 'app-modal',
   standalone: true,
+  imports: [NgClass],
   template: `
     @if (open()) {
       <div
-        class="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 sm:items-center"
+        class="fixed inset-0 flex items-end justify-center bg-slate-900/50 p-4 sm:items-center"
+        [ngClass]="elevated() ? 'z-[100]' : 'z-50'"
         role="dialog"
         aria-modal="true"
         (click)="backdropClose() && closed.emit()"
       >
         <div
-          class="max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-white/60 bg-white/90 shadow-xl backdrop-blur-xl dark:border-slate-600/80 dark:bg-slate-900/95 dark:shadow-black/40"
+          class="max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-white/60 bg-white/90 shadow-xl dark:border-slate-600/80 dark:bg-slate-900/95 dark:shadow-black/40"
           [class.max-w-lg]="!wide()"
           [class.max-w-2xl]="wide()"
           (click)="$event.stopPropagation()"
@@ -45,5 +48,10 @@ export class ModalComponent {
   readonly backdropClose = input(false);
   /** Wider panel for detail views (e.g. member profile). */
   readonly wide = input(false);
+  /**
+   * Use inside another modal/dialog. Higher z-index + no backdrop-filter on the panel so nested
+   * `position:fixed` overlays anchor to the viewport instead of the parent scroll box.
+   */
+  readonly elevated = input(false);
   readonly closed = output<void>();
 }

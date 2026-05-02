@@ -490,6 +490,11 @@ export class MembersComponent implements OnInit, OnDestroy {
   } | null = null;
   private receiptConfirmResolver: ((ok: boolean) => void) | null = null;
 
+  readonly deactivateConfirmOpen = signal(false);
+  readonly deactivateConfirmMember = signal<Member | null>(null);
+  readonly deactivateConfirmBusy = signal(false);
+  private deactivateConfirmCheckboxRef: HTMLInputElement | null = null;
+
   private unsub: (() => void) | null = null;
   private querySub: Subscription | null = null;
   private currentOwnerId: string | null = null;
@@ -573,6 +578,8 @@ export class MembersComponent implements OnInit, OnDestroy {
         pay === 'pending'
       ) {
         this.payFilter.set(pay);
+      } else {
+        this.payFilter.set('all');
       }
 
       const due = params.get('due');
@@ -994,15 +1001,77 @@ export class MembersComponent implements OnInit, OnDestroy {
     if (tasks.length) await Promise.all(tasks);
   }
 
-  async toggleMemberStatus(m: Member, enabled: boolean): Promise<void> {
+  /** @returns whether the server update succeeded */
+  async toggleMemberStatus(m: Member, enabled: boolean): Promise<boolean> {
     const nextStatus: Member['status'] = enabled ? 'active' : 'inactive';
-    if (m.status === nextStatus) return;
+    if (m.status === nextStatus) return true;
     try {
       await this.membersApi.updateMemberStatus(m.memberId, nextStatus);
       this.toast.success(`Member marked as ${nextStatus}`);
+      return true;
     } catch {
       this.toast.error('Could not update member status');
+      return false;
     }
+  }
+
+  memberConfirmDisplayName(m: Member): string {
+    const n = `${m.firstName} ${m.lastName}`.trim();
+    return n || this.i18n.t('members.thisMember');
+  }
+
+  private openDeactivateConfirm(m: Member, checkbox?: HTMLInputElement): void {
+    this.deactivateConfirmCheckboxRef = checkbox ?? null;
+    this.deactivateConfirmMember.set(m);
+    this.deactivateConfirmOpen.set(true);
+  }
+
+  cancelDeactivateMember(): void {
+    if (this.deactivateConfirmBusy()) return;
+    const input = this.deactivateConfirmCheckboxRef;
+    if (input) input.checked = true;
+    this.deactivateConfirmCheckboxRef = null;
+    this.deactivateConfirmMember.set(null);
+    this.deactivateConfirmOpen.set(false);
+  }
+
+  onDeactivateModalDismiss(): void {
+    this.cancelDeactivateMember();
+  }
+
+  async confirmDeactivateMember(): Promise<void> {
+    const m = this.deactivateConfirmMember();
+    const input = this.deactivateConfirmCheckboxRef;
+    if (!m || this.deactivateConfirmBusy()) return;
+    this.deactivateConfirmBusy.set(true);
+    const ok = await this.toggleMemberStatus(m, false);
+    this.deactivateConfirmBusy.set(false);
+    this.deactivateConfirmCheckboxRef = null;
+    this.deactivateConfirmMember.set(null);
+    this.deactivateConfirmOpen.set(false);
+    if (!ok && input) input.checked = true;
+  }
+
+  /** Mobile card: open confirm modal, then deactivate. */
+  requestDeactivateMember(m: Member): void {
+    if (!this.canEditMembersAction()) return;
+    if (m.status !== 'active') return;
+    this.openDeactivateConfirm(m);
+  }
+
+  /**
+   * Active checkbox (table / desktop card): custom confirm before deactivating; revert control if cancelled or API fails.
+   */
+  async onMemberActiveCheckboxChange(m: Member, ev: Event): Promise<void> {
+    if (!this.canEditMembersAction()) return;
+    const input = ev.target as HTMLInputElement;
+    const wantActive = input.checked;
+    if (!wantActive && m.status === 'active') {
+      this.openDeactivateConfirm(m, input);
+      return;
+    }
+    const ok = await this.toggleMemberStatus(m, wantActive);
+    if (!ok) input.checked = m.status === 'active';
   }
 
   /** Add member: normal Save. Edit member: Save only after something changed (no accidental no-op submit). */

@@ -1,4 +1,4 @@
-<div class="saas-page mx-auto max-w-6xl">
+<div class="saas-page mx-auto w-full min-w-0 max-w-6xl">
   <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 class="text-2xl font-bold text-slate-900">{{ pageTitle() }}</h1>
@@ -39,28 +39,32 @@
     </div>
   }
 
-  <div class="saas-card grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
-    <div class="md:col-span-2 xl:col-span-2">
+  <div class="saas-card grid min-w-0 gap-3 p-4 md:grid-cols-2 xl:grid-cols-5 [&>*]:min-w-0">
+    <div class="min-w-0 md:col-span-2 xl:col-span-2">
       <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.search' | t }}</label>
       <input
         type="search"
-        class="saas-input w-full"
+        class="saas-input w-full min-w-0 max-w-full"
         [placeholder]="'members.searchPlaceholder' | t"
         [value]="search()"
         (input)="search.set($any($event.target).value)"
       />
     </div>
-    <div>
+    <div class="min-w-0">
       <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.memberStatus' | t }}</label>
-      <select class="saas-input w-full" [value]="statusFilter()" (change)="statusFilter.set($any($event.target).value)">
+      <select
+        class="saas-input w-full min-w-0 max-w-full"
+        [value]="statusFilter()"
+        (change)="statusFilter.set($any($event.target).value)"
+      >
         <option value="all">{{ 'members.all' | t }}</option>
         <option value="active">{{ 'members.active' | t }}</option>
         <option value="inactive">{{ 'members.inactive' | t }}</option>
       </select>
     </div>
-    <div>
+    <div class="min-w-0">
       <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.payment' | t }}</label>
-      <select class="saas-input w-full" [value]="payFilter()" (change)="onPayFilterChange($any($event.target).value)">
+      <select class="saas-input w-full min-w-0 max-w-full" [value]="payFilter()" (change)="onPayFilterChange($any($event.target).value)">
         <option value="all">{{ 'members.all' | t }}</option>
         <option value="partial">Partial Payment</option>
         <option value="overdue">Overdue</option>
@@ -68,14 +72,22 @@
         <option value="paid">{{ 'members.paid' | t }}</option>
       </select>
     </div>
-    <div class="md:col-span-2 xl:col-span-1 xl:max-w-none">
+    <div class="min-w-0 md:col-span-2 xl:col-span-1 xl:max-w-none">
       <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.sort' | t }}</label>
-      <div class="flex gap-2">
-        <select class="saas-input min-w-0 flex-1" [value]="sortKey()" (change)="sortKey.set($any($event.target).value)">
+      <div class="flex min-w-0 flex-col gap-2 min-[440px]:flex-row min-[440px]:items-stretch">
+        <select
+          class="saas-input min-w-0 w-full max-w-full flex-1"
+          [value]="sortKey()"
+          (change)="sortKey.set($any($event.target).value)"
+        >
           <option value="due">{{ 'members.dueUrgent' | t: { label: dueLabel() } }}</option>
           <option value="name">{{ 'members.nameSort' | t }}</option>
         </select>
-        <select class="saas-input w-36 shrink-0" [value]="sortDir()" (change)="sortDir.set($any($event.target).value)">
+        <select
+          class="saas-input min-w-0 w-full max-w-full flex-1 min-[440px]:w-36 min-[440px]:max-w-none min-[440px]:shrink-0 min-[440px]:flex-none"
+          [value]="sortDir()"
+          (change)="sortDir.set($any($event.target).value)"
+        >
           <option value="asc">{{ sortKey() === 'due' ? ('members.soonestFirst' | t) : ('members.az' | t) }}</option>
           <option value="desc">{{ sortKey() === 'due' ? ('members.latestFirst' | t) : ('members.za' | t) }}</option>
         </select>
@@ -236,9 +248,10 @@
                     <label class="inline-flex cursor-pointer items-center">
                       <input
                         type="checkbox"
-                        class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                         [checked]="m.status === 'active'"
-                        (change)="toggleMemberStatus(m, $any($event.target).checked)"
+                        [disabled]="!canEditMembersAction()"
+                        (change)="onMemberActiveCheckboxChange(m, $event)"
                       />
                     </label>
                   </td>
@@ -371,9 +384,10 @@
                 <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
                   <input
                     type="checkbox"
-                    class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                     [checked]="m.status === 'active'"
-                    (change)="toggleMemberStatus(m, $any($event.target).checked)"
+                    [disabled]="!canEditMembersAction()"
+                    (change)="onMemberActiveCheckboxChange(m, $event)"
                   />
                   Active
                 </label>
@@ -418,6 +432,18 @@
     <div class="space-y-3 md:hidden">
       @for (m of membersPagedList(); track m.memberId) {
         <article class="saas-card animate-[fadeIn_0.35s_ease] cursor-pointer space-y-3 p-4" (click)="openDetails(m)">
+          @if (listMode() === 'active' && m.status === 'active' && canEditMembersAction()) {
+            <div class="mb-1" (click)="$event.stopPropagation()">
+              <button
+                type="button"
+                class="flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-800"
+                (click)="requestDeactivateMember(m)"
+              >
+                <span class="material-icons-outlined text-base leading-none">person_off</span>
+                {{ 'members.makeInactive' | t }}
+              </button>
+            </div>
+          }
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <p class="text-base font-semibold text-slate-900">{{ m.firstName }} {{ m.lastName }}</p>
@@ -1889,6 +1915,48 @@
             Sending...
           } @else {
             Send on WhatsApp
+          }
+        </button>
+      </div>
+    </div>
+  }
+</app-modal>
+
+<app-modal
+  [open]="deactivateConfirmOpen()"
+  [title]="'members.makeInactive' | t"
+  [closable]="!deactivateConfirmBusy()"
+  [backdropClose]="!deactivateConfirmBusy()"
+  (closed)="onDeactivateModalDismiss()"
+>
+  @if (deactivateConfirmMember(); as dm) {
+    <div class="space-y-4">
+      <div
+        class="rounded-xl border border-amber-200/80 bg-gradient-to-br from-amber-50 to-orange-50/80 p-4 shadow-inner dark:border-amber-800/45 dark:from-amber-950/50 dark:to-orange-950/30"
+      >
+        <p class="text-sm leading-relaxed text-slate-800 dark:text-slate-100">
+          {{ 'members.confirmMakeInactive' | t: { name: memberConfirmDisplayName(dm) } }}
+        </p>
+      </div>
+      <div class="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          class="rounded-xl border border-slate-200 bg-white px-5 py-2.5 font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          (click)="cancelDeactivateMember()"
+          [disabled]="deactivateConfirmBusy()"
+        >
+          {{ 'common.cancel' | t }}
+        </button>
+        <button
+          type="button"
+          class="rounded-xl bg-rose-600 px-6 py-2.5 font-semibold text-white shadow-md transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+          (click)="confirmDeactivateMember()"
+          [disabled]="deactivateConfirmBusy()"
+        >
+          @if (deactivateConfirmBusy()) {
+            {{ 'common.loading' | t }}
+          } @else {
+            {{ 'members.deactivateConfirmYes' | t }}
           }
         </button>
       </div>

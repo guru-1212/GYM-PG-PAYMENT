@@ -1,0 +1,45 @@
+﻿> Building...
+ΓêÜ Building...
+Initial chunk files | Names                              |  Raw size
+main.js             | main                               |   2.48 MB | 
+chunk-JBOAKUVI.js   | -                                  |   1.43 MB | 
+chunk-DXJ3AFAQ.js   | -                                  | 784.75 kB | 
+chunk-LLZC2DLN.js   | -                                  | 294.93 kB | 
+chunk-CLF6XKMW.js   | -                                  | 250.37 kB | 
+styles.css          | styles                             | 142.61 kB | 
+polyfills.js        | polyfills                          |  89.77 kB | 
+chunk-FWI6OGBK.js   | -                                  |  78.00 kB | 
+chunk-NLBQ2C2R.js   | -                                  |  75.17 kB | 
+chunk-LQZZUYOU.js   | -                                  |  70.26 kB | 
+chunk-X4DDQR2K.js   | -                                  |  55.33 kB | 
+chunk-M7LG2F77.js   | -                                  |  42.17 kB | 
+chunk-7QXCM36E.js   | -                                  |  27.66 kB | 
+chunk-H7YETAUM.js   | -                                  |   7.71 kB | 
+chunk-UBBZ33UP.js   | -                                  |   6.44 kB | 
+chunk-LXGKBYK4.js   | -                                  |   5.25 kB | 
+chunk-RPNETLGC.js   | -                                  |   4.99 kB | 
+chunk-7UR2NRN5.js   | -                                  |   3.44 kB | 
+chunk-MVD2Z2XP.js   | -                                  |   2.38 kB | 
+chunk-IPFQNDAM.js   | -                                  |   1.56 kB | 
+
+                    | Initial total                      |   5.85 MB
+
+Lazy chunk files    | Names                              |  Raw size
+chunk-GZ2SK3LE.js   | xlsx                               | 946.21 kB | 
+chunk-Z44ZHRNJ.js   | html2canvas                        | 398.44 kB | 
+chunk-LVCRTLFN.js   | index-es                           | 394.08 kB | 
+chunk-STGWSHNL.js   | supervisors-page-component         |  82.66 kB | 
+chunk-GBHJUMNU.js   | analytics-page-component           |  74.11 kB | 
+chunk-7N2RCVMR.js   | forgot-password-component          |  53.26 kB | 
+chunk-ZC2HJQRV.js   | purify-es                          |  47.71 kB | 
+chunk-2TLNUB54.js   | -                                  |  23.20 kB | 
+chunk-YGDLKB4R.js   | member-app-install-component       |  18.04 kB | 
+chunk-HVUGTWC5.js   | member-app-home-component          |  17.80 kB | 
+chunk-6W33GFQ5.js   | index-esm                          |   5.19 kB | 
+chunk-5CKVS4UJ.js   | owner-notifications-page-component |   4.42 kB | 
+chunk-LBMRBYVB.js   | index-esm                          | 394 bytes | 
+
+Application bundle generation complete. [25.504 seconds]
+
+Output location: C:\Users\gurunath.h\Desktop\New folder\GYM-PG-PAYMENT\gym-pg-saas\dist\gym-pg-saas
+

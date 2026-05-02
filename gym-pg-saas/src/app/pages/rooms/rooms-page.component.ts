@@ -1,6 +1,5 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Timestamp } from 'firebase/firestore';
 import { Member } from '../../core/models/member.model';
 import { PgFloorLayout, PgLayout } from '../../core/models/pg-layout.model';
 import { AuthService } from '../../core/services/auth.service';
@@ -10,13 +9,15 @@ import { ToastService } from '../../core/services/toast.service';
 import { formatPgRoomLabel, sharingLabelForBeds } from '../../core/utils/pg-layout-display.utils';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { BedMapSeatGridComponent } from '../../shared/bed-map-seat-grid/bed-map-seat-grid.component';
 
 @Component({
   selector: 'app-rooms-page',
   standalone: true,
-  imports: [ReactiveFormsModule, ModalComponent, TranslatePipe],
+  imports: [ReactiveFormsModule, ModalComponent, TranslatePipe, BedMapSeatGridComponent],
   templateUrl: './rooms-page.component.html',
-  styles: [`
+  styles: [
+    `
     input[type='number']::-webkit-outer-spin-button,
     input[type='number']::-webkit-inner-spin-button {
       -webkit-appearance: none;
@@ -27,49 +28,8 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
       -moz-appearance: textfield;
       appearance: textfield;
     }
-
-    /* Seat tooltip: avoid clipping when centered popover overflows narrow grid cells */
-    .seat-tooltip-panel {
-      width: min(16rem, calc(100vw - 2rem));
-      max-width: min(16rem, calc(100vw - 2rem));
-    }
-
-    .seat-tooltip-pos-left {
-      left: 0;
-      right: auto;
-      transform: translateX(0);
-    }
-
-    .seat-tooltip-pos-center {
-      left: 50%;
-      right: auto;
-      transform: translateX(-50%);
-    }
-
-    .seat-tooltip-pos-right {
-      left: auto;
-      right: 0;
-      transform: translateX(0);
-    }
-
-    .seat-tooltip-arrow-left {
-      left: 1.25rem;
-      right: auto;
-      transform: translate(-50%, -50%) rotate(45deg);
-    }
-
-    .seat-tooltip-arrow-center {
-      left: 50%;
-      right: auto;
-      transform: translate(-50%, -50%) rotate(45deg);
-    }
-
-    .seat-tooltip-arrow-right {
-      left: auto;
-      right: 1.25rem;
-      transform: translate(50%, -50%) rotate(45deg);
-    }
-  `],
+  `,
+  ],
 })
 export class RoomsPageComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
@@ -100,15 +60,6 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
       if (key) set.add(key);
     }
     return set;
-  });
-  readonly occupiedMembersByBed = computed(() => {
-    const map = new Map<string, Member>();
-    for (const m of this.members()) {
-      if (m.status !== 'active') continue;
-      const key = this.bedKey(m.floorNumber, m.roomNumber, m.bedNumber);
-      if (key) map.set(key, m);
-    }
-    return map;
   });
 
   readonly occupiedBedCount = computed(() => this.occupiedBedKeys().size);
@@ -144,7 +95,10 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
     const ownerId = this.auth.profile()?.ownerId;
     if (!ownerId) return;
     this.unsubLayout = this.pgLayoutApi.watchLayout(ownerId, (layout) => this.pgLayout.set(layout));
-    this.unsubMembers = this.membersApi.watchMembersForOwner(ownerId, (list) => this.members.set(list));
+    this.unsubMembers = this.membersApi.watchMembersForOwner(ownerId, (list) => {
+      this.members.set(list);
+      void this.membersApi.applyScheduledVacatesIfDue(ownerId, list);
+    });
   }
 
   ngOnDestroy(): void {
@@ -434,18 +388,6 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
     return this.formatCurrency(n);
   }
 
-  getOccupiedMember(floor: unknown, room: unknown, bed: unknown): Member | null {
-    const key = this.bedKey(floor, room, bed);
-    if (!key) return null;
-    return this.occupiedMembersByBed().get(key) ?? null;
-  }
-
-  memberDisplayName(member: Member | null): string {
-    if (!member) return 'N/A';
-    const fullName = `${member.firstName ?? ''} ${member.lastName ?? ''}`.trim();
-    return fullName || 'N/A';
-  }
-
   formatCurrency(value: unknown): string {
     const amount = Number(value) || 0;
     return new Intl.NumberFormat('en-IN', {
@@ -454,29 +396,5 @@ export class RoomsPageComponent implements OnInit, OnDestroy {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
-  }
-
-  formatDateTime(value: unknown): string {
-    const date = this.toDate(value);
-    if (!date) return 'N/A';
-    return new Intl.DateTimeFormat('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    }).format(date);
-  }
-
-  private toDate(value: unknown): Date | null {
-    if (!value) return null;
-    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
-    if (typeof value === 'object' && value && 'toDate' in value) {
-      const d = (value as Timestamp).toDate();
-      return Number.isNaN(d.getTime()) ? null : d;
-    }
-    const d = new Date(value as string | number);
-    return Number.isNaN(d.getTime()) ? null : d;
   }
 }
