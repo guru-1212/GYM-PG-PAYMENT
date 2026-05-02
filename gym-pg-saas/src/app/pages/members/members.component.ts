@@ -314,6 +314,29 @@ export class MembersComponent implements OnInit, OnDestroy {
     return list;
   });
 
+  /** Members in the current tab + status dropdown, before search / payment / due / onboarding filters. */
+  readonly membersListBaselineCount = computed(() => {
+    let list = [...this.members()];
+    if (this.listMode() === 'active') {
+      list = list.filter((m) => m.status === 'active');
+    } else {
+      list = list.filter((m) => m.status === 'inactive');
+    }
+    const sf = this.statusFilter();
+    if (sf !== 'all') list = list.filter((m) => m.status === sf);
+    return list.length;
+  });
+
+  /** Whether search/payment/due/onboarding (or their interaction) narrows the list from the baseline. */
+  readonly membersFiltersNarrowing = computed(() => {
+    const q = this.search().trim();
+    const pf = this.payFilter();
+    const due = this.dueSectionFilter();
+    if (q.length > 0 || pf !== 'all' || (pf === 'all' && due !== 'all')) return true;
+    if (this.onboardingReviewFilter() === 'review') return true;
+    return this.displayMembers().length !== this.membersListBaselineCount();
+  });
+
   /** Grouped sections (order fixed): overdue → today → 1d → 2d → future → unknown → inactive */
   readonly groupedMemberSections = computed(() => {
     const list = this.displayMembers();

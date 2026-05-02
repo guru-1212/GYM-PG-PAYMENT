@@ -441,6 +441,11 @@ export class BedMapSeatGridComponent {
     return `₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)}`;
   }
 
+  roomHasValidRent(rent: unknown): boolean {
+    const n = Number(rent);
+    return Number.isFinite(n) && n > 0;
+  }
+
   memberDisplayName(member: Member | null): string {
     if (!member) return 'N/A';
     const fullName = `${member.firstName ?? ''} ${member.lastName ?? ''}`.trim();

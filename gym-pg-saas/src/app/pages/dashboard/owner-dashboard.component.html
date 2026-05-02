@@ -1849,7 +1849,7 @@
   </div>
 </app-modal>
 
-<app-modal [open]="bedMapModalOpen()" title="Bed Map" (closed)="closeBedMap()">
+<app-modal [open]="bedMapModalOpen()" title="Bed Map" [extraWide]="true" (closed)="closeBedMap()">
   @if (!hasPgLayout()) {
     <p class="text-sm text-slate-600">Setup required</p>
   } @else {

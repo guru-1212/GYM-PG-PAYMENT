@@ -212,6 +212,10 @@ export const TE: Record<string, unknown> = {
     az: 'A → Z',
     za: 'Z → A',
     noneFound: 'సభ్యులు కనుగొనబడలేదు',
+    listMatchCount: '{count} సభ్యులు',
+    listMatchFiltered: '{total} లో {filtered} చూపిస్తోంది',
+    listMatchFiltersOn: 'ఫిల్టర్ లేదా శోధన ఈ జాబితాను సంక్షిప్తం చేస్తోంది.',
+    pagesShort: 'పేజీలు',
     makeInactive: 'నిష్క్రియం చేయి',
     confirmMakeInactive:
       '{name}ని నిష్క్రియం చేయాలా? వారు నిష్క్రియ సభ్యుల జాబితాలో కనిపిస్తారు.',
@@ -230,6 +234,7 @@ export const TE: Record<string, unknown> = {
     bedMapSearchGo: 'శోధించు',
     bedMapSearchNotFound: 'సరిపోలే అంతస్తు, గది లేదా పడక లేదు.',
     bedMapSearchAria: 'మ్యాప్‌లో అంతస్తు, గది లేదా పడకతో శోధించండి',
+    bedMapRentUnset: 'అద్దె పేర్కొనలేదు',
   },
   payments: {
     title: 'చెల్లింపులు',

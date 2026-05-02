@@ -213,6 +213,10 @@ export const EN: Record<string, unknown> = {
     az: 'A → Z',
     za: 'Z → A',
     noneFound: 'No members found',
+    listMatchCount: '{count} members',
+    listMatchFiltered: 'Showing {filtered} of {total} members',
+    listMatchFiltersOn: 'Filters or search are narrowing this list.',
+    pagesShort: 'pages',
     makeInactive: 'Make inactive',
     confirmMakeInactive:
       'Make {name} inactive? They will appear under Inactive Members.',
@@ -231,6 +235,7 @@ export const EN: Record<string, unknown> = {
     bedMapSearchGo: 'Find',
     bedMapSearchNotFound: 'No matching floor, room, or bed.',
     bedMapSearchAria: 'Search map by floor, room, or bed',
+    bedMapRentUnset: 'Rent not set',
   },
   payments: {
     title: 'Payments',
