@@ -818,6 +818,11 @@
               <th class="hidden px-4 py-3 text-right font-semibold lg:table-cell">
                 {{ 'payments.pendingAmount' | t }}
               </th>
+              @if (canRecordPaymentsAction()) {
+                <th class="w-14 px-2 py-3 text-center font-semibold">
+                  <span class="sr-only">{{ 'common.actions' | t }}</span>
+                </th>
+              }
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-700/60">
@@ -893,6 +898,32 @@
                     <span class="text-slate-400">—</span>
                   }
                 </td>
+                @if (canRecordPaymentsAction()) {
+                  <td class="whitespace-nowrap px-2 py-3 text-center">
+                    <div class="inline-flex items-center justify-center gap-0.5">
+                      <button
+                        type="button"
+                        class="inline-flex rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-indigo-400"
+                        [attr.aria-label]="'payments.editRentPayment' | t"
+                        [attr.title]="'payments.editRentPayment' | t"
+                        (click)="openEditPaymentRent(p)"
+                      >
+                        <span class="material-icons-outlined text-xl">payments</span>
+                      </button>
+                      @if (canEditPendingOnPayment(p)) {
+                        <button
+                          type="button"
+                          class="inline-flex rounded-lg p-2 text-amber-700/90 transition hover:bg-amber-50 hover:text-amber-900 dark:text-amber-300 dark:hover:bg-amber-950/50 dark:hover:text-amber-200"
+                          [attr.aria-label]="'payments.editPendingPayment' | t"
+                          [attr.title]="'payments.editPendingPayment' | t"
+                          (click)="openEditPaymentPending(p)"
+                        >
+                          <span class="material-icons-outlined text-xl">schedule</span>
+                        </button>
+                      }
+                    </div>
+                  </td>
+                }
               </tr>
             }
           </tbody>
@@ -937,7 +968,33 @@
                 }
               </div>
             </div>
-            <div class="mt-1.5">
+            <div class="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+              @if (canRecordPaymentsAction()) {
+                <div class="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    class="inline-flex rounded-lg p-1.5 text-slate-500 hover:bg-indigo-50 hover:text-indigo-700 dark:text-slate-400 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300"
+                    [attr.aria-label]="'payments.editRentPayment' | t"
+                    [attr.title]="'payments.editRentPayment' | t"
+                    (click)="openEditPaymentRent(p)"
+                  >
+                    <span class="material-icons-outlined text-lg">payments</span>
+                  </button>
+                  @if (canEditPendingOnPayment(p)) {
+                    <button
+                      type="button"
+                      class="inline-flex rounded-lg p-1.5 text-amber-800 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/40"
+                      [attr.aria-label]="'payments.editPendingPayment' | t"
+                      [attr.title]="'payments.editPendingPayment' | t"
+                      (click)="openEditPaymentPending(p)"
+                    >
+                      <span class="material-icons-outlined text-lg">schedule</span>
+                    </button>
+                  }
+                </div>
+              } @else {
+                <span></span>
+              }
               <span
                 class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold"
                 [ngClass]="{
@@ -1066,4 +1123,12 @@
   [isGym]="isGym()"
   [dueLabel]="dueLabel()"
   (closed)="closePay()"
+/>
+
+<app-edit-payment-modal
+  [open]="editPaymentModalOpen()"
+  [payment]="editPaymentTarget()"
+  [memberName]="editPaymentTarget() ? nameForPayment(editPaymentTarget()!) : ''"
+  [editKind]="editPaymentKind()"
+  (closed)="closeEditPaymentModal()"
 />

@@ -255,6 +255,29 @@ export const EN: Record<string, unknown> = {
     lastPage: 'Last',
     prevPages: 'Previous page numbers',
     nextPages: 'Next page numbers',
+    editPayment: 'Correct payment amount',
+    editRentPayment: 'Correct collected amount',
+    editRentPaymentHint:
+      'Only the amount collected on this payment row changes. Dashboard totals update automatically. Member balance and due dates are not adjusted here—change those separately if needed.',
+    editPendingPayment: 'Correct pending on this payment',
+    editPendingPaymentHint:
+      'Only the pending part stored on this partial payment row changes. The collected amount and member due date are not adjusted here.',
+    editPaymentHint:
+      'Only the recorded amount changes. Dashboard totals and reports update automatically. Member balance and due dates are not adjusted—change those separately if needed.',
+    currentAmount: 'Current amount',
+    newAmount: 'New amount',
+    amountInvalid: 'Enter a positive whole amount (₹1 or more).',
+    saveAmount: 'Save amount',
+    newPending: 'New pending amount',
+    savePending: 'Save pending',
+    pendingInvalid: 'Enter zero or a whole rupee amount.',
+    editPaymentSuccess: 'Payment amount updated.',
+    editPaymentNoChange: 'Amount unchanged.',
+    editPaymentError: 'Could not update payment. Try again.',
+    editPendingSuccess: 'Pending amount updated.',
+    editPendingNoChange: 'Pending amount unchanged.',
+    editPendingPaymentError: 'Could not update pending amount. Try again.',
+    editPaymentDenied: 'You do not have permission to edit payments.',
   },
   fees: {
     rentDue: 'Rent due',
@@ -377,6 +400,7 @@ export const EN: Record<string, unknown> = {
     delete: 'Delete',
     cancel: 'Cancel',
     save: 'Save',
+    saving: 'Saving…',
   },
   whatsapp: {
     cardTitle: 'WhatsApp Integration',

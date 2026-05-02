@@ -58,6 +58,12 @@ export interface Member {
   subscriptionType?: SubscriptionType;
   /** Remaining balance when a partial payment is recorded. */
   pendingAmount?: number;
+  /**
+   * Rent already paid or adjusted toward the current plan total (`amount`), for list/UI.
+   * Invariant with pending: `paidRent + pendingAmount` should align with `amount` (advance is separate).
+   * Legacy docs may omit this — clients derive from `amount - pendingAmount` when missing.
+   */
+  paidRent?: number;
   /** Advance held from member (kept separate from earnings). */
   advancePaid?: number;
   /** Internal lifecycle status for advance amount. */

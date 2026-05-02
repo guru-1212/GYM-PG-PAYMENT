@@ -35,6 +35,7 @@ import {
   startOfDay,
   startOfToday,
   timestampToDate,
+  dateToTimestamp,
 } from '../../core/utils/date.utils';
 import { formatPgRoomLabel, sharingLabelForBeds } from '../../core/utils/pg-layout-display.utils';
 import { memberImportSampleAoA, memberImportSampleCsv } from '../../core/utils/member-import-sample.util';
@@ -47,6 +48,7 @@ import {
   optionalDigitsLen,
   positiveAmount,
 } from '../../core/utils/validators';
+import { EditPaymentModalComponent, type EditPaymentKind } from '@app/shared/edit-payment-modal.component';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
@@ -56,7 +58,14 @@ const MEMBER_MODAL_PHOTO_MIMES = ['image/jpeg', 'image/png', 'image/webp'] as co
 @Component({
   selector: 'app-members',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, ModalComponent, TranslatePipe],
+  imports: [
+    ReactiveFormsModule,
+    DatePipe,
+    DecimalPipe,
+    ModalComponent,
+    EditPaymentModalComponent,
+    TranslatePipe,
+  ],
   templateUrl: './members.component.html',
   styles: [`
     select.pg-seat-select option:disabled {
@@ -148,6 +157,9 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly historyModalOpen = signal(false);
   readonly historyMember = signal<Member | null>(null);
   readonly historyPayments = signal<Payment[]>([]);
+  readonly historyEditPaymentOpen = signal(false);
+  readonly historyEditPayment = signal<Payment | null>(null);
+  readonly historyEditPaymentKind = signal<EditPaymentKind>('rent');
   readonly detailsModalOpen = signal(false);
   readonly detailsMember = signal<Member | null>(null);
   readonly detailsMessageDraft = signal('');
@@ -420,7 +432,9 @@ export class MembersComponent implements OnInit, OnDestroy {
     advancePaid: [0, [Validators.min(0)]],
     isPartialPayment: this.fb.nonNullable.control(false),
     paidAmount: [0],
-    pendingAmount: [0],
+    /** Rent paid toward plan when editing a member (pending = plan − this). */
+    paidRent: [0, [Validators.min(0)]],
+    pendingAmount: [0, [Validators.min(0)]],
     paymentMethod: this.fb.nonNullable.control<PaymentMethod>('cash', Validators.required),
     status: this.fb.nonNullable.control<'active' | 'inactive'>('active', Validators.required),
     subscriptionType: this.fb.nonNullable.control<'monthly' | 'quarterly' | 'yearly'>(
@@ -463,12 +477,8 @@ export class MembersComponent implements OnInit, OnDestroy {
   );
 
   readonly memberSavingBusy = signal<boolean>(false);
-
-  /**
-   * Billing fields (plan amount, advance, pending) loaded when opening Edit.
-   * Save always reapplies these on update so the edit modal cannot record payments or change balances.
-   */
-  private memberEditBillingPreserve: { amount: number; advancePaid: number; pendingAmount: number } | null = null;
+  /** After saving billing fields on edit, remind that Payments page holds receipt history. */
+  readonly billingProfileReminderOpen = signal(false);
 
   /* ---------- share-link (member onboarding) state ---------- */
   readonly shareLinkOpen = signal<boolean>(false);
@@ -564,6 +574,9 @@ export class MembersComponent implements OnInit, OnDestroy {
       }
       paidAmountControl.updateValueAndValidity();
     });
+
+    this.memberForm.get('amount')?.valueChanges.subscribe(() => this.syncMemberEditPendingFromPaidRent());
+    this.memberForm.get('paidRent')?.valueChanges.subscribe(() => this.syncMemberEditPendingFromPaidRent());
   }
 
   async ngOnInit(): Promise<void> {
@@ -619,17 +632,37 @@ export class MembersComponent implements OnInit, OnDestroy {
       : 'Manage your active members';
   }
 
+  /** When editing, keep pending = plan − paid rent in sync for save + display. */
+  private syncMemberEditPendingFromPaidRent(): void {
+    if (!this.editingId()) return;
+    const plan = Math.max(0, Math.round(Number(this.memberForm.controls.amount.value) || 0));
+    let paid = Math.max(0, Math.round(Number(this.memberForm.controls.paidRent.value) || 0));
+    if (paid > plan) {
+      paid = plan;
+      this.memberForm.controls.paidRent.setValue(paid, { emitEvent: false });
+    }
+    const pend = Math.max(0, plan - paid);
+    this.memberForm.controls.pendingAmount.setValue(pend, { emitEvent: false });
+  }
+
+  /** Live plan / paid / pending for the edit-member billing preview strip. */
+  memberEditBillingSummary(): { plan: number; paid: number; pending: number } {
+    const v = this.memberForm.getRawValue();
+    const plan = Math.max(0, Math.round(Number(v.amount) || 0));
+    const paidRaw = Math.max(0, Math.round(Number(v.paidRent) || 0));
+    const paid = Math.min(plan, paidRaw);
+    const pending = Math.max(0, plan - paid);
+    return { plan, paid, pending };
+  }
+
   pendingFromForm(): number {
     const total = Number(this.memberForm.controls.amount.value) || 0;
     const paid = Number(this.memberForm.controls.paidAmount.value) || 0;
     return Math.max(0, total - paid);
   }
 
-  /** Pending line in the modal: split-payment math when adding; saved balance when editing. */
+  /** Pending line when adding with split payment (computed from total − paying). */
   memberModalPendingAmountDisplay(): number {
-    if (this.editingId() && this.memberEditBillingPreserve) {
-      return this.memberEditBillingPreserve.pendingAmount;
-    }
     return this.pendingFromForm();
   }
 
@@ -640,12 +673,14 @@ export class MembersComponent implements OnInit, OnDestroy {
       c.advancePaid.disable({ emitEvent: false });
       c.isPartialPayment.disable({ emitEvent: false });
       c.paidAmount.disable({ emitEvent: false });
+      c.paidRent.disable({ emitEvent: false });
       c.pendingAmount.disable({ emitEvent: false });
     } else {
       c.amount.enable({ emitEvent: false });
       c.advancePaid.enable({ emitEvent: false });
       c.isPartialPayment.enable({ emitEvent: false });
       c.paidAmount.enable({ emitEvent: false });
+      c.paidRent.enable({ emitEvent: false });
       c.pendingAmount.enable({ emitEvent: false });
     }
   }
@@ -751,7 +786,6 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   openAdd(): void {
     this.editingId.set(null);
-    this.memberEditBillingPreserve = null;
     this.moreOpen.set(false);
     this.memberForm.controls.joinDate.setValidators([
       Validators.required,
@@ -786,6 +820,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       advancePaid: 0,
       isPartialPayment: false,
       paidAmount: 0,
+      paidRent: 0,
       pendingAmount: 0,
       status: 'active',
       subscriptionType: 'monthly',
@@ -799,11 +834,6 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   openEdit(m: Member): void {
     this.editingId.set(m.memberId);
-    this.memberEditBillingPreserve = {
-      amount: Number(m.amount) || 0,
-      advancePaid: Math.max(0, Number(m.advancePaid) || 0),
-      pendingAmount: Math.max(0, Number(m.pendingAmount) || 0),
-    };
     this.memberForm.controls.joinDate.setValidators([Validators.required, Validators.pattern(/^\d{4}-\d{2}-\d{2}$/)]);
     this.memberForm.controls.joinDate.updateValueAndValidity({ emitEvent: false });
     this.moreOpen.set(!!(m.gender || m.aadhaarLast4 || m.notes));
@@ -811,6 +841,13 @@ export class MembersComponent implements OnInit, OnDestroy {
     const joinStr = jd ? this.toInputDate(jd) : '';
     const dd = timestampToDate(m.dueDate);
     const dueStr = dd ? this.toInputDate(dd) : '';
+    const plan = Math.max(0, Number(m.amount) || 0);
+    const pending = Math.max(0, Number(m.pendingAmount) || 0);
+    const rawPaid = m.paidRent;
+    const paidRentVal =
+      rawPaid !== undefined && rawPaid !== null && Number.isFinite(Number(rawPaid))
+        ? Math.max(0, Math.min(plan, Math.round(Number(rawPaid))))
+        : Math.max(0, plan - pending);
     this.memberForm.patchValue({
       firstName: m.firstName,
       lastName: m.lastName || '',
@@ -829,8 +866,9 @@ export class MembersComponent implements OnInit, OnDestroy {
       advancePaid: Math.max(0, Number(m.advancePaid) || 0),
       isPartialPayment: false,
       paidAmount: 0,
-      pendingAmount: 0,
-      paymentMethod: 'cash', // Default to cash for existing members
+      paidRent: paidRentVal,
+      pendingAmount: Math.max(0, plan - paidRentVal),
+      paymentMethod: 'cash',
       status: m.status,
       subscriptionType: m.subscriptionType || 'monthly',
     });
@@ -840,7 +878,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.aadhaarBackUrl.set(m.aadhaarBackUrl || '');
     this.manualSeatEntryTriggered.set(false);
     this.manualSeatError.set(null);
-    this.setMemberModalBillingFieldsLocked(true);
+    this.setMemberModalBillingFieldsLocked(false);
     this.modalOpen.set(true);
     this.memberForm.markAsPristine();
   }
@@ -851,6 +889,15 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.resetOnboardingPhotoState();
     this.setMemberModalBillingFieldsLocked(false);
     this.modalOpen.set(false);
+  }
+
+  closeBillingProfileReminder(): void {
+    this.billingProfileReminderOpen.set(false);
+  }
+
+  goToPaymentsFromBillingReminder(): void {
+    this.billingProfileReminderOpen.set(false);
+    void this.router.navigateByUrl('/payments');
   }
 
   /** Native date input `min` when adding (today); omitted when editing so past joins stay valid. */
@@ -1110,23 +1157,14 @@ export class MembersComponent implements OnInit, OnDestroy {
     let paidAmount: number;
     let pendingAmount: number;
     let advancePaidVal: number;
+    let paidRentSave: number;
 
     if (editId) {
-      const snap =
-        this.memberEditBillingPreserve ??
-        (() => {
-          const m = this.members().find((x) => x.memberId === editId);
-          return m
-            ? {
-                amount: Number(m.amount) || 0,
-                advancePaid: Math.max(0, Number(m.advancePaid) || 0),
-                pendingAmount: Math.max(0, Number(m.pendingAmount) || 0),
-              }
-            : { amount: 0, advancePaid: 0, pendingAmount: 0 };
-        })();
-      newAmount = snap.amount;
-      advancePaidVal = snap.advancePaid;
-      pendingAmount = snap.pendingAmount;
+      newAmount = Math.max(1, Math.round(Number(v.amount)) || 0);
+      advancePaidVal = Math.max(0, Number(v.advancePaid) || 0);
+      paidRentSave = Math.max(0, Math.round(Number(v.paidRent)) || 0);
+      if (paidRentSave > newAmount) paidRentSave = newAmount;
+      pendingAmount = Math.max(0, newAmount - paidRentSave);
       paidAmount = 0;
     } else {
       newAmount = Number(v.amount);
@@ -1134,6 +1172,8 @@ export class MembersComponent implements OnInit, OnDestroy {
       const isPartial = !!v.isPartialPayment;
       paidAmount = isPartial ? Number(v.paidAmount) : newAmount;
       pendingAmount = isPartial ? Math.max(0, newAmount - paidAmount) : 0;
+      paidRentSave = isPartial ? Math.max(0, Math.round(Number(paidAmount)) || 0) : Math.max(0, Math.round(Number(newAmount)) || 0);
+      if (paidRentSave > newAmount) paidRentSave = newAmount;
       if (isPartial) {
         if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
           this.toast.error('Enter a valid current paying amount');
@@ -1169,6 +1209,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       dueDate: due,
       amount: newAmount,
       advancePaid: advancePaidVal,
+      paidRent: paidRentSave,
       paidAmount,
       pendingAmount,
       paymentMethod: v.paymentMethod,
@@ -1176,6 +1217,12 @@ export class MembersComponent implements OnInit, OnDestroy {
       status: v.status,
       subscriptionType: this.isGym() ? v.subscriptionType : undefined,
     };
+
+    const remindPaymentsAfterProfileBillingSave =
+      !!editId &&
+      (this.memberForm.controls.amount.dirty ||
+        this.memberForm.controls.paidRent.dirty ||
+        this.memberForm.controls.advancePaid.dirty);
 
     this.memberSavingBusy.set(true);
     try {
@@ -1188,6 +1235,31 @@ export class MembersComponent implements OnInit, OnDestroy {
           profilePhotoUrl: this.profilePhotoUrl(),
           aadhaarFrontUrl: this.aadhaarFrontUrl(),
           aadhaarBackUrl: this.aadhaarBackUrl(),
+        });
+        this.cache.patchMemberLocal(id, {
+          firstName: v.firstName.trim(),
+          lastName: v.lastName?.trim() || '',
+          mobile: v.mobile?.trim() || '',
+          email: v.email?.trim() || '',
+          address: v.address?.trim() || '',
+          floorNumber: v.floorNumber.trim(),
+          roomNumber: v.roomNumber.trim(),
+          bedNumber: v.bedNumber.trim(),
+          gender: (v.gender as Member['gender']) || undefined,
+          aadhaarLast4: aadhaarTail || undefined,
+          aadhaarNumber: aadhaarNumberFull || undefined,
+          notes: v.notes?.trim() || '',
+          joinDate: dateToTimestamp(join),
+          dueDate: dateToTimestamp(due),
+          amount: newAmount,
+          advancePaid: advancePaidVal,
+          paidRent: paidRentSave,
+          pendingAmount,
+          status: v.status,
+          subscriptionType: this.isGym() ? v.subscriptionType : 'monthly',
+          profilePhotoUrl: this.profilePhotoUrl().trim(),
+          aadhaarFrontUrl: this.aadhaarFrontUrl().trim(),
+          aadhaarBackUrl: this.aadhaarBackUrl().trim(),
         });
         this.toast.success('Member updated');
         this.notifyOwnerAction('Member updated', `${v.firstName} profile updated successfully.`);
@@ -1236,8 +1308,10 @@ export class MembersComponent implements OnInit, OnDestroy {
           });
         }
       }
-      this.memberEditBillingPreserve = null;
       this.closeModal();
+      if (remindPaymentsAfterProfileBillingSave) {
+        this.billingProfileReminderOpen.set(true);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       const code =
@@ -1315,6 +1389,8 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly canShareOnboardingLinkAction = computed(() =>
     this.auth.hasPermission('canShareOnboardingLink'),
   );
+  /** Open Payments route (receipts / collection table). */
+  readonly canViewPaymentsAction = computed(() => this.auth.hasPermission('canViewPayments'));
   /** Whether the current account can record payments ("Mark Paid"). */
   readonly canRecordPaymentsAction = computed(() => this.auth.hasPermission('canRecordPayments'));
 
@@ -1699,6 +1775,39 @@ ${pgName}`;
     this.historyUnsub?.();
     this.historyUnsub = null;
     this.historyMember.set(null);
+    this.historyEditPaymentOpen.set(false);
+    this.historyEditPayment.set(null);
+    this.historyEditPaymentKind.set('rent');
+  }
+
+  openHistoryEditPaymentRent(p: Payment): void {
+    if (!this.canRecordPaymentsAction()) return;
+    this.historyEditPaymentKind.set('rent');
+    this.historyEditPayment.set(p);
+    this.historyEditPaymentOpen.set(true);
+  }
+
+  openHistoryEditPaymentPending(p: Payment): void {
+    if (!this.canRecordPaymentsAction()) return;
+    if (!this.canEditPendingOnPayment(p)) return;
+    this.historyEditPaymentKind.set('pending');
+    this.historyEditPayment.set(p);
+    this.historyEditPaymentOpen.set(true);
+  }
+
+  canEditPendingOnPayment(p: Payment): boolean {
+    return p.isPartialPayment === true || (Number(p.pendingAmount) || 0) > 0;
+  }
+
+  closeHistoryEditPayment(): void {
+    this.historyEditPaymentOpen.set(false);
+    this.historyEditPayment.set(null);
+    this.historyEditPaymentKind.set('rent');
+  }
+
+  historyEditMemberLabel(): string {
+    const m = this.historyMember();
+    return m ? `${m.firstName} ${m.lastName || ''}`.trim() : '';
   }
 
   openDetails(m: Member): void {
@@ -2035,9 +2144,23 @@ ${pgName}`;
   }
 
   partialPaidAmount(m: Member): number {
-    const total = Number(m.amount) || 0;
+    const plan = Math.max(0, Number(m.amount) || 0);
+    const pr = Number(m.paidRent);
+    if (m.paidRent !== undefined && m.paidRent !== null && Number.isFinite(pr)) {
+      return Math.max(0, Math.min(plan, Math.round(pr)));
+    }
     const pending = Number(m.pendingAmount) || 0;
-    return Math.max(0, total - pending);
+    return Math.max(0, plan - pending);
+  }
+
+  /**
+   * Copy for partial-payment rows: `partialPaidAmount` is (plan rent − pending), not cash collected.
+   * Showing only "Paid ₹X" beside "₹X pending" looks wrong when both numbers match.
+   */
+  partialPlanTowardLabel(m: Member): string {
+    const plan = Math.max(0, Math.round(Number(m.amount) || 0));
+    const toward = Math.round(this.partialPaidAmount(m));
+    return `₹${toward.toLocaleString('en-IN')} toward ₹${plan.toLocaleString('en-IN')} plan`;
   }
 
   dueStatusLabel(m: Member): string {

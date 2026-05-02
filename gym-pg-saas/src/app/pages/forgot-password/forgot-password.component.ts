@@ -256,6 +256,13 @@ export class ForgotPasswordComponent implements OnInit, OnDestroy {
     if (code === 'functions/permission-denied') {
       return 'OTP verification missing. Please restart the reset flow.';
     }
+    if (
+      code === 'functions/deadline-exceeded' ||
+      code === 'deadline-exceeded' ||
+      /deadline exceeded/i.test(String((e as { message?: string }).message || ''))
+    ) {
+      return 'The reset service took too long to respond (slow network or server busy). Please try again in a moment.';
+    }
     return msg(e, 'Could not reset password. Please try again.');
   }
 }

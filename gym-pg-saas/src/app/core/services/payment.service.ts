@@ -311,10 +311,27 @@ export class PaymentService {
   }
 
   /**
-   * Update the amount of an existing payment
+   * Update the recorded amount only (Firestore rules enforce no other field changes).
+   * Aggregates that read from `payments` (dashboard earnings, etc.) update via the live listener.
    */
   async updatePaymentAmount(paymentId: string, newAmount: number): Promise<void> {
+    const n = Math.round(Number(newAmount));
+    if (!Number.isFinite(n) || n < 1) {
+      throw new Error('Invalid payment amount');
+    }
     const ref = doc(this.fb.db, 'payments', paymentId);
-    await updateDoc(ref, { amount: newAmount });
+    await updateDoc(ref, { amount: n });
+  }
+
+  /**
+   * Update pending balance on a partial-payment row only (rules enforce partial row + pendingAmount-only diff).
+   */
+  async updatePaymentPendingAmount(paymentId: string, newPendingAmount: number): Promise<void> {
+    const n = Math.max(0, Math.round(Number(newPendingAmount)));
+    if (!Number.isFinite(n)) {
+      throw new Error('Invalid pending amount');
+    }
+    const ref = doc(this.fb.db, 'payments', paymentId);
+    await updateDoc(ref, { pendingAmount: n });
   }
 }

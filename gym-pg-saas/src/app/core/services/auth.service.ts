@@ -562,12 +562,21 @@ export class AuthService {
       throw err;
     }
     try {
-      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const { getFunctions, httpsCallable, httpsCallableFromURL } = await import('firebase/functions');
       const fns = getFunctions(this.fb.app, 'us-central1');
-      const call = httpsCallable<{ newPassword: string }, { ok: true }>(
-        fns,
-        'resetOwnerPasswordWithPhoneOtp',
-      );
+      /** Same-origin Hosting rewrite avoids some networks blocking *.cloudfunctions.net; see firebase.json. */
+      const hostingResetUrl =
+        typeof window !== 'undefined' && !/^localhost$|^127\.0\.0\.1$/i.test(window.location.hostname)
+          ? `${window.location.origin}/api-fn/resetOwnerPasswordWithPhoneOtp`
+          : null;
+      const callTimeout = 110_000;
+      const call = hostingResetUrl
+        ? httpsCallableFromURL<{ newPassword: string }, { ok: true }>(fns, hostingResetUrl, {
+            timeout: callTimeout,
+          })
+        : httpsCallable<{ newPassword: string }, { ok: true }>(fns, 'resetOwnerPasswordWithPhoneOtp', {
+            timeout: callTimeout,
+          });
       await call({ newPassword });
     } finally {
       this.disposePhoneResetRecaptcha();

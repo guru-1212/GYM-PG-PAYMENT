@@ -18,6 +18,7 @@ import {
 } from '../../core/utils/date.utils';
 import { formatPgRoomLabel } from '../../core/utils/pg-layout-display.utils';
 import { PayMemberModalComponent } from '../../shared/pay-member-modal.component';
+import { EditPaymentModalComponent, type EditPaymentKind } from '@app/shared/edit-payment-modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
 /** Filter options for the "Collect payment" members table at the top of the page. */
@@ -26,7 +27,7 @@ type CollectFilter = 'all' | 'pending' | 'overdue' | 'dueSoon' | 'paid';
 @Component({
   selector: 'app-payments-page',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, NgClass, PayMemberModalComponent, TranslatePipe],
+  imports: [DatePipe, DecimalPipe, NgClass, PayMemberModalComponent, EditPaymentModalComponent, TranslatePipe],
   templateUrl: './payments-page.component.html',
 })
 export class PaymentsPageComponent implements OnInit, OnDestroy {
@@ -51,6 +52,10 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
   /* ---------- shared pay modal state ---------- */
   readonly payTarget = signal<Member | null>(null);
   readonly payModalOpen = signal<boolean>(false);
+
+  readonly editPaymentTarget = signal<Payment | null>(null);
+  readonly editPaymentModalOpen = signal<boolean>(false);
+  readonly editPaymentKind = signal<EditPaymentKind>('rent');
 
   /** Computed: true when the owner runs a gym (drives subscription-type UI). */
   readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
@@ -409,6 +414,31 @@ export class PaymentsPageComponent implements OnInit, OnDestroy {
   closePay(): void {
     this.payModalOpen.set(false);
     this.payTarget.set(null);
+  }
+
+  openEditPaymentRent(p: Payment): void {
+    if (!this.canRecordPaymentsAction()) return;
+    this.editPaymentKind.set('rent');
+    this.editPaymentTarget.set(p);
+    this.editPaymentModalOpen.set(true);
+  }
+
+  openEditPaymentPending(p: Payment): void {
+    if (!this.canRecordPaymentsAction()) return;
+    if (!this.canEditPendingOnPayment(p)) return;
+    this.editPaymentKind.set('pending');
+    this.editPaymentTarget.set(p);
+    this.editPaymentModalOpen.set(true);
+  }
+
+  canEditPendingOnPayment(p: Payment): boolean {
+    return p.isPartialPayment === true || (Number(p.pendingAmount) || 0) > 0;
+  }
+
+  closeEditPaymentModal(): void {
+    this.editPaymentModalOpen.set(false);
+    this.editPaymentTarget.set(null);
+    this.editPaymentKind.set('rent');
   }
 
   setCollectFilter(filter: CollectFilter): void {

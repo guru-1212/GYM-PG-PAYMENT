@@ -197,6 +197,9 @@ export class PayMemberModalComponent implements OnChanges, OnDestroy {
       // the new state without waiting for the Firestore listener. The listener
       // will overwrite this with identical server-authoritative values shortly.
       const patch: Partial<Member> = { pendingAmount: result.pendingAmount };
+      const planAmt = Math.max(0, Number(m.amount) || 0);
+      const pendAmt = Math.max(0, Number(result.pendingAmount) || 0);
+      patch.paidRent = Math.max(0, Math.min(planAmt, planAmt - pendAmt));
       if (result.dueDate) patch.dueDate = dateToTimestamp(result.dueDate);
       if (result.subscriptionType) patch.subscriptionType = result.subscriptionType;
       this.cache.patchMemberLocal(m.memberId, patch);

@@ -447,7 +447,7 @@ function isStrongPassword(pw) {
 }
 
 exports.resetOwnerPasswordWithPhoneOtp = functions
-  .runWith({ timeoutSeconds: 60, memory: '256MB' })
+  .runWith({ timeoutSeconds: 120, memory: '256MB' })
   .https.onCall(async (data, context) => {
     if (!context.auth || !context.auth.token) {
       throw new functions.https.HttpsError(

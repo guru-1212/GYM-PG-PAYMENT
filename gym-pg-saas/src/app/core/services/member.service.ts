@@ -43,6 +43,8 @@ export interface MemberInput {
   paidAmount?: number;
   /** Remaining balance when onboarding payment is partial. */
   pendingAmount?: number;
+  /** Rent paid toward plan (display / member profile); use with `amount` and `pendingAmount`. */
+  paidRent?: number;
   /** Security deposit / advance paid by member. */
   advancePaid?: number;
   /** Internal advance lifecycle marker. */
@@ -98,11 +100,19 @@ export class MemberService {
       const list: Member[] = [];
       snap.forEach((d) => {
         const data = d.data() as Member;
+        const amount = Math.max(0, Number(data.amount) || 0);
+        const pendingAmount = Number(data.pendingAmount) || 0;
+        const rawPaid = data.paidRent;
+        const paidRent =
+          rawPaid !== undefined && rawPaid !== null && String(rawPaid) !== ''
+            ? Math.max(0, Math.min(amount, Number(rawPaid) || 0))
+            : Math.max(0, amount - pendingAmount);
         list.push({
           ...data,
           memberId: d.id,
           subscriptionType: data.subscriptionType || 'monthly',
-          pendingAmount: Number(data.pendingAmount) || 0,
+          pendingAmount,
+          paidRent,
           advancePaid: Math.max(0, Number(data.advancePaid) || 0),
           advanceStatus: data.advanceStatus === 'returned' ? 'returned' : 'held',
         });
@@ -132,7 +142,12 @@ export class MemberService {
     const paidAmount = Math.max(0, Number(input.paidAmount ?? input.amount) || 0);
     const pendingAmount = Math.max(0, Number(input.pendingAmount) || 0);
     const advancePaid = Math.max(0, Number(input.advancePaid) || 0);
-    const isPartialPayment = pendingAmount > 0;
+    const paidRentStored =
+      input.paidRent !== undefined && input.paidRent !== null
+        ? Math.max(0, Math.min(totalAmount, Number(input.paidRent) || 0))
+        : Math.max(0, totalAmount - pendingAmount);
+    const pendingAmountAligned = Math.max(0, totalAmount - paidRentStored);
+    const isPartialPayment = pendingAmountAligned > 0;
 
     const profilePhotoUrl = (input.profilePhotoUrl || '').trim();
     const aadhaarFrontUrl = (input.aadhaarFrontUrl || '').trim();
@@ -162,7 +177,8 @@ export class MemberService {
       dueDate: dateToTimestamp(due),
       status: input.status,
       subscriptionType: sub,
-      pendingAmount,
+      pendingAmount: pendingAmountAligned,
+      paidRent: paidRentStored,
       advancePaid,
       advanceStatus: 'held',
       profilePhotoUrl,
@@ -181,7 +197,7 @@ export class MemberService {
         date: dateToTimestamp(join), // Use join date as payment date
         method: input.paymentMethod,
         isPartialPayment,
-        pendingAmount,
+        pendingAmount: pendingAmountAligned,
         createdAt: serverTimestamp(),
       });
     }
@@ -219,8 +235,13 @@ export class MemberService {
     const sub: SubscriptionType =
       owner?.businessType === 'gym' ? input.subscriptionType || 'monthly' : 'monthly';
     const due = input.dueDate || firstDueFromJoin(join, sub);
-    const pendingAmount = Math.max(0, Number(input.pendingAmount) || 0);
     const paidAmount = Math.max(0, Number(input.paidAmount) || 0);
+    const amount = Math.max(0, Number(input.amount) || 0);
+    const paidRent =
+      input.paidRent !== undefined && input.paidRent !== null
+        ? Math.max(0, Math.min(amount, Number(input.paidRent) || 0))
+        : Math.max(0, amount - Math.max(0, Number(input.pendingAmount) || 0));
+    const pendingAmount = Math.max(0, amount - paidRent);
     const payload: Record<string, any> = {
       firstName: input.firstName.trim(),
       lastName: input.lastName?.trim() || '',
@@ -240,6 +261,7 @@ export class MemberService {
       status: input.status,
       subscriptionType: sub,
       pendingAmount,
+      paidRent,
       advancePaid: Math.max(0, Number(input.advancePaid) || 0),
     };
     if (typeof input.profilePhotoUrl === 'string') {
@@ -287,16 +309,26 @@ export class MemberService {
     memberId: string,
     payload: { dueDate?: Date; subscriptionType?: SubscriptionType; pendingAmount?: number },
   ): Promise<void> {
+    const ref = doc(this.fb.db, 'members', memberId);
     const updatePayload: {
       dueDate?: ReturnType<typeof dateToTimestamp>;
       subscriptionType?: SubscriptionType;
       pendingAmount?: number;
+      paidRent?: number;
     } = {};
     if (payload.dueDate) updatePayload.dueDate = dateToTimestamp(payload.dueDate);
     if (payload.subscriptionType) updatePayload.subscriptionType = payload.subscriptionType;
-    if (payload.pendingAmount !== undefined) updatePayload.pendingAmount = Math.max(0, Number(payload.pendingAmount) || 0);
+    if (payload.pendingAmount !== undefined) {
+      const pend = Math.max(0, Number(payload.pendingAmount) || 0);
+      updatePayload.pendingAmount = pend;
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const plan = Math.max(0, Number((snap.data() as Member).amount) || 0);
+        updatePayload.paidRent = Math.max(0, Math.min(plan, plan - pend));
+      }
+    }
     if (Object.keys(updatePayload).length === 0) return;
-    await updateDoc(doc(this.fb.db, 'members', memberId), updatePayload);
+    await updateDoc(ref, updatePayload);
   }
 
   async updateMemberStatus(memberId: string, status: Member['status']): Promise<void> {

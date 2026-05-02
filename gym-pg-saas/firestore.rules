@@ -330,7 +330,37 @@ service cloud.firestore {
           isActiveSupervisorOf(request.resource.data.ownerId)
           && supervisorPerm('canRecordPayments')
         );
-      allow update, delete: if false;
+      /**
+       * Correct recorded sums: (a) `amount` collected, or (b) `pendingAmount` on partial rows only.
+       */
+      allow update: if (
+          (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+          || (isActiveSupervisorOf(resource.data.ownerId) && supervisorPerm('canRecordPayments'))
+          || isAdmin()
+        )
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.memberId == resource.data.memberId
+        && request.resource.data.date == resource.data.date
+        && request.resource.data.method == resource.data.method
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.isPartialPayment == resource.data.isPartialPayment
+        && (
+          (
+            request.resource.data.diff(resource.data).changedKeys().hasOnly(['amount'])
+            && request.resource.data.amount is number
+            && request.resource.data.amount > 0
+          )
+          || (
+            request.resource.data.diff(resource.data).changedKeys().hasOnly(['pendingAmount'])
+            && request.resource.data.pendingAmount is number
+            && request.resource.data.pendingAmount >= 0
+            && (
+              resource.data.isPartialPayment == true
+              || resource.data.pendingAmount > 0
+            )
+          )
+        );
+      allow delete: if false;
     }
 
     /**
