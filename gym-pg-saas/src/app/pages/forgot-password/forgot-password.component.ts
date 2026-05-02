@@ -242,34 +242,72 @@ export class ForgotPasswordComponent implements OnInit, OnDestroy {
   }
 
   private resetErrorMessage(e: unknown): string {
-    const code =
+    const rawCode =
       e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
-    if (code === 'functions/unauthenticated' || code === 'auth/unauthenticated') {
+    const code = rawCode.replace(/^functions\//, '');
+    const serverMsg = callableServerMessage(e);
+
+    if (code === 'unauthenticated' || rawCode === 'auth/unauthenticated') {
       return 'Your OTP session expired. Please verify the OTP again.';
     }
-    if (code === 'functions/invalid-argument') {
-      return msg(e, 'Password does not meet the strength requirements.');
+    if (code === 'invalid-argument') {
+      return serverMsg ?? 'Password does not meet the strength requirements.';
     }
-    if (code === 'functions/not-found') {
-      return 'No account found for this mobile number.';
+    if (code === 'not-found') {
+      return serverMsg ?? 'No account found for this mobile number.';
     }
-    if (code === 'functions/permission-denied') {
-      return 'OTP verification missing. Please restart the reset flow.';
+    if (code === 'permission-denied') {
+      return serverMsg ?? 'OTP verification missing. Please restart the reset flow.';
+    }
+    if (code === 'failed-precondition') {
+      return (
+        serverMsg ??
+        'This step cannot be completed right now. Please complete the OTP step again or refresh the page.'
+      );
+    }
+    if (code === 'unavailable' || code === 'resource-exhausted') {
+      return 'The reset service is busy. Please wait a moment and try again.';
     }
     if (
-      code === 'functions/deadline-exceeded' ||
       code === 'deadline-exceeded' ||
-      /deadline exceeded/i.test(String((e as { message?: string }).message || ''))
+      /deadline exceeded/i.test(serverMsg ?? '')
     ) {
       return 'The reset service took too long to respond (slow network or server busy). Please try again in a moment.';
     }
-    return msg(e, 'Could not reset password. Please try again.');
+    // Firebase client uses HTTP status -> code "unknown" with message "unknown" when the response
+    // is unexpected (proxy, Hosting rewrite, blocked cloudfunctions.net on some networks, etc.).
+    if (code === 'unknown' || code === 'internal') {
+      return 'Could not complete password reset (network or server error). Try again in a moment. If you are testing on localhost, open the same screen on your live site or ask your admin to check the reset function URL.';
+    }
+    if (serverMsg) {
+      return serverMsg;
+    }
+    return 'Could not reset password. Please try again.';
   }
 }
 
+/** Non-empty server message from a callable error, or null if it is a generic SDK placeholder. */
+function callableServerMessage(e: unknown): string | null {
+  if (!e || typeof e !== 'object' || !('message' in e)) return null;
+  const m = (e as { message: unknown }).message;
+  if (typeof m !== 'string') return null;
+  const t = m.trim();
+  if (!t || /^unknown$/i.test(t) || /^internal$/i.test(t)) return null;
+  return t;
+}
+
+function normalizeFunctionsCode(e: unknown): string {
+  const raw =
+    e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+  return raw.replace(/^functions\//, '');
+}
+
 function msg(e: unknown, fallback: string): string {
-  if (e && typeof e === 'object' && 'message' in e && typeof (e as { message: string }).message === 'string') {
-    return (e as { message: string }).message;
+  const server = callableServerMessage(e);
+  if (server) return server;
+  const code = normalizeFunctionsCode(e);
+  if (code === 'unknown' || code === 'internal') {
+    return 'A network or server error occurred. Please try again.';
   }
   return fallback;
 }
