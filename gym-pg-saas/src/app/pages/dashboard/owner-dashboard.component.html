@@ -200,30 +200,41 @@
             <p class="relative mt-1.5 text-2xl font-extrabold tracking-wider text-white sm:mt-2 sm:text-3xl">₹ ••••••</p>
           }
         </div>
-        <div
-          class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-700 p-4 shadow-lg shadow-violet-900/25 sm:p-5"
+        <button
+          type="button"
+          (click)="openTodayCollectionDetail()"
+          class="group relative block w-full overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-700 p-4 text-left shadow-lg shadow-violet-900/25 outline-none ring-offset-2 transition hover:shadow-xl hover:shadow-violet-900/35 focus-visible:ring-2 focus-visible:ring-violet-300 sm:p-5"
         >
           <span
-            class="material-icons-outlined pointer-events-none absolute -right-1 top-2 text-5xl text-white/10 select-none sm:text-6xl"
+            class="material-icons-outlined pointer-events-none absolute -right-1 top-2 text-5xl text-white/10 transition group-hover:text-white/15 select-none sm:text-6xl"
             aria-hidden="true"
             >today</span
           >
-          <p class="relative text-[10px] font-semibold uppercase tracking-wider text-white/90 sm:text-[11px] sm:text-white/80">
-            {{ 'dashboard.todayCollection' | t }}
-          </p>
-         
-            <p class="relative mt-1.5 text-2xl font-extrabold tabular-nums text-white sm:mt-2 sm:text-3xl">
-              ₹{{ todayCollection() | number: '1.0-0' }}
+          <div class="relative flex items-start justify-between gap-1 sm:gap-2">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-white/90 sm:text-[11px] sm:text-white/80">
+              {{ 'dashboard.todayCollection' | t }}
             </p>
-         
+            <span
+              class="material-icons-outlined shrink-0 rounded-lg bg-white/15 p-1 text-base text-white/95 transition group-hover:bg-white/25"
+              [attr.title]="'dashboard.todayCollectionDetailTitle' | t"
+              aria-hidden="true"
+              >info_outline</span
+            >
+          </div>
+
+          <p class="relative mt-1.5 text-2xl font-extrabold tabular-nums text-white sm:mt-2 sm:text-3xl">
+            ₹{{ todayCollection() | number: '1.0-0' }}
+          </p>
+
           <p class="relative mt-1 line-clamp-2 text-[11px] leading-snug text-white/85 sm:text-xs sm:text-white/75">
             @if (todayCollectionCount() > 0) {
-              {{ todayCollectionCount() }} {{ todayCollectionCount() === 1 ? 'payment' : 'payments' }} captured today
+              {{ todayCollectionCount() }} {{ todayCollectionCount() === 1 ? 'payment' : 'payments' }} captured today ·
+              {{ 'dashboard.todayCollectionTapDetail' | t }}
             } @else {
               {{ 'dashboard.todayCollectionHint' | t }}
             }
           </p>
-        </div>
+        </button>
         <button
           type="button"
           (click)="openAdvanceCollectionModal()"
@@ -1052,6 +1063,127 @@
             </tbody>
           </table>
         </div>
+      }
+    </div>
+  </app-modal>
+}
+
+<!-- Today's collection detail (owner only) -->
+@if (!isSupervisor()) {
+  <app-modal
+    [open]="todayCollectionDetailModalOpen()"
+    [title]="'dashboard.todayCollectionDetailTitle' | t"
+    [wide]="true"
+    (closed)="closeTodayCollectionDetail()"
+  >
+    <div class="space-y-4">
+      <div class="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-indigo-50 p-4 dark:border-violet-900/40 dark:from-violet-950/40 dark:to-indigo-950/40">
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          {{ 'dashboard.todayCollection' | t }}
+        </p>
+        <p class="mt-1 text-xl font-extrabold tabular-nums text-violet-700 dark:text-violet-300 sm:text-2xl">
+          ₹{{ todayCollection() | number: '1.0-0' }}
+        </p>
+        <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+          {{ todayCollectionCount() }} {{ todayCollectionCount() === 1 ? 'payment' : 'payments' }}
+        </p>
+      </div>
+
+      @if (todayCollectionDetailRows().length === 0) {
+        <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
+          <span class="material-icons-outlined text-5xl text-slate-300 dark:text-slate-600">payments</span>
+          <p class="mt-3 text-sm text-slate-600 dark:text-slate-400">{{ 'dashboard.todayCollectionDetailEmpty' | t }}</p>
+        </div>
+      } @else {
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div class="hidden overflow-x-auto md:block">
+            <table class="min-w-full text-left text-sm">
+              <thead class="bg-slate-50/60 text-[11px] uppercase tracking-wide text-slate-500 dark:bg-slate-800/40 dark:text-slate-400">
+                <tr>
+                  <th class="px-4 py-2.5 font-semibold">Time</th>
+                  <th class="px-4 py-2.5 font-semibold">Member</th>
+                  <th class="px-4 py-2.5 font-semibold">Type</th>
+                  <th class="px-4 py-2.5 font-semibold">Method</th>
+                  <th class="px-4 py-2.5 font-semibold">Recorded by</th>
+                  <th class="px-4 py-2.5 text-right font-semibold">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of todayCollectionDetailRows(); track trackTodayCollectionRow($index, row)) {
+                  <tr class="border-t border-slate-100 align-top dark:border-slate-800">
+                    <td class="whitespace-nowrap px-4 py-3 text-[12.5px] text-slate-600 dark:text-slate-300">
+                      {{ row.timeLabel }}
+                    </td>
+                    <td class="px-4 py-3">
+                      <p class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{{ row.memberName }}</p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span
+                        class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 {{ collectionKindClasses(row.kind) }}"
+                      >
+                        {{ row.kindLabel }}
+                      </span>
+                      @if (row.pendingAfter > 0) {
+                        <p class="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                          Pending after: ₹{{ row.pendingAfter | number: '1.0-0' }}
+                        </p>
+                      }
+                    </td>
+                    <td class="px-4 py-3">
+                      <span
+                        class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 {{ methodChipClasses(row.method) }}"
+                      >
+                        <span class="material-icons-outlined text-[12px] leading-none">{{ methodIcon(row.method) }}</span>
+                        {{ row.methodLabel }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-slate-800 dark:text-slate-200">{{ row.collectorLabel }}</td>
+                    <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+                      ₹{{ row.amount | number: '1.0-0' }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <ul class="divide-y divide-slate-100 md:hidden dark:divide-slate-800">
+            @for (row of todayCollectionDetailRows(); track trackTodayCollectionRow($index, row)) {
+              <li class="space-y-2 px-4 py-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{{ row.memberName }}</p>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                      {{ row.timeLabel }} · {{ row.collectorLabel }}
+                    </p>
+                  </div>
+                  <p class="shrink-0 text-base font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+                    ₹{{ row.amount | number: '1.0-0' }}
+                  </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span
+                    class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 {{ collectionKindClasses(row.kind) }}"
+                  >
+                    {{ row.kindLabel }}
+                  </span>
+                  <span
+                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 {{ methodChipClasses(row.method) }}"
+                  >
+                    <span class="material-icons-outlined text-[12px] leading-none">{{ methodIcon(row.method) }}</span>
+                    {{ row.methodLabel }}
+                  </span>
+                  @if (row.pendingAfter > 0) {
+                    <span
+                      class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50"
+                    >
+                      Pending ₹{{ row.pendingAfter | number: '1.0-0' }}
+                    </span>
+                  }
+                </div>
+              </li>
+            }
+          </ul>
+        </section>
       }
     </div>
   </app-modal>

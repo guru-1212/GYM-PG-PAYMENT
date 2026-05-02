@@ -181,6 +181,23 @@ export interface SupervisorCollectionDay {
   rows: SupervisorCollectionRow[];
 }
 
+/** One payment in today's collection detail modal (all sources: owner + supervisors). */
+export interface TodayCollectionDetailRow {
+  paymentId: string;
+  memberId: string;
+  memberName: string;
+  amount: number;
+  kind: 'rent' | 'pending' | 'partial';
+  kindLabel: string;
+  method: 'cash' | 'upi' | 'card';
+  methodLabel: string;
+  pendingAfter: number;
+  time: Date;
+  timeLabel: string;
+  /** Who recorded the payment (owner sees "You" for self-recorded). */
+  collectorLabel: string;
+}
+
 @Component({
   selector: 'app-owner-dashboard',
   standalone: true,
@@ -219,6 +236,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly payments = signal<Payment[]>([]);
   readonly supervisors = signal<Supervisor[]>([]);
   readonly supervisorCollectionsModalOpen = signal(false);
+  /** Breakdown of every payment captured today (member, method, rent vs pending, recorded by). */
+  readonly todayCollectionDetailModalOpen = signal(false);
   readonly loading = signal(true);
   readonly setupModalOpen = signal(false);
   readonly validationError = signal<string | null>(null);
@@ -390,6 +409,99 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     }
     return count;
   });
+
+  /**
+   * Today's payments as rows for the detail modal — same scope as `todayCollection` /
+   * `todayCollectionCount`, ordered newest first.
+   */
+  readonly todayCollectionDetailRows = computed<TodayCollectionDetailRow[]>(() => {
+    if (this.loading()) return [];
+    const oid = this.auth.profile()?.ownerId;
+    const today = new Date();
+    const memberById = new Map<string, Member>();
+    for (const m of this.members()) memberById.set(m.memberId, m);
+    const supById = new Map<string, Supervisor>();
+    for (const s of this.supervisors()) supById.set(s.supervisorId, s);
+
+    const rows: TodayCollectionDetailRow[] = [];
+
+    for (const p of this.payments()) {
+      if (oid && p.ownerId !== oid) continue;
+      const pd = this.convertTimestampToDate(p.date);
+      if (!pd || !isSameDay(pd, today)) continue;
+
+      const member = memberById.get(p.memberId);
+      const memberName = member
+        ? `${member.firstName || ''} ${member.lastName || ''}`.trim() || 'Unknown member'
+        : 'Unknown member';
+
+      const isPartial = Boolean(p.isPartialPayment);
+      const pendingAfter = Math.max(0, Number(p.pendingAmount) || 0);
+      const kind: TodayCollectionDetailRow['kind'] = isPartial
+        ? 'partial'
+        : pendingAfter > 0
+          ? 'pending'
+          : 'rent';
+      const kindLabel = isPartial
+        ? 'Partial payment'
+        : pendingAfter > 0
+          ? 'Pending balance'
+          : 'Rent / Plan';
+
+      const method = (p.method || 'cash') as TodayCollectionDetailRow['method'];
+      const methodLabel = method === 'upi' ? 'UPI' : method === 'card' ? 'Card' : 'Cash';
+
+      let collectorLabel: string;
+      const role = p.recordedByRole;
+      if (role === 'supervisor') {
+        const sup = p.recordedBy ? supById.get(p.recordedBy) : undefined;
+        collectorLabel = p.recordedByName?.trim() || sup?.name || 'Supervisor';
+      } else if (role === 'owner') {
+        collectorLabel = 'You';
+      } else if (role === 'admin') {
+        collectorLabel = p.recordedByName?.trim() || 'Admin';
+      } else if (p.recordedBy && supById.has(p.recordedBy)) {
+        const sup = supById.get(p.recordedBy)!;
+        collectorLabel = p.recordedByName?.trim() || sup.name || 'Supervisor';
+      } else {
+        collectorLabel = 'You';
+      }
+
+      rows.push({
+        paymentId: p.paymentId,
+        memberId: p.memberId,
+        memberName,
+        amount: Number(p.amount) || 0,
+        kind,
+        kindLabel,
+        method,
+        methodLabel,
+        pendingAfter,
+        time: pd,
+        timeLabel: pd.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }),
+        collectorLabel,
+      });
+    }
+
+    rows.sort((a, b) => b.time.getTime() - a.time.getTime());
+    return rows;
+  });
+
+  trackTodayCollectionRow(_idx: number, row: TodayCollectionDetailRow): string {
+    return row.paymentId;
+  }
+
+  openTodayCollectionDetail(): void {
+    this.todayCollectionDetailModalOpen.set(true);
+  }
+
+  closeTodayCollectionDetail(): void {
+    this.todayCollectionDetailModalOpen.set(false);
+  }
 
   // ── Supervisor collections (only when owner has supervisors) ───────────────
 

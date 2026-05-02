@@ -1,4 +1,4 @@
-<div class="saas-page mx-auto max-w-6xl">
+<div class="saas-page mx-auto w-full min-w-0 max-w-6xl">
   <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 class="text-2xl font-bold text-slate-900">{{ pageTitle() }}</h1>
@@ -39,28 +39,32 @@
     </div>
   }
 
-  <div class="saas-card grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
-    <div class="md:col-span-2 xl:col-span-2">
+  <div class="saas-card grid min-w-0 gap-3 p-4 md:grid-cols-2 xl:grid-cols-5 [&>*]:min-w-0">
+    <div class="min-w-0 md:col-span-2 xl:col-span-2">
       <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.search' | t }}</label>
       <input
         type="search"
-        class="saas-input w-full"
+        class="saas-input w-full min-w-0 max-w-full"
         [placeholder]="'members.searchPlaceholder' | t"
         [value]="search()"
         (input)="search.set($any($event.target).value)"
       />
     </div>
-    <div>
+    <div class="min-w-0">
       <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.memberStatus' | t }}</label>
-      <select class="saas-input w-full" [value]="statusFilter()" (change)="statusFilter.set($any($event.target).value)">
+      <select
+        class="saas-input w-full min-w-0 max-w-full"
+        [value]="statusFilter()"
+        (change)="statusFilter.set($any($event.target).value)"
+      >
         <option value="all">{{ 'members.all' | t }}</option>
         <option value="active">{{ 'members.active' | t }}</option>
         <option value="inactive">{{ 'members.inactive' | t }}</option>
       </select>
     </div>
-    <div>
+    <div class="min-w-0">
       <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.payment' | t }}</label>
-      <select class="saas-input w-full" [value]="payFilter()" (change)="onPayFilterChange($any($event.target).value)">
+      <select class="saas-input w-full min-w-0 max-w-full" [value]="payFilter()" (change)="onPayFilterChange($any($event.target).value)">
         <option value="all">{{ 'members.all' | t }}</option>
         <option value="partial">Partial Payment</option>
         <option value="overdue">Overdue</option>
@@ -68,14 +72,22 @@
         <option value="paid">{{ 'members.paid' | t }}</option>
       </select>
     </div>
-    <div class="md:col-span-2 xl:col-span-1 xl:max-w-none">
+    <div class="min-w-0 md:col-span-2 xl:col-span-1 xl:max-w-none">
       <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.sort' | t }}</label>
-      <div class="flex gap-2">
-        <select class="saas-input min-w-0 flex-1" [value]="sortKey()" (change)="sortKey.set($any($event.target).value)">
+      <div class="flex min-w-0 flex-col gap-2 min-[440px]:flex-row min-[440px]:items-stretch">
+        <select
+          class="saas-input min-w-0 w-full max-w-full flex-1"
+          [value]="sortKey()"
+          (change)="sortKey.set($any($event.target).value)"
+        >
           <option value="due">{{ 'members.dueUrgent' | t: { label: dueLabel() } }}</option>
           <option value="name">{{ 'members.nameSort' | t }}</option>
         </select>
-        <select class="saas-input w-36 shrink-0" [value]="sortDir()" (change)="sortDir.set($any($event.target).value)">
+        <select
+          class="saas-input min-w-0 w-full max-w-full flex-1 min-[440px]:w-36 min-[440px]:max-w-none min-[440px]:shrink-0 min-[440px]:flex-none"
+          [value]="sortDir()"
+          (change)="sortDir.set($any($event.target).value)"
+        >
           <option value="asc">{{ sortKey() === 'due' ? ('members.soonestFirst' | t) : ('members.az' | t) }}</option>
           <option value="desc">{{ sortKey() === 'due' ? ('members.latestFirst' | t) : ('members.za' | t) }}</option>
         </select>
