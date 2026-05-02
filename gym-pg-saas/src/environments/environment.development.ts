@@ -42,11 +42,21 @@ export const verifyMemberCallableUrl: string | null = null;
  */
 export const resetOwnerPasswordCallableUrl: string | null = null;
 
+/**
+ * reCAPTCHA **v3** site key (public) for Firebase App Check — e.g. key named `gym-pg-sass-production` in Google reCAPTCHA.
+ * Register the matching **secret** in Firebase Console → App Check. Phone Auth still uses its own verifier; this helps
+ * attested requests when App Check enforcement is enabled.
+ */
+export const appCheckRecaptchaSiteKey: string | null = useProdFirebase
+  ? '6LdbFNYsAAAAAGkVPtOkXfd4OmRPeSmfMYIKMkZl'
+  : null;
+
 export type GymEnvironment = {
   production: boolean;
   firebase: FirebaseOptions;
   verifyMemberCallableUrl: string | null;
   resetOwnerPasswordCallableUrl: string | null;
+  appCheckRecaptchaSiteKey: string | null;
 };
 
 export const environment: GymEnvironment = {
@@ -54,4 +64,5 @@ export const environment: GymEnvironment = {
   firebase: selectedFirebase,
   verifyMemberCallableUrl,
   resetOwnerPasswordCallableUrl,
+  appCheckRecaptchaSiteKey,
 };

@@ -2,6 +2,7 @@ import {
   selectedFirebase,
   verifyMemberCallableUrl,
   resetOwnerPasswordCallableUrl,
+  appCheckRecaptchaSiteKey,
   type GymEnvironment,
 } from './environment.development';
 
@@ -10,4 +11,5 @@ export const environment: GymEnvironment = {
   firebase: selectedFirebase,
   verifyMemberCallableUrl,
   resetOwnerPasswordCallableUrl,
+  appCheckRecaptchaSiteKey,
 };
