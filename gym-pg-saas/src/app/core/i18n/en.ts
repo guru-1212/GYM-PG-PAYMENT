@@ -120,7 +120,8 @@ export const EN: Record<string, unknown> = {
     verifyAndCreate: 'Verify and create account',
     changeNumber: 'Change number',
     forgotPassword: 'Forgot password?',
-    resetPasswordHint: 'Enter the mobile or email you use to sign in. We will email you a reset link.',
+    resetPasswordHint:
+      'Use the mobile number registered on your owner account. We will send an SMS code, then you can set a new password.',
     sendResetEmail: 'Send reset email',
     resetEmailSentToast:
       'If an account exists for what you entered—and you used the correct email at sign-up (same one you use for password reset)—we have sent a password reset link to that email.\n\nPlease check your inbox and your spam or junk folder; the message often lands in spam.',

@@ -31,6 +31,7 @@ import {
   sanitizeSupervisorUserId,
 } from '../utils/supervisor.util';
 import { normalizeSupervisorPermissions } from '../models/supervisor.model';
+import { environment } from '../../../environments/environment';
 import { FirebaseAppService } from './firebase-app.service';
 import {
   digitsOnly,
@@ -581,14 +582,16 @@ export class AuthService {
     try {
       const { getFunctions, httpsCallable, httpsCallableFromURL } = await import('firebase/functions');
       const fns = getFunctions(this.fb.app, 'us-central1');
-      /** Same-origin Hosting rewrite avoids some networks blocking *.cloudfunctions.net; see firebase.json. */
-      const hostingResetUrl =
+      const callTimeout = 110_000;
+      /** Prefer explicit env override (local dev + prod Firebase), then same-origin Hosting rewrite on deployed host. */
+      const configured = environment.resetOwnerPasswordCallableUrl?.trim() || null;
+      const sameOrigin =
         typeof window !== 'undefined' && !/^localhost$|^127\.0\.0\.1$/i.test(window.location.hostname)
           ? `${window.location.origin}/api-fn/resetOwnerPasswordWithPhoneOtp`
           : null;
-      const callTimeout = 110_000;
-      const call = hostingResetUrl
-        ? httpsCallableFromURL<{ newPassword: string }, { ok: true }>(fns, hostingResetUrl, {
+      const callableUrl = configured || sameOrigin || null;
+      const call = callableUrl
+        ? httpsCallableFromURL<{ newPassword: string }, { ok: true }>(fns, callableUrl, {
             timeout: callTimeout,
           })
         : httpsCallable<{ newPassword: string }, { ok: true }>(fns, 'resetOwnerPasswordWithPhoneOtp', {
