@@ -34,14 +34,25 @@ export const selectedFirebase: FirebaseOptions = useProdFirebase ? firebaseProd 
  */
 export const verifyMemberCallableUrl: string | null = null;
 
+/**
+ * Optional full URL for the owner phone-OTP password reset callable (Hosting rewrite).
+ * Live builds use same-origin `/api-fn/resetOwnerPasswordWithPhoneOtp` automatically.
+ * On **localhost** with production Firebase, some networks block `*.cloudfunctions.net`;
+ * set this to your deployed site (e.g. `https://ourpgtracker.in/api-fn/resetOwnerPasswordWithPhoneOtp`)
+ * so the reset flow matches the behaviour you verified on the test/staging project.
+ */
+export const resetOwnerPasswordCallableUrl: string | null = null;
+
 export type GymEnvironment = {
   production: boolean;
   firebase: FirebaseOptions;
   verifyMemberCallableUrl: string | null;
+  resetOwnerPasswordCallableUrl: string | null;
 };
 
 export const environment: GymEnvironment = {
   production: false,
   firebase: selectedFirebase,
   verifyMemberCallableUrl,
+  resetOwnerPasswordCallableUrl,
 };

@@ -7,6 +7,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { OwnerAdminChatService } from '../../core/services/owner-admin-chat.service';
 import { SubscriptionService } from '../../core/services/subscription.service';
 import { ToastService } from '../../core/services/toast.service';
+import { TranslationService } from '../../core/services/translation.service';
 import { ModalComponent } from '../../shared/modal.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { SubscriptionModalComponent } from '../../shared/subscription-modal.component';
@@ -23,6 +24,7 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
   private readonly chat = inject(OwnerAdminChatService);
   private readonly subscription = inject(SubscriptionService);
   private readonly toast = inject(ToastService);
+  private readonly i18n = inject(TranslationService);
 
   readonly owners = signal<Owner[]>([]);
   readonly busyId = signal<string | null>(null);
@@ -42,6 +44,13 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
   readonly filterStatus = signal<'all' | OwnerStatus>('all');
   readonly filterPlan = signal<'all' | 'active' | 'expired' | 'expiring-soon'>('all');
   readonly filterBusinessType = signal<'all' | BusinessType>('all');
+  /** Mark inactive: confirm + admin password. */
+  readonly inactiveConfirmOwner = signal<Owner | null>(null);
+  readonly inactiveConfirmPassword = signal('');
+  readonly inactiveConfirmBusy = signal(false);
+  /** Reactivate: confirm only. */
+  readonly activeConfirmOwner = signal<Owner | null>(null);
+  readonly activeConfirmBusy = signal(false);
   private unsub: (() => void) | null = null;
   private unsubUnread: (() => void) | null = null;
   private unsubMemberCounts: (() => void) | null = null;
@@ -301,27 +310,77 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
     }
   }
 
-  async setOwnerActive(owner: Owner): Promise<void> {
+  openActiveConfirm(owner: Owner): void {
+    this.activeConfirmOwner.set(owner);
+  }
+
+  closeActiveConfirm(): void {
+    if (this.activeConfirmBusy()) return;
+    this.activeConfirmOwner.set(null);
+  }
+
+  async confirmActivateOwner(): Promise<void> {
+    const owner = this.activeConfirmOwner();
+    if (!owner) return;
+    this.activeConfirmBusy.set(true);
     this.busyId.set(owner.ownerId);
     try {
       await this.admin.setOwnerStatus(owner.ownerId, 'approved');
       this.toast.success('Owner activated');
+      this.activeConfirmOwner.set(null);
     } catch {
       this.toast.error('Could not activate owner');
     } finally {
       this.busyId.set(null);
+      this.activeConfirmBusy.set(false);
     }
   }
 
-  async setOwnerInactive(owner: Owner): Promise<void> {
-    this.busyId.set(owner.ownerId);
+  openInactiveConfirm(owner: Owner): void {
+    this.inactiveConfirmPassword.set('');
+    this.inactiveConfirmOwner.set(owner);
+  }
+
+  closeInactiveConfirm(): void {
+    if (this.inactiveConfirmBusy()) return;
+    this.inactiveConfirmOwner.set(null);
+    this.inactiveConfirmPassword.set('');
+  }
+
+  async confirmInactiveOwner(): Promise<void> {
+    const owner = this.inactiveConfirmOwner();
+    const password = this.inactiveConfirmPassword().trim();
+    if (!owner) return;
+    if (!password) {
+      this.toast.error(this.i18n.t('login.passwordRequired'));
+      return;
+    }
+    this.inactiveConfirmBusy.set(true);
     try {
-      await this.admin.setOwnerStatus(owner.ownerId, 'inactive');
+      try {
+        await this.auth.reauthenticateWithPassword(password);
+      } catch (e: unknown) {
+        const err = e as { message?: string };
+        if (err?.message === 'no-email-for-reauth') {
+          this.toast.error(this.i18n.t('admin.reauthNoEmail'));
+        } else {
+          this.toast.error(this.i18n.t('admin.reauthWrongPassword'));
+        }
+        return;
+      }
+      this.busyId.set(owner.ownerId);
+      try {
+        await this.admin.setOwnerStatus(owner.ownerId, 'inactive');
+      } catch {
+        this.toast.error('Could not mark owner inactive');
+        return;
+      }
       this.toast.success('Owner marked inactive');
-    } catch {
-      this.toast.error('Could not mark owner inactive');
+      this.inactiveConfirmOwner.set(null);
+      this.inactiveConfirmPassword.set('');
     } finally {
       this.busyId.set(null);
+      this.inactiveConfirmBusy.set(false);
     }
   }
 
@@ -347,6 +406,15 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
     return o.featureFlags?.whatsappEnabled === true;
   }
 
+  isAuditLogEnabled(o: Owner): boolean {
+    return o.featureFlags?.auditLogEnabled === true;
+  }
+
+  /** Tenant PWA (QR install, complaints, owner broadcasts) — off only when admin sets false. */
+  isTenantMemberAppEnabled(o: Owner): boolean {
+    return o.featureFlags?.tenantMemberAppEnabled !== false;
+  }
+
   async toggleSupervisorEnabled(o: Owner, checked: boolean): Promise<void> {
     this.busyId.set(o.ownerId);
     try {
@@ -367,6 +435,34 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
       await this.admin.setOwnerFeatureFlag(o.ownerId, 'whatsappEnabled', checked);
       this.toast.success(
         checked ? 'WhatsApp integration enabled' : 'WhatsApp integration disabled',
+      );
+    } catch {
+      this.toast.error('Could not update feature flag');
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  async toggleAuditLogEnabled(o: Owner, checked: boolean): Promise<void> {
+    this.busyId.set(o.ownerId);
+    try {
+      await this.admin.setOwnerFeatureFlag(o.ownerId, 'auditLogEnabled', checked);
+      this.toast.success(checked ? 'Audit log enabled' : 'Audit log hidden');
+    } catch {
+      this.toast.error('Could not update feature flag');
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  async toggleTenantMemberAppEnabled(o: Owner, checked: boolean): Promise<void> {
+    this.busyId.set(o.ownerId);
+    try {
+      await this.admin.setOwnerFeatureFlag(o.ownerId, 'tenantMemberAppEnabled', checked);
+      this.toast.success(
+        checked
+          ? 'Tenant member app (QR, complaints, messages) enabled'
+          : 'Tenant member app disabled for this owner',
       );
     } catch {
       this.toast.error('Could not update feature flag');

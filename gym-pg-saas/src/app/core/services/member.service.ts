@@ -18,6 +18,7 @@ import type { SubscriptionType } from '../models/member.model';
 import type { PaymentMethod } from '../models/payment.model';
 import { Member } from '../models/member.model';
 import { dateToTimestamp, firstDueFromJoin, yyyyMmDdFromLocalDate } from '../utils/date.utils';
+import { AuditLogService } from './audit-log.service';
 import { AuthService } from './auth.service';
 import { FirebaseAppService } from './firebase-app.service';
 import { InAppNotificationService } from './in-app-notification.service';
@@ -68,6 +69,11 @@ export class MemberService {
   private readonly fb = inject(FirebaseAppService);
   private readonly auth = inject(AuthService);
   private readonly inApp = inject(InAppNotificationService);
+  private readonly audit = inject(AuditLogService);
+
+  private memberDisplayName(input: { firstName: string; lastName?: string }): string {
+    return `${(input.firstName || '').trim()} ${(input.lastName || '').trim()}`.trim() || 'Member';
+  }
 
   /* Complaints disabled — restore helpers + getDoc/setDoc imports when feature fixed
   private normMobile10(raw: string): string {
@@ -181,6 +187,7 @@ export class MemberService {
       paidRent: paidRentStored,
       advancePaid,
       advanceStatus: 'held',
+      ...(advancePaid > 0 ? { advanceCollectedAt: serverTimestamp() } : {}),
       profilePhotoUrl,
       aadhaarFrontUrl,
       aadhaarBackUrl,
@@ -198,6 +205,7 @@ export class MemberService {
         method: input.paymentMethod,
         isPartialPayment,
         pendingAmount: pendingAmountAligned,
+        priorPendingAmount: 0,
         createdAt: serverTimestamp(),
       });
     }
@@ -209,8 +217,8 @@ export class MemberService {
     }
     */
 
+    const display = this.memberDisplayName(input);
     try {
-      const display = `${input.firstName.trim()} ${input.lastName?.trim() || ''}`.trim() || 'Member';
       await this.inApp.addOwnerNotification(owner.ownerId, {
         title: 'New member added',
         body: `${display} was added to your list.`,
@@ -221,15 +229,57 @@ export class MemberService {
       /* non-fatal */
     }
 
+    void this.audit.log({
+      ownerId: owner.ownerId,
+      action: 'member.added',
+      entityType: 'member',
+      entityId: memberRef.id,
+      entityLabel: display,
+      description: `Added new member ${display} (rent ₹${totalAmount.toLocaleString('en-IN')}).`,
+      amount: paidAmount > 0 ? paidAmount : undefined,
+      meta: {
+        joinDate: join.toISOString().slice(0, 10),
+        ...(input.roomNumber ? { room: input.roomNumber } : {}),
+        ...(input.bedNumber ? { bed: input.bedNumber } : {}),
+      },
+    });
+
+    if (paidAmount > 0) {
+      void this.audit.log({
+        ownerId: owner.ownerId,
+        action: isPartialPayment ? 'payment.partialCollected' : 'payment.collected',
+        entityType: 'payment',
+        entityId: memberRef.id,
+        entityLabel: display,
+        description: isPartialPayment
+          ? `Collected ₹${paidAmount.toLocaleString('en-IN')} from ${display} during onboarding (₹${pendingAmountAligned.toLocaleString('en-IN')} pending).`
+          : `Collected ₹${paidAmount.toLocaleString('en-IN')} from ${display} during onboarding.`,
+        amount: paidAmount,
+        meta: {
+          method: input.paymentMethod,
+          ...(isPartialPayment ? { pending: String(pendingAmountAligned) } : {}),
+        },
+      });
+    }
+
     return memberRef.id;
   }
 
   async updateMember(memberId: string, input: MemberInput): Promise<void> {
     const owner = this.auth.profile();
     const ref = doc(this.fb.db, 'members', memberId);
+    // Snapshot the row BEFORE the update so the audit trail can compare
+    // pendingAmount transitions (e.g. "Marked as Pending" when an edit
+    // re-introduces a balance) and surface a clean human description.
+    let prevSnap: Awaited<ReturnType<typeof getDoc>> | null = null;
+    try {
+      prevSnap = await getDoc(ref);
+    } catch {
+      prevSnap = null;
+    }
+    const prevData = prevSnap?.exists() ? (prevSnap.data() as Member) : null;
     /* Complaints disabled — was: prevSnap/prevMobile for lookup sync
-    const prevSnap = await getDoc(ref);
-    const prevMobile = prevSnap.exists() ? String((prevSnap.data() as Member)['mobile'] ?? '') : '';
+    const prevMobile = prevSnap?.exists() ? String((prevSnap.data() as Member)['mobile'] ?? '') : '';
     */
     const join = input.joinDate;
     const sub: SubscriptionType =
@@ -242,6 +292,8 @@ export class MemberService {
         ? Math.max(0, Math.min(amount, Number(input.paidRent) || 0))
         : Math.max(0, amount - Math.max(0, Number(input.pendingAmount) || 0));
     const pendingAmount = Math.max(0, amount - paidRent);
+    const prevAdvance = Math.max(0, Number(prevData?.advancePaid) || 0);
+    const newAdvance = Math.max(0, Number(input.advancePaid) || 0);
     const payload: Record<string, any> = {
       firstName: input.firstName.trim(),
       lastName: input.lastName?.trim() || '',
@@ -262,8 +314,11 @@ export class MemberService {
       subscriptionType: sub,
       pendingAmount,
       paidRent,
-      advancePaid: Math.max(0, Number(input.advancePaid) || 0),
+      advancePaid: newAdvance,
     };
+    if (newAdvance > prevAdvance) {
+      payload['advanceCollectedAt'] = serverTimestamp();
+    }
     if (typeof input.profilePhotoUrl === 'string') {
       payload['profilePhotoUrl'] = input.profilePhotoUrl.trim();
     }
@@ -287,8 +342,34 @@ export class MemberService {
         method: input.paymentMethod,
         isPartialPayment: pendingAmount > 0,
         pendingAmount,
+        priorPendingAmount: Math.max(0, Number(prevData?.pendingAmount) || 0),
         createdAt: serverTimestamp(),
       });
+    }
+
+    if (owner?.ownerId) {
+      const display = this.memberDisplayName(input);
+      void this.audit.log({
+        ownerId: owner.ownerId,
+        action: 'member.updated',
+        entityType: 'member',
+        entityId: memberId,
+        entityLabel: display,
+        description: `Updated profile for ${display}.`,
+      });
+
+      const prevPending = Math.max(0, Number(prevData?.pendingAmount) || 0);
+      if (pendingAmount > 0 && prevPending === 0) {
+        void this.audit.log({
+          ownerId: owner.ownerId,
+          action: 'rent.markedPending',
+          entityType: 'member',
+          entityId: memberId,
+          entityLabel: display,
+          description: `${display} now has a pending balance of ₹${pendingAmount.toLocaleString('en-IN')} after edit.`,
+          amount: pendingAmount,
+        });
+      }
     }
     /* Complaints disabled — restore when feature fixed
     const oid = owner?.ownerId;
@@ -333,6 +414,19 @@ export class MemberService {
 
   async updateMemberStatus(memberId: string, status: Member['status']): Promise<void> {
     const ref = doc(this.fb.db, 'members', memberId);
+    let prevName = 'Member';
+    let ownerId = this.auth.profile()?.ownerId || '';
+    try {
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data() as Member;
+        prevName = `${data.firstName ?? ''} ${data.lastName ?? ''}`.trim() || 'Member';
+        ownerId = data.ownerId || ownerId;
+      }
+    } catch {
+      /* ignore — best-effort lookup for the audit row */
+    }
+
     if (status === 'inactive') {
       await updateDoc(ref, {
         status,
@@ -341,6 +435,18 @@ export class MemberService {
       });
     } else {
       await updateDoc(ref, { status });
+    }
+
+    if (ownerId) {
+      void this.audit.log({
+        ownerId,
+        action: 'member.statusChanged',
+        entityType: 'member',
+        entityId: memberId,
+        entityLabel: prevName,
+        description: `${prevName} marked as ${status}.`,
+        meta: { status },
+      });
     }
   }
 
@@ -409,20 +515,80 @@ export class MemberService {
       selfOnboardingCompletedAt: serverTimestamp(),
       selfOnboardingTokenUsed: p.selfOnboardingTokenUsed,
     });
+
+    if (m.ownerId) {
+      const display = `${m.firstName ?? ''} ${(p.lastName || m.lastName) ?? ''}`.trim() || 'Member';
+      void this.audit.log({
+        ownerId: m.ownerId,
+        action: 'member.onboardingApproved',
+        entityType: 'member',
+        entityId: memberId,
+        entityLabel: display,
+        description: `Approved self-onboarding submission for ${display}.`,
+      });
+    }
   }
 
   /** Discard pending submission so the member can be sent a new link. */
   async rejectPendingSelfOnboarding(memberId: string): Promise<void> {
-    await updateDoc(doc(this.fb.db, 'members', memberId), {
+    const ref = doc(this.fb.db, 'members', memberId);
+    let prevDisplay = 'Member';
+    let ownerId = this.auth.profile()?.ownerId || '';
+    try {
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data() as Member;
+        prevDisplay = `${data.firstName ?? ''} ${data.lastName ?? ''}`.trim() || 'Member';
+        ownerId = data.ownerId || ownerId;
+      }
+    } catch {
+      /* ignore */
+    }
+    await updateDoc(ref, {
       pendingSelfOnboarding: deleteField(),
       selfOnboardingStatus: 'pending',
       selfOnboardingTokenUsed: deleteField(),
     });
+    if (ownerId) {
+      void this.audit.log({
+        ownerId,
+        action: 'member.onboardingRejected',
+        entityType: 'member',
+        entityId: memberId,
+        entityLabel: prevDisplay,
+        description: `Rejected self-onboarding submission for ${prevDisplay}.`,
+      });
+    }
   }
 
   async deleteMember(memberId: string): Promise<void> {
     const ref = doc(this.fb.db, 'members', memberId);
+    // Capture identity BEFORE deletion so the audit row carries a name
+    // (the doc no longer exists after delete and a UID isn't useful in the
+    // owner's report view).
+    let prevDisplay = 'Member';
+    let ownerId = this.auth.profile()?.ownerId || '';
+    try {
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data() as Member;
+        prevDisplay = `${data.firstName ?? ''} ${data.lastName ?? ''}`.trim() || 'Member';
+        ownerId = data.ownerId || ownerId;
+      }
+    } catch {
+      /* best-effort lookup only */
+    }
     await deleteDoc(ref);
+    if (ownerId) {
+      void this.audit.log({
+        ownerId,
+        action: 'member.removed',
+        entityType: 'member',
+        entityId: memberId,
+        entityLabel: prevDisplay,
+        description: `Removed ${prevDisplay} from member list.`,
+      });
+    }
     /* Complaints disabled — restore when feature fixed (was: getDoc + removeComplaintLookup)
     const owner = this.auth.profile();
     const snap = await getDoc(ref);

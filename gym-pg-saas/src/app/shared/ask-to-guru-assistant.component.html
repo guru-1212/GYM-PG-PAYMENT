@@ -1,0 +1,82 @@
+<button type="button" class="ask-guru-launcher" (click)="openAssistant()" aria-label="Open Ask to Guru">
+  <span class="material-icons-outlined">smart_toy</span>
+  <span class="launcher-text">Ask to Guru</span>
+</button>
+
+@if (panelOpen()) {
+  <div class="ask-guru-backdrop" (click)="closeAssistant()">
+    <section class="ask-guru-shell" (click)="$event.stopPropagation()">
+      <header class="ask-guru-header">
+        <div>
+          <p class="ask-guru-title">Ask to Guru</p>
+          <p class="ask-guru-subtitle">You are on {{ currentPageTitle() }}. Your smart assistant to guide you.</p>
+        </div>
+        <button type="button" class="ask-guru-close" (click)="closeAssistant()" aria-label="Close Ask to Guru">
+          <span class="material-icons-outlined">close</span>
+        </button>
+      </header>
+
+      <div #chatViewport class="ask-guru-messages">
+        @for (msg of messages(); track msg.id) {
+          <article class="message-row" [class.message-row-user]="msg.sender === 'user'">
+            <div class="message-bubble" [class.message-bubble-user]="msg.sender === 'user'" [class.message-bubble-highlight]="msg.highlight">
+              @for (line of msg.text.split('\n'); track $index) {
+                <p>{{ line }}</p>
+              }
+            </div>
+
+            @if (msg.sender === 'assistant' && msg.suggestions?.length) {
+              <div class="message-suggestions">
+                @for (option of msg.suggestions!; track option.id) {
+                  <button type="button" class="suggestion-chip" (click)="askSuggestion(option)">
+                    <span>{{ option.label }}</span>
+                    <span class="material-icons-outlined">arrow_forward</span>
+                  </button>
+                }
+              </div>
+            }
+
+            @if (msg.showStillHelpButton) {
+              <div class="message-actions">
+                <button type="button" class="still-help-btn" (click)="showContactOption(msg.id)">Still need help?</button>
+              </div>
+            }
+
+            @if (msg.showContactAdmin) {
+              <div class="message-actions">
+                <button type="button" class="contact-admin-btn" (click)="contactAdminOnWhatsapp()">
+                  <i class="fa-brands fa-whatsapp" aria-hidden="true"></i>
+                  Contact Admin via WhatsApp
+                </button>
+              </div>
+            }
+          </article>
+        }
+
+        @if (isTyping()) {
+          <article class="message-row">
+            <div class="message-bubble typing-bubble">
+              <span></span><span></span><span></span>
+            </div>
+          </article>
+        }
+      </div>
+
+      <footer class="ask-guru-input-wrap">
+        <div class="ask-guru-input">
+          <input
+            type="text"
+            placeholder="Ask anything..."
+            [value]="inputText()"
+            (input)="inputText.set($any($event.target).value)"
+            (keydown.enter)="sendCurrentQuestion()"
+          />
+          <button type="button" (click)="sendCurrentQuestion()" [disabled]="!inputText().trim() || isTyping()">
+            <span>Send</span>
+            <span class="material-icons-outlined">arrow_upward</span>
+          </button>
+        </div>
+      </footer>
+    </section>
+  </div>
+}

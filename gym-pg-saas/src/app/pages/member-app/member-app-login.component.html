@@ -1,0 +1,21 @@
+<div class="mal">
+  <div class="mal-card">
+    <p class="mal-kicker">Tenant sign-in</p>
+    <h1 class="mal-h1">Member app</h1>
+    <p class="mal-lead">
+      To open your tenant account, use the <strong>QR code</strong> your owner put up at the property. The first time you scan it, this phone remembers the link so you can sign in again anytime.
+    </p>
+    <ul class="mal-steps">
+      <li>Scan the PG QR with your camera</li>
+      <li>Tap <strong>Install</strong> if you want the app on your home screen</li>
+      <li>Enter your <strong>registered mobile</strong> and <strong>last 4 digits of Aadhaar</strong></li>
+    </ul>
+    <p class="mal-muted">
+      Are you the <strong>owner</strong> of a PG? Use the main site sign-in instead.
+    </p>
+    <div class="mal-actions">
+      <a routerLink="/login" [queryParams]="{ mode: 'signin' }" class="mal-btn mal-btn--secondary">Owner / staff sign in</a>
+      <a routerLink="/" class="mal-btn mal-btn--ghost">Back to home</a>
+    </div>
+  </div>
+</div>

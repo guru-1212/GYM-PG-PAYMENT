@@ -1,55 +1,83 @@
 @if (layout(); as pg) {
-  <div class="space-y-3">
-    <div class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/90 p-3 dark:border-slate-600 dark:bg-slate-800/40 sm:flex-row sm:items-center">
-      <label class="sr-only" for="bedmap-search-input">{{ 'members.bedMapSearchAria' | t }}</label>
-      <input
-        id="bedmap-search-input"
-        type="search"
-        autocomplete="off"
-        class="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
-        [placeholder]="'members.bedMapSearchPlaceholder' | t"
-        [value]="searchDraft()"
-        (input)="onSearchInput($event)"
-        (keydown.enter)="runBedMapSearch()"
-      />
-      <button
-        type="button"
-        class="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400"
-        (click)="runBedMapSearch()"
-      >
-        {{ 'members.bedMapSearchGo' | t }}
-      </button>
+  <div class="space-y-5">
+    <div
+      class="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-white via-white to-slate-50/90 p-1.5 shadow-md shadow-slate-200/40 ring-1 ring-slate-200/60 dark:border-slate-600/80 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900/95 dark:shadow-none dark:ring-slate-700/50 sm:p-2"
+    >
+      <div class="flex flex-col gap-2.5 sm:flex-row sm:items-stretch">
+        <label class="sr-only" for="bedmap-search-input">{{ 'members.bedMapSearchAria' | t }}</label>
+        <input
+          id="bedmap-search-input"
+          type="search"
+          autocomplete="off"
+          class="min-w-0 flex-1 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-inner shadow-slate-900/5 placeholder:text-slate-400 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:shadow-inner dark:placeholder:text-slate-500"
+          [placeholder]="'members.bedMapSearchPlaceholder' | t"
+          [value]="searchDraft()"
+          (input)="onSearchInput($event)"
+          (keydown.enter)="runBedMapSearch()"
+        />
+        <button
+          type="button"
+          class="shrink-0 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-900/15 transition hover:bg-indigo-700 hover:shadow-lg active:scale-[0.99] dark:bg-indigo-500 dark:hover:bg-indigo-400"
+          (click)="runBedMapSearch()"
+        >
+          {{ 'members.bedMapSearchGo' | t }}
+        </button>
+      </div>
     </div>
     @for (floor of pg.floors || []; track floor.floorNumber) {
       <section
-        class="rounded-xl border border-slate-200 p-3 dark:border-slate-600"
+        class="rounded-2xl border border-slate-200/85 bg-white/80 p-4 shadow-sm shadow-slate-200/50 backdrop-blur-sm dark:border-slate-700/80 dark:bg-slate-900/55 dark:shadow-none"
         [id]="bedmapFloorDomId(floor.floorNumber)"
         [class.bedmap-search-flash]="isSearchFlashing(bedmapFloorDomId(floor.floorNumber))"
       >
-        <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
-          @if (+floor.floorNumber === 0) {
-            {{ 'rooms.groundFloor' | t }}
-          } @else {
-            {{ 'rooms.floor' | t }} {{ floor.floorNumber }}
-          }
-        </p>
+        <div class="flex items-center gap-2 border-b border-slate-200/80 pb-3 dark:border-slate-700/80">
+          <span
+            class="inline-block h-6 w-1 rounded-full bg-gradient-to-b from-indigo-500 to-violet-500 dark:from-indigo-400 dark:to-violet-400"
+            aria-hidden="true"
+          ></span>
+          <p class="text-base font-bold tracking-tight text-slate-900 dark:text-slate-50">
+            @if (+floor.floorNumber === 0) {
+              {{ 'rooms.groundFloor' | t }}
+            } @else {
+              {{ 'rooms.floor' | t }} {{ floor.floorNumber }}
+            }
+          </p>
+        </div>
         @if (floor.rooms.length === 0) {
-          <p class="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
+          <p
+            class="mt-4 rounded-xl border border-dashed border-slate-300/90 bg-slate-50/80 px-4 py-3 text-center text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800/40 dark:text-slate-400"
+          >
             No rooms are available in this floor.
           </p>
         } @else {
-          <div class="mt-3 grid gap-3 overflow-visible sm:grid-cols-2 lg:grid-cols-3">
+          <div class="mt-4 grid gap-4 overflow-visible sm:grid-cols-2 xl:grid-cols-3">
             @for (room of floor.rooms; track room.roomNumber) {
               <div
-                class="overflow-visible rounded-lg border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-600 dark:bg-slate-800/40"
+                class="group/room overflow-visible rounded-2xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/90 p-4 shadow-md shadow-slate-200/35 ring-1 ring-slate-200/50 transition hover:shadow-lg hover:ring-slate-300/60 dark:border-slate-600/85 dark:from-slate-900/90 dark:to-slate-950/80 dark:shadow-none dark:ring-slate-700/40 dark:hover:ring-slate-600/60"
                 [id]="bedmapRoomDomId(floor.floorNumber, room.roomNumber)"
                 [class.bedmap-search-flash]="isSearchFlashing(bedmapRoomDomId(floor.floorNumber, room.roomNumber))"
               >
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                  {{ 'rooms.room' | t }} {{ formatRoomNumber(+floor.floorNumber, +room.roomNumber) }}
-                </p>
-                <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">{{ sharingLabel(room.beds) }} - {{ roomRentText(room.rent) }}</p>
-                <div class="mt-2 grid grid-cols-3 gap-2 overflow-visible">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <p class="text-sm font-bold text-slate-900 dark:text-slate-50">
+                    {{ 'rooms.room' | t }} {{ formatRoomNumber(+floor.floorNumber, +room.roomNumber) }}
+                  </p>
+                  @if (roomHasValidRent(room.rent)) {
+                    <span
+                      class="inline-flex shrink-0 items-center rounded-full bg-indigo-600/10 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-indigo-800 dark:bg-indigo-400/15 dark:text-indigo-200"
+                    >
+                      {{ roomRentText(room.rent) }}
+                    </span>
+                  } @else {
+                    <span
+                      class="inline-flex shrink-0 items-center rounded-full border border-dashed border-slate-300/90 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:border-slate-600 dark:text-slate-400"
+                      [attr.title]="'members.bedMapRentUnset' | t"
+                    >
+                      {{ 'members.bedMapRentUnset' | t }}
+                    </span>
+                  }
+                </div>
+                <p class="mt-1 text-xs font-medium text-slate-600 dark:text-slate-400">{{ sharingLabel(room.beds) }}</p>
+                <div class="mt-3 grid grid-cols-2 gap-2.5 overflow-visible sm:grid-cols-3">
                   @for (_ of [].constructor(room.beds); track $index; let bedIdx = $index) {
                     @let seatBedNo = bedIdx + 1;
                     @let tooltipAboveBed = tooltipPlacementAboveBed(floor.floorNumber, room.roomNumber, seatBedNo);
@@ -62,7 +90,7 @@
                       (pointerleave)="onSeatPointerLeave(floor.floorNumber, room.roomNumber, seatBedNo)"
                     >
                       <div
-                        class="seat-block flex h-9 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-200"
+                        class="seat-block flex h-11 min-h-[2.75rem] items-center justify-center rounded-xl border text-xs font-semibold transition-all duration-200"
                         [class.border-red-300]="isBedOccupied(floor.floorNumber, room.roomNumber, seatBedNo)"
                         [class.bg-red-100]="isBedOccupied(floor.floorNumber, room.roomNumber, seatBedNo)"
                         [class.text-red-800]="isBedOccupied(floor.floorNumber, room.roomNumber, seatBedNo)"

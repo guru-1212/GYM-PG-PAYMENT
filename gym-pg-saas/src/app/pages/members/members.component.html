@@ -12,7 +12,7 @@
         <!-- <button type="button" class="saas-btn-secondary px-4 py-2 text-sm" (click)="exportToCSV()">
           📥 Export CSV
         </button> -->
-        @if (canEditMembersAction()) {
+        @if (canAddMembersAction()) {
           <button type="button" class="saas-btn-primary px-6 py-3 text-base" (click)="openAdd()">
             + {{ 'members.addMember' | t }}
           </button>
@@ -95,11 +95,47 @@
     </div>
   </div>
 
+  <div
+    class="flex flex-col gap-2 rounded-2xl border border-slate-200/90 bg-gradient-to-br from-slate-50/90 via-white to-indigo-50/30 px-4 py-3 shadow-sm dark:border-slate-600/80 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-indigo-950/20 sm:flex-row sm:items-center sm:justify-between"
+    role="status"
+    aria-live="polite"
+  >
+    <div class="flex min-w-0 items-center gap-3">
+      <div
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold tabular-nums text-white shadow-md shadow-indigo-900/25 dark:bg-indigo-500"
+        aria-hidden="true"
+      >
+        {{ displayMembers().length }}
+      </div>
+      <div class="min-w-0">
+        @if (membersFiltersNarrowing()) {
+          <p class="text-sm font-semibold text-slate-900 dark:text-slate-50">
+            {{ 'members.listMatchFiltered' | t: { filtered: displayMembers().length, total: membersListBaselineCount() } }}
+          </p>
+          <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">{{ 'members.listMatchFiltersOn' | t }}</p>
+        } @else {
+          <p class="text-sm font-semibold text-slate-900 dark:text-slate-50">
+            {{ 'members.listMatchCount' | t: { count: displayMembers().length } }}
+          </p>
+        }
+      </div>
+    </div>
+    @if (totalPages() > 1) {
+      <div
+        class="inline-flex items-center gap-1.5 self-start rounded-full border border-slate-200/90 bg-white/80 px-3 py-1 text-[11px] font-medium text-slate-600 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300 sm:self-auto"
+      >
+        <span class="material-icons-outlined text-[14px] text-indigo-600 dark:text-indigo-400">layers</span>
+        <span class="tabular-nums">{{ currentPage() }} / {{ totalPages() }}</span>
+        <span class="hidden sm:inline">{{ 'members.pagesShort' | t }}</span>
+      </div>
+    }
+  </div>
+
   @if (displayMembers().length === 0) {
     <div class="saas-card p-10 text-center">
       <p class="text-slate-600">{{ 'members.noneFound' | t }}</p>
       @if (listMode() === 'active') {
-        @if (canEditMembersAction()) {
+        @if (canAddMembersAction()) {
           <button type="button" class="saas-btn-primary mt-4 px-5 py-2.5 text-sm" (click)="openAdd()">{{ 'members.addMember' | t }}</button>
         }
       }

@@ -1,11 +1,13 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   ConfirmationResult,
+  EmailAuthProvider,
   RecaptchaVerifier,
   User,
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
@@ -28,6 +30,8 @@ import {
   SUPERVISORS_COLLECTION,
   sanitizeSupervisorUserId,
 } from '../utils/supervisor.util';
+import { normalizeSupervisorPermissions } from '../models/supervisor.model';
+import { environment } from '../../../environments/environment';
 import { FirebaseAppService } from './firebase-app.service';
 import {
   digitsOnly,
@@ -169,12 +173,21 @@ export class AuthService {
         return;
       }
 
+      // Same user reattach (e.g. tab focus). Listener is still alive.
       if (this.profileListenerUid === u.uid && this.profileUnsub) {
         this.loading.set(false);
         return;
       }
 
+      // ---- New / different signed-in user ----
+      // CRITICAL: flip loading back to true so guards waiting on `!loading()`
+      // (subscriptionGuard, permissionGuard) don't race against stale profile
+      // state from the previous session. Also wipe stale profile + supervisor
+      // permissions so no component briefly renders with the wrong identity.
       this.tearDownProfileListeners();
+      this.profile.set(null);
+      this.supervisorPermissions.set(null);
+      this.loading.set(true);
       this.profileListenerUid = u.uid;
 
       const ownerRef = doc(this.fb.db, 'owners', u.uid);
@@ -229,6 +242,11 @@ export class AuthService {
   private subscribeAsSupervisor(uid: string): void {
     const supRef = doc(this.fb.db, SUPERVISORS_COLLECTION, uid);
     let parentBootstrapped = false;
+    // Tear down the previous owner-doc listener (still alive after the
+    // owners/{supervisorUid} miss callback) to avoid a phantom listener
+    // overwriting the supervisor profile with `null` if the doc later
+    // appears (e.g. admin promotes the user to a real owner).
+    this.profileUnsub?.();
     this.profileUnsub = onSnapshot(
       supRef,
       async (snap) => {
@@ -242,7 +260,7 @@ export class AuthService {
         this.profile.set(projected);
         const raw = snap.data() as Partial<Supervisor> | undefined;
         this.supervisorPermissions.set(
-          (raw?.permissions as SupervisorPermissions | undefined) ?? null,
+          normalizeSupervisorPermissions(raw?.permissions),
         );
 
         const parentId = projected?.parentOwnerId;
@@ -564,14 +582,16 @@ export class AuthService {
     try {
       const { getFunctions, httpsCallable, httpsCallableFromURL } = await import('firebase/functions');
       const fns = getFunctions(this.fb.app, 'us-central1');
-      /** Same-origin Hosting rewrite avoids some networks blocking *.cloudfunctions.net; see firebase.json. */
-      const hostingResetUrl =
+      const callTimeout = 110_000;
+      /** Prefer explicit env override (local dev + prod Firebase), then same-origin Hosting rewrite on deployed host. */
+      const configured = environment.resetOwnerPasswordCallableUrl?.trim() || null;
+      const sameOrigin =
         typeof window !== 'undefined' && !/^localhost$|^127\.0\.0\.1$/i.test(window.location.hostname)
           ? `${window.location.origin}/api-fn/resetOwnerPasswordWithPhoneOtp`
           : null;
-      const callTimeout = 110_000;
-      const call = hostingResetUrl
-        ? httpsCallableFromURL<{ newPassword: string }, { ok: true }>(fns, hostingResetUrl, {
+      const callableUrl = configured || sameOrigin || null;
+      const call = callableUrl
+        ? httpsCallableFromURL<{ newPassword: string }, { ok: true }>(fns, callableUrl, {
             timeout: callTimeout,
           })
         : httpsCallable<{ newPassword: string }, { ok: true }>(fns, 'resetOwnerPasswordWithPhoneOtp', {
@@ -660,7 +680,29 @@ export class AuthService {
     }
   }
 
+  /**
+   * Re-authenticate the signed-in user with email + password (sensitive admin actions).
+   * Requires the account to have an email link (email/password sign-in).
+   */
+  async reauthenticateWithPassword(password: string): Promise<void> {
+    await this.fb.auth.authStateReady();
+    const user = this.fb.auth.currentUser;
+    if (!user?.email) {
+      const e = new Error('no-email-for-reauth');
+      e.name = 'NoEmailForReauth';
+      throw e;
+    }
+    const cred = EmailAuthProvider.credential(user.email, password);
+    await reauthenticateWithCredential(user, cred);
+  }
+
   async signOut(): Promise<void> {
+    // Eagerly clear local listeners + state so the very next render after
+    // `signOut()` returns does not flash the previous user's profile while
+    // Firebase's onAuthStateChanged callback is still in flight.
+    this.tearDownProfileListeners();
+    this.profile.set(null);
+    this.supervisorPermissions.set(null);
     await signOut(this.fb.auth);
   }
 
@@ -693,7 +735,7 @@ export class AuthService {
         if (projected) this.profile.set(projected);
         const raw = supSnap.data() as Partial<Supervisor> | undefined;
         this.supervisorPermissions.set(
-          (raw?.permissions as SupervisorPermissions | undefined) ?? null,
+          normalizeSupervisorPermissions(raw?.permissions),
         );
         // Eagerly merge the parent owner's plan / business fields so the
         // caller (login redirect, subscription guard) sees a fully-hydrated

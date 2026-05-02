@@ -11,20 +11,19 @@ import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Va
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { normalizeOwnerPhone } from '../../core/utils/phone-auth.util';
+import { AuditLogService } from '../../core/services/audit-log.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
+import { IpRestrictionService } from '../../core/services/ip-restriction.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { InAppNotificationService } from '../../core/services/in-app-notification.service';
+import { PwaInstallService } from '../../core/services/pwa-install.service';
+import { SupervisorSessionService } from '../../core/services/supervisor-session.service';
 import { ToastService } from '../../core/services/toast.service';
 // import { LanguageSwitcherComponent } from '../../shared/language-switcher.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { BrandLogoComponent } from '../../shared/brand-logo.component';
 import { TranslationService } from '../../core/services/translation.service';
-
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
-};
 
 @Component({
   selector: 'app-login',
@@ -35,13 +34,30 @@ type BeforeInstallPromptEvent = Event & {
 export class LoginComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
+  private readonly auditLog = inject(AuditLogService);
   private readonly i18n = inject(TranslationService);
   private readonly cache = inject(DataCacheService);
   private readonly notifications = inject(NotificationService);
   private readonly inAppNotifications = inject(InAppNotificationService);
+  private readonly ipRestriction = inject(IpRestrictionService);
+  private readonly supervisorSession = inject(SupervisorSessionService);
+  private readonly pwa = inject(PwaInstallService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
+
+  /**
+   * Login-page install nudge. Only renders when the PWA service confirms
+   * the app is genuinely installable (Chromium fired `beforeinstallprompt`)
+   * or the user is on iOS Safari. Hidden once installed or dismissed for
+   * the current browser session.
+   */
+  readonly showInstallPopup = signal(false);
+  readonly canInstall = this.pwa.canInstall;
+  readonly isInstalled = this.pwa.isInstalled;
+  readonly isIosSafari = this.pwa.isIosSafari;
+  private installPopupTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly installDismissedKey = 'pgt.install.dismissed.session';
 
   readonly mode = signal<'signin' | 'signup'>('signin');
   readonly busy = signal(false);
@@ -51,13 +67,6 @@ export class LoginComponent implements OnInit, OnDestroy {
   readonly showSignUpPassword = signal(false);
   /** PG-only sign-up for now; restore `'gym'` when gym onboarding returns. */
   readonly businessTypeSignal = signal<'gym' | 'pg'>('pg');
-
-  readonly showInstallHintPopup = signal(false);
-  private installHintTimerId: ReturnType<typeof setTimeout> | null = null;
-  private deferredInstallPrompt: BeforeInstallPromptEvent | null = null;
-  private beforeInstallPromptHandler: ((event: Event) => void) | null = null;
-  private appInstalledHandler: (() => void) | null = null;
-  private readonly installHintStorageKey = 'pgt.install.completed';
 
   readonly signInForm = this.fb.nonNullable.group({
     // Free-text identifier: email, mobile, or supervisor user ID. Only the
@@ -83,18 +92,11 @@ export class LoginComponent implements OnInit, OnDestroy {
     return this.businessTypeSignal() === 'pg' ? 'login.enterPgName' : 'login.enterGymName';
   });
 
-  ngOnDestroy(): void {
-    this.clearInstallHintTimer();
-    this.detachInstallPromptListeners();
-  }
-
   ngOnInit(): void {
-    this.attachInstallPromptListeners();
     this.notifications.requestPermissionOnce();
     const requestedMode = (this.route.snapshot.queryParamMap.get('mode') || '').toLowerCase().trim();
     if (requestedMode === 'signup') this.setMode('signup');
     else if (requestedMode === 'signin') this.setMode('signin');
-    this.scheduleInstallHintPopupIfNeeded();
     // Re-enable when gym / PG toggle is shown again on sign-up.
     // this.signUpForm.controls.businessType.valueChanges.subscribe((value) => {
     //   this.businessTypeSignal.set(value);
@@ -103,29 +105,69 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.signInForm.controls.identifier.valueChanges,
       this.signInForm.controls.password.valueChanges,
     ).subscribe(() => this.signInError.set(''));
+    this.scheduleInstallPopup();
   }
 
-  closeInstallHintPopup(): void {
-    this.showInstallHintPopup.set(false);
+  ngOnDestroy(): void {
+    if (this.installPopupTimer !== null) {
+      clearTimeout(this.installPopupTimer);
+      this.installPopupTimer = null;
+    }
   }
 
-  async installAppFromPopup(): Promise<void> {
-    if (this.isInstalled()) {
-      this.showInstallHintPopup.set(false);
-      return;
-    }
-    if (!this.deferredInstallPrompt) {
-      this.toast.success('Use browser menu → Add to Home Screen to install the app.');
-      return;
-    }
+  /**
+   * Open the install nudge if (and only if):
+   *  - we're in a browser context,
+   *  - the app is not already installed,
+   *  - the user hasn't dismissed it earlier in this session,
+   *  - and the browser actually supports installing (Chromium prompt
+   *    queued, or iOS Safari which goes through Add-to-Home-Screen).
+   *
+   * Runs after a short delay so `beforeinstallprompt` has a chance to fire.
+   */
+  private scheduleInstallPopup(): void {
+    if (typeof window === 'undefined') return;
+    if (this.isInstalled()) return;
     try {
-      await this.deferredInstallPrompt.prompt();
-      const choice = await this.deferredInstallPrompt.userChoice;
-      if (choice.outcome === 'accepted') {
-        this.showInstallHintPopup.set(false);
+      if (sessionStorage.getItem(this.installDismissedKey) === '1') return;
+    } catch {
+      /* sessionStorage unavailable — best-effort */
+    }
+    if (this.installPopupTimer !== null) clearTimeout(this.installPopupTimer);
+    this.installPopupTimer = setTimeout(() => {
+      this.installPopupTimer = null;
+      if (this.isInstalled()) return;
+      if (this.canInstall() || this.isIosSafari()) {
+        this.showInstallPopup.set(true);
       }
-    } finally {
-      this.deferredInstallPrompt = null;
+    }, 2500);
+  }
+
+  closeInstallPopup(): void {
+    this.showInstallPopup.set(false);
+    try {
+      sessionStorage.setItem(this.installDismissedKey, '1');
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Trigger the same install flow as the home navbar button. On Chromium
+   * this fires the native install dialog; on iOS Safari the service flips
+   * its `showIosInstructions` signal which is rendered globally by
+   * `AppComponent` (see app.component.html).
+   */
+  async installFromPopup(): Promise<void> {
+    const outcome = await this.pwa.promptInstall();
+    if (outcome === 'accepted') {
+      this.toast.success('App installed. Open it from your home screen any time.');
+      this.showInstallPopup.set(false);
+    } else if (outcome === 'unavailable' && !this.isIosSafari()) {
+      this.toast.success('Open your browser menu → "Install app" / "Add to Home Screen".');
+    }
+    if (this.isIosSafari()) {
+      this.showInstallPopup.set(false);
     }
   }
 
@@ -170,10 +212,31 @@ export class LoginComponent implements OnInit, OnDestroy {
         await this.auth.signOut();
         return;
       }
+      // Supervisor-only post-login security: IP allowlist + single-device claim.
+      // This MUST run before we warm the cache or redirect — otherwise a
+      // disallowed-IP supervisor would briefly see members in transit.
+      if (p.role === 'supervisor' && p.status === 'approved') {
+        const supervisorOk = await this.runSupervisorPostLoginChecks();
+        if (!supervisorOk) return;
+      }
       if ((p.role === 'owner' || p.role === 'supervisor') && p.status === 'approved' && p.ownerId) {
         await this.cache.loadMembers(p.ownerId);
         this.notifications.checkDueMembers(this.cache.members());
         void this.inAppNotifications.syncDueAlertsFromMembers(p.ownerId, this.cache.members());
+        // Stamp the login row in the audit trail so the owner can see
+        // exactly when each supervisor (or themselves) signed in. Skipped
+        // for admins since they don't have a parent owner scope.
+        const actorLabel = p.role === 'supervisor'
+          ? `${p.name?.trim() || 'Supervisor'} signed in.`
+          : `${p.name?.trim() || 'Owner'} signed in.`;
+        void this.auditLog.log({
+          ownerId: p.ownerId,
+          action: 'auth.login',
+          entityType: 'auth',
+          entityId: load.uid || undefined,
+          entityLabel: p.name || p.email || undefined,
+          description: actorLabel,
+        });
       }
       await this.redirectAfterProfile(p);
     } catch (e: unknown) {
@@ -235,6 +298,66 @@ export class LoginComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Run the supervisor-only post-login security checks.
+   *
+   * Order matters:
+   *   1. IP allowlist (cheap network call). If blocked, sign out and stop.
+   *   2. Claim a fresh single-device session (writes to supervisors/{uid}).
+   *      Owner has no IP restriction or single-device — the helper is only
+   *      called for `role === 'supervisor'`.
+   *
+   * Returns `true` when the supervisor is cleared to proceed, `false`
+   * when they were blocked / signed out (caller must abort the redirect).
+   */
+  private async runSupervisorPostLoginChecks(): Promise<boolean> {
+    const uid = this.auth.user()?.uid;
+    if (!uid) return false;
+
+    // 1) IP allowlist check.
+    let detectedIp: string | null = null;
+    try {
+      const result = await this.ipRestriction.evaluate(uid);
+      detectedIp = result.detectedIp;
+      if (result.status === 'blocked') {
+        this.signInError.set(
+          `Sign-in from this network is not authorised${
+            detectedIp ? ` (IP ${detectedIp})` : ''
+          }. Ask your owner to allow this network.`,
+        );
+        await this.auth.signOut();
+        return false;
+      }
+      if (result.status === 'cant-detect') {
+        // Fail-closed: if we can't detect the IP and restriction is on,
+        // we cannot honour the policy — best to refuse.
+        this.signInError.set(
+          'Could not verify your network for sign-in. Check your internet and try again.',
+        );
+        await this.auth.signOut();
+        return false;
+      }
+      // 'allowed' or 'not-supervisor' → continue.
+    } catch {
+      this.signInError.set(
+        'Sign-in security check failed. Please try again in a moment.',
+      );
+      await this.auth.signOut();
+      return false;
+    }
+
+    // 2) Claim a single-device session. Failure here is non-blocking — we
+    // log to the console but let the supervisor in (the watcher in the
+    // shell will retry on the next snapshot). We never want a transient
+    // Firestore write hiccup to block legitimate logins.
+    try {
+      await this.supervisorSession.claimSession(uid, detectedIp);
+    } catch (e) {
+      console.warn('[supervisor-session] claimSession failed at login', e);
+    }
+    return true;
+  }
+
   private async redirectAfterProfile(p: { role: string; status: string }): Promise<void> {
     const role = p.role.toLowerCase().trim();
     const status = p.status.toLowerCase().trim();
@@ -258,14 +381,15 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
     }
     if (role === 'supervisor') {
-      // Supervisors share the owner shell. Disabled supervisors land on the
-      // rejected screen so they get a clear "ask your owner" message instead
-      // of being silently signed out.
+      // Supervisors live under their own /supervisor/* shell — completely
+      // independent from the owner routes. Disabled supervisors land on
+      // the rejected screen so they get a clear "ask your owner" message
+      // instead of being silently signed out.
       if (status === 'disabled' || status === 'inactive') {
         await this.router.navigateByUrl('/account-rejected');
         return;
       }
-      await this.router.navigateByUrl('/dashboard');
+      await this.router.navigateByUrl('/supervisor/dashboard');
       return;
     }
 
@@ -307,65 +431,6 @@ export class LoginComponent implements OnInit, OnDestroy {
     }
   }
 
-  private scheduleInstallHintPopupIfNeeded(): void {
-    const fromHome = this.route.snapshot.queryParamMap.get('installHint') === '1';
-    if (!fromHome || this.isInstalled()) return;
-    this.clearInstallHintTimer();
-    const delayMs = 2000 + Math.floor(Math.random() * 3001); // 2-5 seconds
-    this.installHintTimerId = setTimeout(() => {
-      if (!this.isInstalled()) {
-        this.showInstallHintPopup.set(true);
-      }
-    }, delayMs);
-  }
-
-  private clearInstallHintTimer(): void {
-    if (this.installHintTimerId !== null) {
-      clearTimeout(this.installHintTimerId);
-      this.installHintTimerId = null;
-    }
-  }
-
-  private attachInstallPromptListeners(): void {
-    if (typeof window === 'undefined') return;
-    this.beforeInstallPromptHandler = (event: Event) => {
-      event.preventDefault();
-      this.deferredInstallPrompt = event as BeforeInstallPromptEvent;
-    };
-    this.appInstalledHandler = () => {
-      try {
-        localStorage.setItem(this.installHintStorageKey, '1');
-      } catch {
-      }
-      this.showInstallHintPopup.set(false);
-      this.deferredInstallPrompt = null;
-    };
-    window.addEventListener('beforeinstallprompt', this.beforeInstallPromptHandler as EventListener);
-    window.addEventListener('appinstalled', this.appInstalledHandler as EventListener);
-  }
-
-  private detachInstallPromptListeners(): void {
-    if (typeof window === 'undefined') return;
-    if (this.beforeInstallPromptHandler) {
-      window.removeEventListener('beforeinstallprompt', this.beforeInstallPromptHandler as EventListener);
-      this.beforeInstallPromptHandler = null;
-    }
-    if (this.appInstalledHandler) {
-      window.removeEventListener('appinstalled', this.appInstalledHandler as EventListener);
-      this.appInstalledHandler = null;
-    }
-  }
-
-  private isInstalled(): boolean {
-    if (typeof window === 'undefined') return false;
-    try {
-      if (localStorage.getItem(this.installHintStorageKey) === '1') return true;
-    } catch {
-    }
-    const standaloneMedia = window.matchMedia?.('(display-mode: standalone)')?.matches;
-    const standaloneNavigator = Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
-    return Boolean(standaloneMedia || standaloneNavigator);
-  }
 }
 
 /**

@@ -11,17 +11,46 @@
     <div class="rounded-2xl border border-white/70 bg-white/50 p-8 shadow-xl backdrop-blur-xl">
       <div class="mb-6 flex justify-center">
         <div class="rounded-full bg-red-100 p-4">
-          <span class="material-icons text-3xl text-red-600">lock_clock</span>
+          <span class="material-icons-outlined text-3xl text-red-600">lock_clock</span>
         </div>
       </div>
 
       <h1 class="mb-2 text-center text-2xl font-bold text-slate-900">{{ 'subscription.expired' | t }}</h1>
       <p class="mb-6 text-center text-sm text-slate-600">{{ 'subscription.expiredMessage' | t }}</p>
 
-      <div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+      <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
         <p class="text-sm text-red-700">
           {{ 'subscription.expiredNotice' | t }}
         </p>
+      </div>
+
+      <!-- Reassurance: data is safe, nothing is lost. -->
+      <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <div class="flex items-start gap-3">
+          <span class="material-icons-outlined mt-0.5 text-2xl text-emerald-600">verified_user</span>
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-emerald-800">
+              {{ 'subscription.dataSafeTitle' | t }}
+            </p>
+            <p class="mt-1 text-xs leading-relaxed text-emerald-700">
+              {{ 'subscription.dataSafeBody' | t }}
+            </p>
+            <ul class="mt-2 space-y-1 text-xs leading-relaxed text-emerald-700">
+              <li class="flex gap-1.5">
+                <span class="material-icons-outlined text-sm text-emerald-600">lock</span>
+                <span>{{ 'subscription.dataSafePoint1' | t }}</span>
+              </li>
+              <li class="flex gap-1.5">
+                <span class="material-icons-outlined text-sm text-emerald-600">cloud_done</span>
+                <span>{{ 'subscription.dataSafePoint2' | t }}</span>
+              </li>
+              <li class="flex gap-1.5">
+                <span class="material-icons-outlined text-sm text-emerald-600">restart_alt</span>
+                <span>{{ 'subscription.dataSafePoint3' | t }}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       <div class="space-y-3">
@@ -29,15 +58,15 @@
           <p class="text-xs font-medium text-slate-500 uppercase">{{ 'subscription.whatNext' | t }}</p>
           <ul class="mt-2 space-y-2">
             <li class="flex gap-2 text-sm text-slate-700">
-              <span class="text-indigo-600">✓</span>
+              <span class="text-indigo-600">&#10003;</span>
               <span>{{ 'subscription.step1' | t }}</span>
             </li>
             <li class="flex gap-2 text-sm text-slate-700">
-              <span class="text-indigo-600">✓</span>
+              <span class="text-indigo-600">&#10003;</span>
               <span>{{ 'subscription.step2' | t }}</span>
             </li>
             <li class="flex gap-2 text-sm text-slate-700">
-              <span class="text-indigo-600">✓</span>
+              <span class="text-indigo-600">&#10003;</span>
               <span>{{ 'subscription.step3' | t }}</span>
             </li>
           </ul>
@@ -52,7 +81,7 @@
         </button>
 
         <a
-          href="https://wa.me/916300675014?text=Hi%20Admin%2C%20my%20subscription%20has%20expired%20and%20I%20need%20to%20renew%20it."
+          [href]="whatsappUrl()"
           target="_blank"
           rel="noopener noreferrer"
           class="flex items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700 transition-all hover:bg-green-100"

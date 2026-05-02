@@ -37,6 +37,7 @@ import {
   SUPERVISOR_LOGIN_ALIASES_COLLECTION,
   SUPERVISORS_COLLECTION,
 } from '../utils/supervisor.util';
+import { AuditLogService } from './audit-log.service';
 import { AuthService } from './auth.service';
 import { FirebaseAppService } from './firebase-app.service';
 
@@ -55,6 +56,7 @@ import { FirebaseAppService } from './firebase-app.service';
 export class SupervisorService {
   private readonly fb = inject(FirebaseAppService);
   private readonly auth = inject(AuthService);
+  private readonly audit = inject(AuditLogService);
 
   private secondaryApp: FirebaseApp | null = null;
   private secondaryAuth: Auth | null = null;
@@ -190,6 +192,16 @@ export class SupervisorService {
       await batch.commit();
       await authSignOut(secondary);
 
+      void this.audit.log({
+        ownerId,
+        action: 'supervisor.created',
+        entityType: 'supervisor',
+        entityId: uid,
+        entityLabel: input.name.trim(),
+        description: `Created supervisor account "${input.name.trim()}" (login id: ${userIdNorm}).`,
+        meta: { userId: userIdNorm },
+      });
+
       return {
         supervisorId: uid,
         ownerId,
@@ -216,10 +228,10 @@ export class SupervisorService {
     }
   }
 
-  /** Update permissions / name / status. Caller must be the parent owner. */
+  /** Update permissions / name / status / IP-restriction toggle. Caller must be the parent owner. */
   async updateSupervisor(
     supervisorId: string,
-    patch: Partial<Pick<Supervisor, 'name' | 'status' | 'permissions'>>,
+    patch: Partial<Pick<Supervisor, 'name' | 'status' | 'permissions' | 'ipRestrictionEnabled'>>,
   ): Promise<void> {
     const ownerId = this.auth.profile()?.ownerId;
     if (!ownerId || this.auth.profile()?.role !== 'owner') {
@@ -230,9 +242,26 @@ export class SupervisorService {
     if (patch.name !== undefined) data.name = patch.name.trim();
     if (patch.status !== undefined) data.status = patch.status;
     if (patch.permissions !== undefined) data.permissions = patch.permissions;
+    if (patch.ipRestrictionEnabled !== undefined) {
+      data.ipRestrictionEnabled = !!patch.ipRestrictionEnabled;
+    }
     if (Object.keys(data).length === 0) return;
     // updateDoc's overload is partial-shape strict; cast keeps the call site simple.
     await updateDoc(ref, data as { [key: string]: any });
+
+    const changedFields = Object.keys(data).join(', ');
+    const supervisorName = (data.name || '').trim();
+    void this.audit.log({
+      ownerId,
+      action: 'supervisor.updated',
+      entityType: 'supervisor',
+      entityId: supervisorId,
+      entityLabel: supervisorName || undefined,
+      description: supervisorName
+        ? `Updated supervisor "${supervisorName}" (${changedFields}).`
+        : `Updated supervisor (${changedFields}).`,
+      meta: { fields: changedFields },
+    });
   }
 
   /**
@@ -261,6 +290,16 @@ export class SupervisorService {
       { merge: true },
     );
     await batch.commit();
+
+    void this.audit.log({
+      ownerId,
+      action: 'supervisor.removed',
+      entityType: 'supervisor',
+      entityId: supervisor.supervisorId,
+      entityLabel: supervisor.name || supervisor.userId,
+      description: `Removed supervisor "${supervisor.name || supervisor.userId}".`,
+      meta: { userId: supervisor.userId },
+    });
   }
 
   /**
@@ -307,6 +346,16 @@ export class SupervisorService {
       batch.set(aliasRef, { email: syntheticEmail, ownerId }, { merge: true });
       await batch.commit();
       await authSignOut(secondary);
+
+      void this.audit.log({
+        ownerId,
+        action: 'supervisor.passwordReset',
+        entityType: 'supervisor',
+        entityId: newUid,
+        entityLabel: supervisor.name || supervisor.userId,
+        description: `Reset password for supervisor "${supervisor.name || supervisor.userId}".`,
+        meta: { userId: supervisor.userId },
+      });
     } catch (e) {
       try {
         await cred.user.delete();

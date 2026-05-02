@@ -57,10 +57,10 @@
               }
             ],
             "styles": [
+              "node_modules/@fortawesome/fontawesome-free/css/all.min.css",
               "src/styles.css"
             ],
-            "scripts": []
-            ,
+            "scripts": [],
             "serviceWorker": "ngsw-config.json"
           },
           "configurations": {
@@ -73,8 +73,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "15kB",
-                  "maximumError": "20kB"
+                  "maximumWarning": "22kB",
+                  "maximumError": "25kB"
                 }
               ],
               "outputHashing": "all"
@@ -127,9 +127,10 @@
               }
             ],
             "styles": [
+              "node_modules/@fortawesome/fontawesome-free/css/all.min.css",
               "src/styles.css"
             ],
-            "scripts": []
+            "scripts": []             
           }
         }
       }

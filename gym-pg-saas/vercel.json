@@ -1,3 +1,13 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/api-fn/resetOwnerPasswordWithPhoneOtp",
+      "destination": "https://us-central1-gym-pg-saas.cloudfunctions.net/resetOwnerPasswordWithPhoneOtp"
+    },
+    {
+      "source": "/api-fn/verifyMemberForApp",
+      "destination": "https://us-central1-gym-pg-saas.cloudfunctions.net/verifyMemberForApp"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

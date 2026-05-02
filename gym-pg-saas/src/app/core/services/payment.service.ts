@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -14,9 +15,11 @@ import {
   where,
 } from 'firebase/firestore';
 import { Observable } from 'rxjs';
-import type { SubscriptionType } from '../models/member.model';
-import { Payment, PaymentMethod } from '../models/payment.model';
+import type { Member, SubscriptionType } from '../models/member.model';
+import { Payment, PaymentMethod, PaymentRecordedByRole } from '../models/payment.model';
 import { coerceFirestoreDate, dateToTimestamp, isDateInCalendarMonth, nextDueAfterPaid, timestampToDate } from '../utils/date.utils';
+import { AuditLogService } from './audit-log.service';
+import { AuthService } from './auth.service';
 import { FirebaseAppService } from './firebase-app.service';
 import { MemberService } from './member.service';
 
@@ -37,6 +40,54 @@ export interface MarkPaidResult {
 export class PaymentService {
   private readonly fb = inject(FirebaseAppService);
   private readonly members = inject(MemberService);
+  private readonly auth = inject(AuthService);
+  private readonly audit = inject(AuditLogService);
+
+  private async getMemberDisplay(memberId: string): Promise<string> {
+    try {
+      const snap = await getDoc(doc(this.fb.db, 'members', memberId));
+      if (snap.exists()) {
+        const m = snap.data() as Member;
+        return `${(m.firstName || '').trim()} ${(m.lastName || '').trim()}`.trim() || 'Member';
+      }
+    } catch {
+      /* swallow — audit display name is best-effort */
+    }
+    return 'Member';
+  }
+
+  /**
+   * Build the audit-log fields stamped onto every payment document.
+   *
+   * The owner can later prove "who collected this cash" without trusting
+   * any client-side state — `recordedBy` is the Firebase Auth UID of
+   * whoever was signed in when the write happened, and Firestore rules
+   * enforce that this matches `request.auth.uid` at write time.
+   *
+   * Returns a partial object so callers spread it directly into addDoc()
+   * payloads. Falls back gracefully when the profile is unavailable
+   * (very brief windows during sign-in) so writes never blow up purely
+   * because the audit metadata isn't ready yet.
+   */
+  private buildAuditFields(): {
+    recordedBy: string;
+    recordedByName: string;
+    recordedByRole: PaymentRecordedByRole;
+  } {
+    const uid = this.auth.user()?.uid ?? '';
+    const profile = this.auth.profile();
+    const role: PaymentRecordedByRole =
+      profile?.role === 'admin'
+        ? 'admin'
+        : profile?.role === 'supervisor'
+          ? 'supervisor'
+          : 'owner';
+    return {
+      recordedBy: uid,
+      recordedByName: (profile?.name || profile?.email || '').trim(),
+      recordedByRole: role,
+    };
+  }
 
   private paymentDateFromRow(row: Record<string, unknown>): Date | null {
     return coerceFirestoreDate(row['date']) ?? coerceFirestoreDate(row['createdAt']);
@@ -212,7 +263,8 @@ export class PaymentService {
     const priorPending = Math.max(0, Number(params.priorPendingAmount) || 0);
     const planAmount = Math.max(0, Number(params.memberPlanAmount) || 0);
 
-    await addDoc(collection(this.fb.db, 'payments'), {
+    const audit = this.buildAuditFields();
+    const paymentRef = await addDoc(collection(this.fb.db, 'payments'), {
       memberId: params.memberId,
       ownerId: params.ownerId,
       amount: params.amount,
@@ -220,7 +272,39 @@ export class PaymentService {
       method: params.method,
       isPartialPayment,
       pendingAmount: isPartialPayment ? pendingFromForm : 0,
+      priorPendingAmount: priorPending,
       createdAt: serverTimestamp(),
+      // Audit log (additive — see Payment model). Owners can use these
+      // fields to reconcile cash flow when a supervisor collects on
+      // their behalf, or to investigate a disputed payment.
+      ...audit,
+      recordedAt: serverTimestamp(),
+    });
+
+    const memberDisplay = await this.getMemberDisplay(params.memberId);
+    const action = isPartialPayment
+      ? 'payment.partialCollected'
+      : priorPending > 0 && paid <= priorPending
+        ? 'payment.pendingCollected'
+        : 'payment.collected';
+    const description = isPartialPayment
+      ? `Collected ₹${paid.toLocaleString('en-IN')} from ${memberDisplay} (partial; ₹${pendingFromForm.toLocaleString('en-IN')} still pending).`
+      : priorPending > 0 && paid <= priorPending
+        ? `Collected ₹${paid.toLocaleString('en-IN')} pending balance from ${memberDisplay}.`
+        : `Collected ₹${paid.toLocaleString('en-IN')} rent from ${memberDisplay}.`;
+    void this.audit.log({
+      ownerId: params.ownerId,
+      action,
+      entityType: 'payment',
+      entityId: paymentRef.id,
+      entityLabel: memberDisplay,
+      description,
+      amount: paid,
+      meta: {
+        method: params.method,
+        memberId: params.memberId,
+        ...(isPartialPayment ? { pending: String(pendingFromForm) } : {}),
+      },
     });
 
     if (isPartialPayment) {
@@ -320,7 +404,35 @@ export class PaymentService {
       throw new Error('Invalid payment amount');
     }
     const ref = doc(this.fb.db, 'payments', paymentId);
+    let prevAmount = 0;
+    let memberId = '';
+    let ownerId = this.auth.profile()?.ownerId || '';
+    try {
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data() as Payment;
+        prevAmount = Number(data.amount) || 0;
+        memberId = data.memberId || '';
+        ownerId = data.ownerId || ownerId;
+      }
+    } catch {
+      /* best-effort lookup */
+    }
     await updateDoc(ref, { amount: n });
+
+    if (ownerId) {
+      const memberDisplay = memberId ? await this.getMemberDisplay(memberId) : 'Member';
+      void this.audit.log({
+        ownerId,
+        action: 'payment.edited',
+        entityType: 'payment',
+        entityId: paymentId,
+        entityLabel: memberDisplay,
+        description: `Updated payment amount for ${memberDisplay}: ₹${prevAmount.toLocaleString('en-IN')} → ₹${n.toLocaleString('en-IN')}.`,
+        amount: n,
+        meta: { previousAmount: String(prevAmount) },
+      });
+    }
   }
 
   /**

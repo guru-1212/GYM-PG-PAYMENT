@@ -26,6 +26,17 @@ export interface Complaint {
   message: string;
   status: 'open' | 'resolved';
   createdAt: Timestamp | null;
+  /* ---- Member-app fields (in-app complaints from the tenant PWA) ---- */
+  memberId?: string;
+  memberName?: string;
+  roomNumber?: string;
+  floorNumber?: string;
+  bedNumber?: string;
+  category?: string;
+  source?: 'public' | 'member_app';
+  resolvedAt?: Timestamp | null;
+  resolvedBy?: string;
+  resolutionNote?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -126,35 +137,6 @@ export class ComplaintService {
     }
   }
 
-  async hasComplaintInLast24Hours(ownerId: string, mobile: string): Promise<boolean> {
-    const normalized = this.normalizeMobile(mobile);
-    if (!ownerId?.trim() || normalized.length !== 10) return false;
-    if (!this.fb.auth.currentUser) {
-      return false;
-    }
-    const last24 = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    try {
-      // Firestore Index Required:
-      // Collection: complaints
-      // Fields:
-      // ownerId (Asc)
-      // memberMobile (Asc)
-      // createdAt (Asc)
-      const q = query(
-        collection(this.fb.db, 'complaints'),
-        where('ownerId', '==', ownerId.trim()),
-        where('memberMobile', '==', normalized),
-        where('createdAt', '>=', Timestamp.fromDate(last24)),
-        orderBy('createdAt', 'asc'),
-        limit(1),
-      );
-      const snap = await getDocs(q);
-      return !snap.empty;
-    } catch (e) {
-      this.rethrowFirestoreError(e, 'hasComplaintInLast24Hours');
-    }
-  }
-
   async submitComplaint(input: { ownerId: string; memberMobile: string; message: string }): Promise<void> {
     const ownerId = input.ownerId.trim();
     const mobile = this.normalizeMobile(input.memberMobile);
@@ -200,6 +182,23 @@ export class ComplaintService {
             message: String(data['message'] || ''),
             status: data['status'] === 'resolved' ? 'resolved' : 'open',
             createdAt: (data['createdAt'] as Timestamp | null) || null,
+            memberId: typeof data['memberId'] === 'string' ? (data['memberId'] as string) : undefined,
+            memberName: typeof data['memberName'] === 'string' ? (data['memberName'] as string) : undefined,
+            roomNumber: typeof data['roomNumber'] === 'string' ? (data['roomNumber'] as string) : undefined,
+            floorNumber: typeof data['floorNumber'] === 'string' ? (data['floorNumber'] as string) : undefined,
+            bedNumber: typeof data['bedNumber'] === 'string' ? (data['bedNumber'] as string) : undefined,
+            category: typeof data['category'] === 'string' ? (data['category'] as string) : undefined,
+            source:
+              data['source'] === 'member_app'
+                ? 'member_app'
+                : data['source'] === 'public'
+                  ? 'public'
+                  : undefined,
+            resolvedAt: (data['resolvedAt'] as Timestamp | null) || null,
+            resolvedBy:
+              typeof data['resolvedBy'] === 'string' ? (data['resolvedBy'] as string) : undefined,
+            resolutionNote:
+              typeof data['resolutionNote'] === 'string' ? (data['resolutionNote'] as string) : undefined,
           });
         });
         callback(rows);
@@ -208,6 +207,28 @@ export class ComplaintService {
         this.rethrowFirestoreError(e, 'watchComplaintsForOwner');
       },
     );
+  }
+
+  /**
+   * Owner marks a complaint as resolved. Allowed by Firestore rules ONLY when
+   * the caller is the owning approved owner and the changed keys stay within
+   * the resolution allow-list — see the `complaints` rule.
+   */
+  async markResolved(complaintId: string, resolutionNote?: string): Promise<void> {
+    const auth = this.fb.auth.currentUser;
+    if (!auth) throw new Error('Please sign in again.');
+    const note = String(resolutionNote || '').trim().slice(0, 500);
+    const ref = doc(this.fb.db, 'complaints', complaintId);
+    try {
+      await updateDoc(ref, {
+        status: 'resolved',
+        resolvedAt: serverTimestamp(),
+        resolvedBy: auth.uid,
+        ...(note ? { resolutionNote: note } : {}),
+      });
+    } catch (e) {
+      this.rethrowFirestoreError(e, 'markResolved');
+    }
   }
 
   private rethrowFirestoreError(err: unknown, stage: string): never {
