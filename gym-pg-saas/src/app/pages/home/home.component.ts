@@ -9,8 +9,6 @@ import { ThemeToggleComponent } from '../../shared/theme-toggle.component';
 
 export type HomeHeroSlide = {
   src: string;
-  title: string;
-  subtitle: string;
   alt: string;
 };
 
@@ -30,50 +28,34 @@ export class HomeComponent implements OnInit, OnDestroy {
   readonly heroCarouselSlides: HomeHeroSlide[] = [
     {
       src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163230.png')}`,
-      title: 'One dashboard for every room',
-      subtitle: 'See occupancy, rent status, and dues at a glance — built for Indian PGs & hostels.',
       alt: 'Our PG Tracker — dashboard and room overview',
     },
     {
       src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163342.png')}`,
-      title: 'Rent & payments without the chaos',
-      subtitle: 'Record cash, UPI, or card collections and keep a clean history per tenant.',
       alt: 'Payment tracking and collection tools',
     },
     {
       src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163506.png')}`,
-      title: 'Beds that never double-book',
-      subtitle: 'Floors, rooms, and beds mapped the way your property actually works.',
       alt: 'Room and bed management',
     },
     {
       src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163541.png')}`,
-      title: 'Tenants organised, always',
-      subtitle: 'Profiles, contacts, and status in one place — less calling, fewer mistakes.',
       alt: 'Member and tenant management',
     },
     {
       src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163604.png')}`,
-      title: 'Reminders that actually get paid',
-      subtitle: 'Nudge due and overdue rents before they snowball into bad debt.',
       alt: 'Due dates and reminders',
     },
     {
       src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163634.png')}`,
-      title: 'Reports your CA will love',
-      subtitle: 'Monthly earnings and exports when you need a clear paper trail.',
       alt: 'Reports and monthly earnings',
     },
     {
       src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163657.png')}`,
-      title: 'Bulk import in minutes',
-      subtitle: 'Bring your existing tenant list from Excel or CSV with validation built in.',
       alt: 'Import members from spreadsheet',
     },
     {
       src: `/banners_carousel_home_page/${encodeURIComponent('Screenshot 2026-05-01 163905.png')}`,
-      title: 'Start free. Scale when you grow',
-      subtitle: 'Sign up, set up your PG, and invite your team — no notebook required.',
       alt: 'Get started with Our PG Tracker',
     },
   ];
