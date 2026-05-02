@@ -30,15 +30,15 @@ export const selectedFirebase: FirebaseOptions = useProdFirebase ? firebaseProd 
 /**
  * Optional same-origin URL for the callable (Firebase Hosting rewrite in firebase.json).
  * Example after deploy: `https://dev.ourpgtracker.in/api-fn/verifyMemberForApp`
- * Leave null to use the default cloudfunctions.net endpoint (requires a successful deploy).
+ * Leave null to use same-origin `/api-fn/verifyMemberForApp` in production (Vercel proxy or Firebase Hosting rewrite),
+ * or default `httpsCallable` on localhost.
  */
 export const verifyMemberCallableUrl: string | null = null;
 
 /**
- * Optional full URL for the owner phone-OTP password reset callable.
- * Leave **null** to use the default `us-central1-*.cloudfunctions.net` endpoint (recommended on Vercel).
- * Set to your **Firebase Hosting** same-origin rewrite if you rely on `/api-fn/...` (ad-block resilience).
- * On **localhost**, if `*.cloudfunctions.net` is blocked, point this at a live site's `/api-fn/...` URL.
+ * Optional override for the password-reset callable URL.
+ * Leave **null** so production uses same-origin `/api-fn/resetOwnerPasswordWithPhoneOtp` (Vercel serverless proxy
+ * or Firebase Hosting rewrite). On localhost the app calls `*.cloudfunctions.net` unless you set this.
  */
 export const resetOwnerPasswordCallableUrl: string | null = null;
 

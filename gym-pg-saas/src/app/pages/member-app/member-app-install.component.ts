@@ -153,11 +153,16 @@ export class MemberAppInstallComponent implements OnInit {
     this.errorMessage.set('');
     try {
       const functions = getFunctions(this.fb.app, 'us-central1');
-      const url = environment.verifyMemberCallableUrl?.trim();
-      const verify =
-        url && url.length > 0
-          ? httpsCallableFromURL(functions, url)
-          : httpsCallable(functions, 'verifyMemberForApp');
+      const configured = environment.verifyMemberCallableUrl?.trim() || null;
+      const isLocal =
+        typeof window !== 'undefined' &&
+        /^localhost$|^127\.0\.0\.1$/i.test(window.location.hostname);
+      const sameOrigin =
+        !isLocal && typeof window !== 'undefined'
+          ? `${window.location.origin}/api-fn/verifyMemberForApp`
+          : null;
+      const url = configured || sameOrigin;
+      const verify = url ? httpsCallableFromURL(functions, url) : httpsCallable(functions, 'verifyMemberForApp');
       const res = await verify({
         installCode,
         ownerId: oid,
