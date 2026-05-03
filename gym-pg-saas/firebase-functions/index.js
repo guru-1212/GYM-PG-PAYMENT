@@ -250,6 +250,18 @@ const MEMBER_INACTIVE_TAG = 'member-inactive';
 /** Owner not approved or admin revoked tenant PWA / QR sign-in. */
 const TENANT_MEMBER_APP_DISABLED_TAG = 'tenant-member-app-disabled';
 
+/** Firestore throws if composite indexes (e.g. members: ownerId+mobile) are not deployed yet. */
+function mapVerifyMemberUnknownError(e) {
+  const msg = String((e && e.message) || e || '');
+  if (/requires an index|INDEX_REQUIRED|must be created at|composite index/i.test(msg)) {
+    return new functions.https.HttpsError(
+      'failed-precondition',
+      'firestore-index-required: Deploy Firestore indexes from this repo (firebase deploy --only firestore:indexes) and wait until they finish building, then try again.',
+    );
+  }
+  return null;
+}
+
 async function findMemberDocByOwnerAndMobile(db, ownerId, rawMobile) {
   const digits = normalizeDigits10(rawMobile);
   if (digits.length !== 10) return null;
@@ -412,6 +424,13 @@ exports.verifyMemberForApp = functions
         });
       } catch (tokenErr) {
         functions.logger.error('verifyMemberForApp createCustomToken failed', tokenErr, { ownerId, memberId });
+        const tm = String((tokenErr && tokenErr.message) || '');
+        if (/signBlob|Service Account Token Creator|iam\.serviceaccounts/i.test(tm)) {
+          throw new functions.https.HttpsError(
+            'internal',
+            'auth-custom-token-iam: Login could not be issued. In Google Cloud Console → IAM, grant the App Engine default service account the "Service Account Token Creator" role on itself (Firebase custom token requirement).',
+          );
+        }
         throw new functions.https.HttpsError(
           'internal',
           'Could not issue login. Please try again or contact support.',
@@ -421,6 +440,8 @@ exports.verifyMemberForApp = functions
       return { customToken };
     } catch (e) {
       if (e instanceof functions.https.HttpsError) throw e;
+      const mapped = mapVerifyMemberUnknownError(e);
+      if (mapped) throw mapped;
       functions.logger.error('verifyMemberForApp failed', e, { ownerId, ms: Date.now() - started });
       throw new functions.https.HttpsError(
         'internal',

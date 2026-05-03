@@ -200,6 +200,14 @@ export class MemberAppInstallComponent implements OnInit {
         this.errorMessage.set(
           'Tenant sign-in is not turned on for this property yet, or it was disabled. Please contact your owner or try again after the owner is approved in the system.',
         );
+      } else if (/firestore-index-required/i.test(msg)) {
+        this.errorMessage.set(
+          'Sign-in is blocked until the database finishes setting up for this project. Ask the owner to deploy Firestore indexes (firebase deploy --only firestore:indexes), wait until indexes show as ready in Firebase Console, then try again.',
+        );
+      } else if (/auth-custom-token-iam/i.test(msg)) {
+        this.errorMessage.set(
+          'Sign-in could not be completed due to a project configuration issue. Ask the owner or their developer to fix Firebase custom-token IAM (Service Account Token Creator on the default App Engine service account), then try again.',
+        );
       } else if (/already linked|linked to the app/i.test(msg)) {
         // Legacy Cloud Function still deployed — local code allows re-login.
         this.errorMessage.set(
@@ -221,7 +229,7 @@ export class MemberAppInstallComponent implements OnInit {
         );
       } else {
         this.errorMessage.set(
-          'Could not sign you in. If this keeps happening, ask the owner to deploy the latest Cloud Functions (verifyMemberForApp).',
+          'Could not sign you in. Ask the owner to open Firebase Console → Functions → verifyMemberForApp → Logs; a 500 usually means a server error (indexes, IAM, or data), not only an outdated deploy.',
         );
       }
     } finally {
