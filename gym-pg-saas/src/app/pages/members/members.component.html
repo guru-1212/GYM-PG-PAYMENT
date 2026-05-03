@@ -778,18 +778,25 @@
         Mobile <span class="text-red-500">*</span>
       </label>
       <input
+        #memberMobile
+        type="tel"
         formControlName="mobile"
         class="w-full rounded-xl border border-slate-200 px-4 py-3 text-base"
-        inputmode="numeric"
-        maxlength="10"
+        inputmode="tel"
         autocomplete="tel"
+        placeholder="98765 43210"
+        (focus)="onMemberMobileFocus($event)"
         (input)="onMemberMobileInput($event)"
       />
-      @if (memberForm.controls.mobile.touched && memberForm.controls.mobile.invalid) {
+      @if (
+        memberForm.controls.mobile.touched &&
+          memberForm.controls.mobile.invalid &&
+          !memberForm.controls.mobile.hasError('incomplete')
+      ) {
         @if (memberForm.controls.mobile.hasError('required')) {
           <p class="mt-1 text-sm text-red-600">Mobile number is required</p>
-        } @else if (memberForm.controls.mobile.hasError('pattern')) {
-          <p class="mt-1 text-sm text-red-600">Enter a valid 10-digit mobile number</p>
+        } @else if (memberForm.controls.mobile.hasError('indianMobileInvalid')) {
+          <p class="mt-1 text-sm text-red-600">Enter a valid 10-digit Indian mobile number</p>
         }
       }
       <p class="mt-1 text-xs text-slate-500">

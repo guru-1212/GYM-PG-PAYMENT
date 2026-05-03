@@ -1,5 +1,15 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, OnDestroy, OnInit, signal, effect } from '@angular/core';
+import {
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  OnDestroy,
+  OnInit,
+  signal,
+  effect,
+  viewChild,
+} from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { jsPDF } from 'jspdf';
@@ -47,8 +57,12 @@ import { MEMBER_IMPORT_PROGRESS_MESSAGES } from '../../core/utils/member-import-
 import { parsePgImportSeat, pgSheetSubscriptionError } from '../../core/utils/pg-sheet-import.utils';
 import {
   applyDigitsOnlyFromInput,
+  applyIndianMemberMobileFromInput,
   dueDateAfterJoinDate,
+  formatIndianMemberMobileDisplay,
+  indianMemberMobileValidator,
   joinDateNotInPast,
+  normalizeIndianMemberMobileDigits,
   optionalDigitsLen,
   positiveAmount,
 } from '../../core/utils/validators';
@@ -154,6 +168,9 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly modalOpen = signal(false);
   readonly editingId = signal<string | null>(null);
   readonly moreOpen = signal(false);
+
+  /** Add/Edit member modal: mobile `<input>` for formatted display sync after modal opens. */
+  readonly memberMobileInputRef = viewChild<ElementRef<HTMLInputElement>>('memberMobile');
 
   readonly payModalOpen = signal(false);
   readonly payTarget = signal<Member | null>(null);
@@ -464,7 +481,8 @@ export class MembersComponent implements OnInit, OnDestroy {
     firstName: ['', [Validators.required, Validators.pattern(/^[^0-9]*$/)]],
     lastName: ['', [Validators.pattern(/^[^0-9]*$/)]],
     // Mobile is required so the member-onboarding share link can do mobile-match verification.
-    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
+    // Stored value is digits-only (normalized); pasted +91 spacing is tolerated in the input.
+    mobile: ['', [indianMemberMobileValidator()]],
     email: [''],
     address: [''],
     floorNumber: ['', [Validators.required, Validators.pattern(/^\d+$/)]],
@@ -920,6 +938,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.clearJoinIntakeModalSession();
     this.modalOpen.set(true);
     void this.bootstrapJoinIntakeForAddModal();
+    this.scheduleMemberMobileInputDisplayRefresh();
   }
 
   /** Open Add member from a submitted join-intake (QR / link flow). */
@@ -931,7 +950,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.memberForm.patchValue({
       firstName: (row.submissionFirstName || '').trim(),
       lastName: (row.submissionLastName || '').trim(),
-      mobile: row.submissionMobile || '',
+      mobile: normalizeIndianMemberMobileDigits(row.submissionMobile || ''),
       address: (row.submissionAddress || '').trim(),
       aadhaarLast4: aan.length === 12 ? aan : '',
     });
@@ -939,6 +958,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.joinIntakeTokenForSave.set(row.token);
     this.clearJoinIntakeModalSession();
     this.modalOpen.set(true);
+    this.scheduleMemberMobileInputDisplayRefresh();
   }
 
   private detachJoinIntakeDocListener(): void {
@@ -1128,7 +1148,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.memberForm.patchValue({
       firstName: m.firstName,
       lastName: m.lastName || '',
-      mobile: m.mobile || '',
+      mobile: normalizeIndianMemberMobileDigits(m.mobile || ''),
       email: m.email || '',
       address: m.address || '',
       floorNumber: String(m.floorNumber || '').replace(/\D/g, ''),
@@ -1157,6 +1177,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.manualSeatError.set(null);
     this.setMemberModalBillingFieldsLocked(false);
     this.modalOpen.set(true);
+    this.scheduleMemberMobileInputDisplayRefresh();
     this.memberForm.markAsPristine();
   }
 
@@ -1421,6 +1442,7 @@ export class MembersComponent implements OnInit, OnDestroy {
       return;
     }
     const v = this.memberForm.getRawValue();
+    const mobileStored = normalizeIndianMemberMobileDigits(v.mobile);
     if (this.hasSeatLayout()) {
       const seatIssue = this.getSeatAvailabilityIssue(v.floorNumber, v.roomNumber, v.bedNumber);
       if (seatIssue) {
@@ -1475,7 +1497,7 @@ export class MembersComponent implements OnInit, OnDestroy {
     const baseInput = {
       firstName: v.firstName,
       lastName: v.lastName || undefined,
-      mobile: v.mobile || undefined,
+      mobile: mobileStored || undefined,
       email: v.email || undefined,
       address: v.address || undefined,
       floorNumber: v.floorNumber,
@@ -1519,7 +1541,7 @@ export class MembersComponent implements OnInit, OnDestroy {
         this.cache.patchMemberLocal(id, {
           firstName: v.firstName.trim(),
           lastName: v.lastName?.trim() || '',
-          mobile: v.mobile?.trim() || '',
+          mobile: mobileStored || '',
           email: v.email?.trim() || '',
           address: v.address?.trim() || '',
           floorNumber: v.floorNumber.trim(),
@@ -1584,7 +1606,7 @@ export class MembersComponent implements OnInit, OnDestroy {
             ownerId: this.auth.profile()?.ownerId || '',
             firstName: v.firstName,
             lastName: v.lastName || '',
-            mobile: v.mobile || '',
+            mobile: mobileStored || '',
             amount: newAmount,
             pendingAmount,
           };
@@ -2411,7 +2433,27 @@ ${pgName}`;
   }
 
   onMemberMobileInput(event: Event): void {
-    applyDigitsOnlyFromInput(this.memberForm.controls.mobile, event, 10);
+    applyIndianMemberMobileFromInput(this.memberForm.controls.mobile, event);
+  }
+
+  /** Re-apply spaced display after opening the modal or when focusing the field. */
+  onMemberMobileFocus(event: FocusEvent): void {
+    const el = event.target as HTMLInputElement;
+    const stored = normalizeIndianMemberMobileDigits(this.memberForm.controls.mobile.value ?? '');
+    this.memberForm.controls.mobile.setValue(stored, { emitEvent: false });
+    el.value = formatIndianMemberMobileDisplay(stored);
+  }
+
+  private scheduleMemberMobileInputDisplayRefresh(): void {
+    setTimeout(() => this.refreshMemberMobileInputDisplayFromControl(), 0);
+  }
+
+  private refreshMemberMobileInputDisplayFromControl(): void {
+    const el = this.memberMobileInputRef()?.nativeElement;
+    if (!el) return;
+    const stored = normalizeIndianMemberMobileDigits(this.memberForm.controls.mobile.value ?? '');
+    this.memberForm.controls.mobile.setValue(stored, { emitEvent: false });
+    el.value = formatIndianMemberMobileDisplay(stored);
   }
 
   onAadhaarDigitsInput(event: Event): void {
