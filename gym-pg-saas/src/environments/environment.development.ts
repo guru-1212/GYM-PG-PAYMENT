@@ -1,6 +1,7 @@
 import type { FirebaseOptions } from 'firebase/app';
 
-const firebaseProd: FirebaseOptions = {
+/** Live project (`gym-pg-saas`) — used by `environment.ts` production builds only. */
+export const firebaseProd: FirebaseOptions = {
   apiKey: 'AIzaSyApIcrqq8LCL77oIV8emI4Yr0JSGNn5yg8',
   authDomain: 'gym-pg-saas.firebaseapp.com',
   projectId: 'gym-pg-saas',
@@ -9,7 +10,8 @@ const firebaseProd: FirebaseOptions = {
   appId: '1:695170150391:web:4875fb5a643516ab2e08f2',
 };
 
-const firebaseTest: FirebaseOptions = {
+/** Staging / local dev project (`test-gym-pg-sass`). */
+export const firebaseTest: FirebaseOptions = {
   apiKey: 'AIzaSyCGNjCt4L_O8I1c0r_s_ds3LF-FmU9wQr0',
   authDomain: 'test-gym-pg-sass.firebaseapp.com',
   projectId: 'test-gym-pg-sass',
@@ -20,11 +22,13 @@ const firebaseTest: FirebaseOptions = {
 };
 
 /**
- * One-place switch:
- * true  => use production Firebase
- * false => use test Firebase
+ * Local `ng serve` only (this file replaces `environment.ts` in Angular **development** config).
+ * `true`  => gym-pg-saas (live)
+ * `false` => test-gym-pg-sass (safe sandbox)
+ *
+ * Production `ng build --configuration=production` uses `environment.ts`, which always uses `firebaseProd`.
  */
-export const useProdFirebase = true;
+export const useProdFirebase = false;
 export const selectedFirebase: FirebaseOptions = useProdFirebase ? firebaseProd : firebaseTest;
 
 /**
