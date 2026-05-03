@@ -1,7 +1,9 @@
 import type { FirebaseOptions } from 'firebase/app';
 
-/** Live project (`gym-pg-saas`) — used by `environment.ts` production builds only. */
+/** Live project (`gym-pg-saas`) — use from `environment.ts` when that file is switched back to live. */
 export const firebaseProd: FirebaseOptions = {
+  // Paste from Firebase Console only. A common typo is Latin lowercase `l` instead of capital `I`
+  // in segments `ApI`, `oIV`, `emI4` — that breaks signInWithPassword (HTTP 400) on deployed hosts.
   apiKey: 'AIzaSyApIcrqq8LCL77oIV8emI4Yr0JSGNn5yg8',
   authDomain: 'gym-pg-saas.firebaseapp.com',
   projectId: 'gym-pg-saas',
@@ -26,7 +28,7 @@ export const firebaseTest: FirebaseOptions = {
  * `true`  => gym-pg-saas (live)
  * `false` => test-gym-pg-sass (safe sandbox)
  *
- * Production `ng build --configuration=production` uses `environment.ts`, which always uses `firebaseProd`.
+ * Production `ng build --configuration=production` uses `environment.ts` (currently **test** Firebase; see that file).
  */
 export const useProdFirebase = false;
 export const selectedFirebase: FirebaseOptions = useProdFirebase ? firebaseProd : firebaseTest;
