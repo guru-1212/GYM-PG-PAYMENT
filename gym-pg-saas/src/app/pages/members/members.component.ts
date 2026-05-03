@@ -17,6 +17,9 @@ import {
   MemberOnboardingService,
   type OnboardingPhotoKind,
 } from '../../core/services/member-onboarding.service';
+import { MemberJoinIntakeService } from '../../core/services/member-join-intake.service';
+import type { MemberJoinIntake } from '../../core/models/member-join-intake.model';
+import QRCode from 'qrcode';
 import { NotificationService } from '../../core/services/notification.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { MemberReceiptService } from '../../core/services/member-receipt.service';
@@ -128,6 +131,7 @@ export class MembersComponent implements OnInit, OnDestroy {
   private readonly cache = inject(DataCacheService);
   private readonly membersApi = inject(MemberService);
   private readonly onboardingApi = inject(MemberOnboardingService);
+  private readonly joinIntakeApi = inject(MemberJoinIntakeService);
   private readonly paymentsApi = inject(PaymentService);
   private readonly notifications = inject(NotificationService);
   private readonly pgLayoutApi = inject(PgLayoutService);
@@ -246,7 +250,25 @@ export class MembersComponent implements OnInit, OnDestroy {
         const name = `${m.firstName} ${m.lastName || ''}`.toLowerCase();
         const mob = (m.mobile || '').replace(/\D/g, '');
         const qq = q.replace(/\D/g, '');
-        return name.includes(q) || (qq.length > 0 && mob.includes(qq));
+        const roomRaw = String(m.roomNumber ?? '').trim().toLowerCase();
+        /** Match UI room chip: PG stores floor + room separately but shows e.g. "301" via formatPgRoomLabel. */
+        let roomHaystack = roomRaw;
+        if (this.isPg()) {
+          const fNum = Math.trunc(Number(m.floorNumber));
+          const rNum = Math.trunc(Number(m.roomNumber));
+          if (Number.isFinite(fNum) && Number.isFinite(rNum) && rNum > 0) {
+            const label = formatPgRoomLabel(fNum, rNum).toLowerCase();
+            const floorRoomDigits = `${fNum}${rNum}`;
+            roomHaystack = [roomRaw, label, floorRoomDigits].filter((s) => s.length > 0).join(' ');
+          }
+        }
+        const roomDigitsHaystack = roomHaystack.replace(/\D/g, '');
+        const nameMatch = name.includes(q);
+        const mobileMatch = qq.length > 0 && mob.includes(qq);
+        const roomTextMatch = roomHaystack.length > 0 && roomHaystack.includes(q);
+        const roomDigitMatch =
+          qq.length > 0 && roomDigitsHaystack.length > 0 && roomDigitsHaystack.includes(qq);
+        return nameMatch || mobileMatch || roomTextMatch || roomDigitMatch;
       });
     }
     const sf = this.statusFilter();
@@ -512,6 +534,26 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly shareLinkExpiresAt = signal<Date | null>(null);
   readonly shareLinkBusy = signal<boolean>(false);
   readonly shareLinkCopied = signal<boolean>(false);
+
+  /** Pre–add-member QR / link (distinct from post-member onboarding share link). */
+  readonly joinIntakeShareUrl = signal('');
+  readonly joinIntakeExpiresAt = signal<Date | null>(null);
+  readonly joinIntakeQrDataUrl = signal('');
+  readonly joinIntakeBusy = signal(false);
+  readonly joinIntakeError = signal(false);
+  readonly joinIntakeCopied = signal(false);
+  readonly joinIntakeCountdownLabel = signal('');
+  readonly joinIntakeFromReview = signal(false);
+  readonly joinIntakeTokenForSave = signal<string | null>(null);
+  /** Token for the QR currently shown in Add member (live listener until submit or close). */
+  readonly joinIntakeActiveToken = signal<string | null>(null);
+  /** True once Firestore shows this invite is no longer `active` (member submitted, etc.). */
+  readonly joinIntakeQrConsumed = signal(false);
+  readonly pendingJoinIntakes = signal<MemberJoinIntake[]>([]);
+  private joinIntakeListUnsub: (() => void) | null = null;
+  private joinIntakeDocUnsub: (() => void) | null = null;
+  private joinIntakeTickTimer: ReturnType<typeof setInterval> | null = null;
+  private joinIntakeLiveToastDone = false;
   readonly receiptConfirmOpen = signal<boolean>(false);
   readonly receiptConfirmTarget = signal<ReceiptCandidate | null>(null);
   readonly receiptConfirmAmount = signal<number>(0);
@@ -629,6 +671,11 @@ export class MembersComponent implements OnInit, OnDestroy {
 
       const onboarding = params.get('onboarding');
       this.onboardingReviewFilter.set(onboarding === 'review' ? 'review' : 'all');
+
+      const joinToken = params.get('joinToken');
+      if (joinToken?.trim()) {
+        void this.openAddModalFromJoinTokenParam(joinToken.trim());
+      }
     });
     const routePath = this.route.snapshot.routeConfig?.path;
     this.listMode.set(routePath === 'inactive-members' ? 'inactive' : 'active');
@@ -644,6 +691,11 @@ export class MembersComponent implements OnInit, OnDestroy {
         console.error('❌ Error loading members data:', error);
         this.toast.error('Failed to load members');
       }
+
+      this.joinIntakeListUnsub?.();
+      this.joinIntakeListUnsub = this.joinIntakeApi.watchSubmittedIntakes(id, (rows) => {
+        this.pendingJoinIntakes.set(rows);
+      });
     }
   }
 
@@ -715,6 +767,9 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.querySub?.unsubscribe();
     this.payFormSubscription?.unsubscribe();
     this.joinDateValueSub?.unsubscribe();
+    this.joinIntakeListUnsub?.();
+    this.joinIntakeListUnsub = null;
+    this.clearJoinIntakeModalSession();
     this.clearImportProgressUi();
     this.revokeAllMemberPhotoLocalPreviews();
   }
@@ -809,8 +864,8 @@ export class MembersComponent implements OnInit, OnDestroy {
     }
   }
 
-  openAdd(): void {
-    if (!this.canAddMembersAction()) return;
+  /** Shared “blank add member” form reset (new member only). */
+  private prepareEmptyAddMemberForm(): void {
     this.editingId.set(null);
     this.moreOpen.set(false);
     this.memberForm.controls.joinDate.setValidators([
@@ -855,7 +910,202 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.manualSeatEntryTriggered.set(false);
     this.manualSeatError.set(null);
     this.setMemberModalBillingFieldsLocked(false);
+  }
+
+  openAdd(): void {
+    if (!this.canAddMembersAction()) return;
+    this.prepareEmptyAddMemberForm();
+    this.joinIntakeFromReview.set(false);
+    this.joinIntakeTokenForSave.set(null);
+    this.clearJoinIntakeModalSession();
     this.modalOpen.set(true);
+    void this.bootstrapJoinIntakeForAddModal();
+  }
+
+  /** Open Add member from a submitted join-intake (QR / link flow). */
+  openAddFromPendingJoinIntake(row: MemberJoinIntake): void {
+    if (!this.canAddMembersAction()) return;
+    if (row.status !== 'submitted') return;
+    this.prepareEmptyAddMemberForm();
+    const aan = (row.submissionAadhaarNumber || '').replace(/\D/g, '');
+    this.memberForm.patchValue({
+      firstName: (row.submissionFirstName || '').trim(),
+      lastName: (row.submissionLastName || '').trim(),
+      mobile: row.submissionMobile || '',
+      address: (row.submissionAddress || '').trim(),
+      aadhaarLast4: aan.length === 12 ? aan : '',
+    });
+    this.joinIntakeFromReview.set(true);
+    this.joinIntakeTokenForSave.set(row.token);
+    this.clearJoinIntakeModalSession();
+    this.modalOpen.set(true);
+  }
+
+  private detachJoinIntakeDocListener(): void {
+    this.joinIntakeDocUnsub?.();
+    this.joinIntakeDocUnsub = null;
+    this.joinIntakeActiveToken.set(null);
+  }
+
+  private clearJoinIntakeModalSession(): void {
+    this.detachJoinIntakeDocListener();
+    this.joinIntakeQrConsumed.set(false);
+    this.joinIntakeLiveToastDone = false;
+    if (this.joinIntakeTickTimer) {
+      clearInterval(this.joinIntakeTickTimer);
+      this.joinIntakeTickTimer = null;
+    }
+    this.joinIntakeShareUrl.set('');
+    this.joinIntakeExpiresAt.set(null);
+    this.joinIntakeQrDataUrl.set('');
+    this.joinIntakeBusy.set(false);
+    this.joinIntakeError.set(false);
+    this.joinIntakeCopied.set(false);
+    this.joinIntakeCountdownLabel.set('');
+  }
+
+  private attachJoinIntakeDocListener(token: string): void {
+    this.detachJoinIntakeDocListener();
+    this.joinIntakeActiveToken.set(token);
+    this.joinIntakeDocUnsub = this.joinIntakeApi.watchIntakeDoc(token, (row) => {
+      if (!row) return;
+      if (row.status !== 'active') {
+        this.joinIntakeQrConsumed.set(true);
+        if (this.joinIntakeTickTimer) {
+          clearInterval(this.joinIntakeTickTimer);
+          this.joinIntakeTickTimer = null;
+        }
+        if (row.status === 'submitted' && !this.joinIntakeLiveToastDone) {
+          this.joinIntakeLiveToastDone = true;
+          this.toast.success(this.i18n.t('members.joinIntakeLiveReceived'));
+        }
+      }
+    });
+  }
+
+  /** Deep link from dashboard: `/members?joinToken=…` opens Add member prefilled from intake. */
+  private async openAddModalFromJoinTokenParam(token: string): Promise<void> {
+    const clearJoinTokenFromUrl = (): void => {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { joinToken: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    };
+    if (!this.canAddMembersAction()) {
+      clearJoinTokenFromUrl();
+      return;
+    }
+    if (this.listMode() !== 'active') {
+      this.toast.success(this.i18n.t('members.joinIntakeSwitchToActiveList'));
+      clearJoinTokenFromUrl();
+      return;
+    }
+    try {
+      const row = await this.joinIntakeApi.readIntake(token);
+      const ownerId = this.auth.profile()?.ownerId;
+      if (!ownerId || row.ownerId !== ownerId) {
+        this.toast.error(this.i18n.t('members.joinIntakeTokenWrongOwner'));
+        clearJoinTokenFromUrl();
+        return;
+      }
+      if (row.status !== 'submitted') {
+        this.toast.success(this.i18n.t('members.joinIntakeTokenNotPending'));
+        clearJoinTokenFromUrl();
+        return;
+      }
+      this.openAddFromPendingJoinIntake(row);
+      clearJoinTokenFromUrl();
+    } catch {
+      this.toast.error(this.i18n.t('members.joinIntakeTokenOpenError'));
+      clearJoinTokenFromUrl();
+    }
+  }
+
+  private updateJoinIntakeCountdown(): void {
+    const exp = this.joinIntakeExpiresAt();
+    if (!exp) {
+      this.joinIntakeCountdownLabel.set('');
+      return;
+    }
+    const ms = exp.getTime() - Date.now();
+    if (ms <= 0) {
+      this.joinIntakeCountdownLabel.set('0:00');
+      return;
+    }
+    const totalSec = Math.floor(ms / 1000);
+    const mm = Math.floor(totalSec / 60);
+    const ss = totalSec % 60;
+    this.joinIntakeCountdownLabel.set(`${mm}:${String(ss).padStart(2, '0')}`);
+  }
+
+  private async bootstrapJoinIntakeForAddModal(): Promise<void> {
+    if (this.editingId()) return;
+    if (this.joinIntakeFromReview()) return;
+    this.joinIntakeBusy.set(true);
+    this.joinIntakeError.set(false);
+    try {
+      const { token, url, expiresAt } = await this.joinIntakeApi.createIntake();
+      this.joinIntakeLiveToastDone = false;
+      this.attachJoinIntakeDocListener(token);
+      this.joinIntakeShareUrl.set(url);
+      this.joinIntakeExpiresAt.set(expiresAt);
+      this.updateJoinIntakeCountdown();
+      if (this.joinIntakeTickTimer) clearInterval(this.joinIntakeTickTimer);
+      this.joinIntakeTickTimer = setInterval(() => this.updateJoinIntakeCountdown(), 1000);
+      const dataUrl = await QRCode.toDataURL(url, {
+        width: 220,
+        margin: 1,
+        color: { dark: '#1e1b4b', light: '#ffffff' },
+      });
+      this.joinIntakeQrDataUrl.set(dataUrl);
+    } catch {
+      this.joinIntakeError.set(true);
+      this.toast.error(this.i18n.t('members.joinIntakeQrError'));
+    } finally {
+      this.joinIntakeBusy.set(false);
+    }
+  }
+
+  async retryBootstrapJoinIntake(): Promise<void> {
+    await this.bootstrapJoinIntakeForAddModal();
+  }
+
+  async copyJoinIntakeLink(): Promise<void> {
+    const url = this.joinIntakeShareUrl();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      this.joinIntakeCopied.set(true);
+      this.toast.success(this.i18n.t('members.joinIntakeCopied'));
+      setTimeout(() => this.joinIntakeCopied.set(false), 2200);
+    } catch {
+      this.toast.error('Could not copy. Long-press the link to copy manually.');
+    }
+  }
+
+  joinIntakeWhatsAppHref(): string | null {
+    const url = this.joinIntakeShareUrl();
+    if (!url) return null;
+    const host =
+      this.auth.profile()?.businessName?.trim() ||
+      this.auth.profile()?.name?.trim() ||
+      this.i18n.t('brand.paybook');
+    const msg = this.i18n.t('joinIntake.whatsappMsg', { host, url });
+    return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  }
+
+  async dismissPendingJoinIntake(row: MemberJoinIntake): Promise<void> {
+    if (!this.canAddMembersAction()) return;
+    if (!confirm('Dismiss this request? You can still add the member manually.')) return;
+    try {
+      await this.joinIntakeApi.dismissIntake(row.token);
+      this.toast.success('Request dismissed');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not dismiss';
+      this.toast.error(msg);
+    }
   }
 
   openEdit(m: Member): void {
@@ -911,6 +1161,9 @@ export class MembersComponent implements OnInit, OnDestroy {
   }
 
   closeModal(): void {
+    this.clearJoinIntakeModalSession();
+    this.joinIntakeFromReview.set(false);
+    this.joinIntakeTokenForSave.set(null);
     this.manualSeatEntryTriggered.set(false);
     this.manualSeatError.set(null);
     this.resetOnboardingPhotoState();
@@ -1300,6 +1553,15 @@ export class MembersComponent implements OnInit, OnDestroy {
           aadhaarFrontUrl: this.aadhaarFrontUrl().trim(),
           aadhaarBackUrl: this.aadhaarBackUrl().trim(),
         });
+        const intakeTok = this.joinIntakeTokenForSave();
+        if (intakeTok && memberId) {
+          try {
+            await this.joinIntakeApi.markCompleted(intakeTok, memberId);
+          } catch {
+            this.toast.error('Member was saved but the join request could not be marked complete. You can dismiss it from the list.');
+          }
+        }
+        this.joinIntakeTokenForSave.set(null);
         if (memberId) {
           await this.uploadPendingOwnerPhotosIfAny(memberId);
           const pu = this.profilePhotoUrl().trim();

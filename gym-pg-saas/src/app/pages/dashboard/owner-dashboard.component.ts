@@ -6,8 +6,10 @@ import { Member, SubscriptionType } from '../../core/models/member.model';
 import { Payment, PaymentMethod } from '../../core/models/payment.model';
 import { PgFloorLayout, PgLayout } from '../../core/models/pg-layout.model';
 import { Timestamp } from 'firebase/firestore';
+import type { MemberJoinIntake } from '../../core/models/member-join-intake.model';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
+import { MemberJoinIntakeService } from '../../core/services/member-join-intake.service';
 import { MemberService } from '../../core/services/member.service';
 import { PaymentService } from '../../core/services/payment.service';
 import { PgLayoutService } from '../../core/services/pg-layout.service';
@@ -232,10 +234,14 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly i18n = inject(TranslationService);
   private readonly router = inject(Router);
+  private readonly joinIntakeApi = inject(MemberJoinIntakeService);
 
   readonly members = signal<Member[]>([]);
   readonly payments = signal<Payment[]>([]);
   readonly supervisors = signal<Supervisor[]>([]);
+  /** Pre–add-member join forms awaiting owner completion (same source as Members page). */
+  readonly pendingJoinRequests = signal<MemberJoinIntake[]>([]);
+  private joinIntakeListUnsub: (() => void) | null = null;
   readonly supervisorCollectionsModalOpen = signal(false);
   /** Breakdown of every payment captured today (member, method, rent vs pending, recorded by). */
   readonly todayCollectionDetailModalOpen = signal(false);
@@ -925,6 +931,16 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
     () => this.members().filter((m) => m.status === 'active' && Boolean(m.pendingSelfOnboarding)).length,
   );
 
+  readonly joinIntakeDashboardVisible = computed(
+    () => this.auth.hasPermission('canAddMembers') && this.pendingJoinRequests().length > 0,
+  );
+
+  readonly joinIntakePendingCount = computed(() => this.pendingJoinRequests().length);
+
+  goMembersWithJoinToken(token: string): void {
+    void this.router.navigate(['/members'], { queryParams: { joinToken: token } });
+  }
+
   dueStatusLabel(m: Member): string {
     const due = timestampToDate(m.dueDate);
     return dueRemainingOrOverdueLabel(due, m.status === 'active');
@@ -1231,6 +1247,18 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       });
     }
 
+    const joinN = this.pendingJoinRequests().length;
+    this.i18n.lang();
+    if (joinN > 0 && this.auth.hasPermission('canAddMembers')) {
+      chips.push({
+        id: 'join-intake',
+        tone: 'emerald',
+        icon: 'qr_code_2',
+        label: this.i18n.t('dashboard.joinIntakePulse', { count: joinN }),
+        link: { path: '/members' },
+      });
+    }
+
     return chips;
   });
 
@@ -1414,6 +1442,22 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       this.activeActionTab();
       untracked(() => this.actionQueuePage.set(1));
     });
+
+    /** Live submitted join-intake rows for dashboard card + pulse chip. */
+    effect(() => {
+      const uid = this.auth.effectiveOwnerId();
+      untracked(() => {
+        this.joinIntakeListUnsub?.();
+        this.joinIntakeListUnsub = null;
+        if (!uid || !this.auth.hasPermission('canAddMembers')) {
+          this.pendingJoinRequests.set([]);
+          return;
+        }
+        this.joinIntakeListUnsub = this.joinIntakeApi.watchSubmittedIntakes(uid, (rows) => {
+          this.pendingJoinRequests.set(rows);
+        });
+      });
+    });
   }
 
   async ngOnInit(): Promise<void> {
@@ -1459,6 +1503,8 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
       clearInterval(this.subscriptionCountdownTimer);
       this.subscriptionCountdownTimer = null;
     }
+    this.joinIntakeListUnsub?.();
+    this.joinIntakeListUnsub = null;
     this.supervisorsUnsub?.();
     this.supervisorsUnsub = null;
     this.clearImportProgressUi();

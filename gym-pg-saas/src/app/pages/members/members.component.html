@@ -39,6 +39,44 @@
     </div>
   }
 
+  @if (listMode() === 'active' && pendingJoinIntakes().length > 0) {
+    <section
+      class="rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/95 via-white to-teal-50/40 px-4 py-4 shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/30 dark:via-slate-900/80 dark:to-teal-950/20"
+      aria-label="Pending join requests"
+    >
+      <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-sm font-bold uppercase tracking-wide text-emerald-900 dark:text-emerald-200">
+            {{ 'members.joinIntakeBannerTitle' | t }}
+          </h2>
+          <p class="text-xs text-emerald-800/90 dark:text-emerald-300/90">{{ 'members.joinIntakeBannerSubtitle' | t }}</p>
+        </div>
+      </div>
+      <ul class="flex flex-col gap-2">
+        @for (row of pendingJoinIntakes(); track row.token) {
+          <li
+            class="flex flex-col gap-3 rounded-xl border border-emerald-100/90 bg-white/90 px-3 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-emerald-900/50 dark:bg-slate-900/60"
+          >
+            <div class="min-w-0">
+              <p class="truncate text-sm font-semibold text-slate-900 dark:text-slate-50">
+                {{ row.submissionFirstName }} {{ row.submissionLastName }}
+              </p>
+              <p class="text-xs text-slate-600 dark:text-slate-400">{{ row.submissionMobile }}</p>
+            </div>
+            <div class="flex shrink-0 flex-wrap gap-2">
+              <button type="button" class="saas-btn-primary px-3 py-2 text-xs" (click)="openAddFromPendingJoinIntake(row)">
+                {{ 'members.joinIntakeContinueSetup' | t }}
+              </button>
+              <button type="button" class="saas-btn-secondary px-3 py-2 text-xs" (click)="dismissPendingJoinIntake(row)">
+                {{ 'members.joinIntakeDismiss' | t }}
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
   <div class="saas-card grid min-w-0 gap-3 p-4 md:grid-cols-2 xl:grid-cols-5 [&>*]:min-w-0">
     <div class="min-w-0 md:col-span-2 xl:col-span-2">
       <label class="mb-1 block text-xs font-semibold uppercase text-slate-500">{{ 'members.search' | t }}</label>
@@ -621,7 +659,92 @@
   }
 </div>
 
-<app-modal [open]="modalOpen()" [title]="editingId() ? 'Edit member' : 'Add member'" (closed)="closeModal()">
+<app-modal [open]="modalOpen()" [wide]="true" [title]="editingId() ? 'Edit member' : 'Add member'" (closed)="closeModal()">
+  @if (!editingId()) {
+    @if (joinIntakeFromReview()) {
+      <div
+        class="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-sm text-indigo-950 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-100"
+      >
+        <span class="material-icons-outlined mr-1 align-middle text-base text-indigo-600 dark:text-indigo-300">info</span>
+        {{ 'members.joinIntakeModalSectionHint' | t }}
+      </div>
+    } @else {
+      <div
+        class="mb-4 rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-indigo-50/60 p-4 dark:border-slate-600 dark:from-slate-900 dark:to-indigo-950/30"
+      >
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 dark:text-slate-50">{{ 'members.joinIntakeModalSectionTitle' | t }}</h3>
+            <p class="mt-1 max-w-xl text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+              {{ 'members.joinIntakeModalSectionHint' | t }}
+            </p>
+            @if (joinIntakeShareUrl() && joinIntakeCountdownLabel()) {
+              <p class="mt-2 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+                {{ 'members.joinIntakeExpiresIn' | t: { time: joinIntakeCountdownLabel() } }}
+              </p>
+            }
+          </div>
+          @if (joinIntakeBusy()) {
+            <div class="flex flex-col items-center justify-center gap-2 self-center py-4 sm:px-6">
+              <div class="h-10 w-10 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"></div>
+              <span class="text-xs text-slate-600">{{ 'members.joinIntakeQrBusy' | t }}</span>
+            </div>
+          } @else if (joinIntakeError()) {
+            <div class="flex flex-col items-center gap-2 self-center py-2 text-center sm:px-4">
+              <p class="text-xs text-red-600">{{ 'members.joinIntakeQrError' | t }}</p>
+              <button type="button" class="saas-btn-secondary px-3 py-1.5 text-xs" (click)="retryBootstrapJoinIntake()">
+                {{ 'members.joinIntakeRetry' | t }}
+              </button>
+            </div>
+          } @else if (joinIntakeQrDataUrl() && joinIntakeShareUrl()) {
+            <div class="flex flex-col items-center gap-3 sm:items-end">
+              <div
+                class="relative rounded-xl border border-white bg-white p-2 shadow-md dark:border-slate-600 dark:bg-slate-800"
+                [class.opacity-40]="joinIntakeQrConsumed()"
+              >
+                <img [src]="joinIntakeQrDataUrl()" alt="QR code for join link" class="h-44 w-44 object-contain" width="176" height="176" />
+                @if (joinIntakeQrConsumed()) {
+                  <div
+                    class="absolute inset-0 m-2 flex flex-col items-center justify-center gap-2 rounded-lg bg-emerald-950/90 px-3 py-4 text-center text-white shadow-inner"
+                    role="status"
+                  >
+                    <span class="material-icons-outlined text-3xl text-emerald-300">verified</span>
+                    <p class="text-xs font-semibold leading-snug">{{ 'members.joinIntakeQrUsedOverlayTitle' | t }}</p>
+                    <p class="text-[11px] leading-snug text-emerald-100/95">{{ 'members.joinIntakeQrUsedOverlayHint' | t }}</p>
+                  </div>
+                }
+              </div>
+              <div class="flex w-full max-w-xs flex-col gap-2 sm:items-end">
+                @if (!joinIntakeQrConsumed()) {
+                  <button type="button" class="saas-btn-secondary w-full px-3 py-2 text-xs sm:w-auto" (click)="copyJoinIntakeLink()">
+                    @if (joinIntakeCopied()) {
+                      {{ 'members.joinIntakeCopied' | t }}
+                    } @else {
+                      {{ 'members.joinIntakeCopyLink' | t }}
+                    }
+                  </button>
+                  @if (joinIntakeWhatsAppHref()) {
+                    <a
+                      class="saas-btn-primary inline-flex w-full items-center justify-center gap-2 px-3 py-2 text-center text-xs sm:w-auto"
+                      [href]="joinIntakeWhatsAppHref()!"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <span class="material-icons-outlined text-base">chat</span>
+                      {{ 'members.joinIntakeWhatsApp' | t }}
+                    </a>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </div>
+        @if (joinIntakeShareUrl() && joinIntakeCountdownLabel() === '0:00' && !joinIntakeBusy() && !joinIntakeError()) {
+          <p class="mt-3 text-xs font-medium text-amber-800 dark:text-amber-200">{{ 'members.joinIntakeExpired' | t }}</p>
+        }
+      </div>
+    }
+  }
   <form [formGroup]="memberForm" (ngSubmit)="saveMember()" class="space-y-4">
     <div>
       <label class="mb-1 block text-sm font-medium text-slate-700">First name</label>

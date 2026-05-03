@@ -452,6 +452,24 @@ export class BedMapSeatGridComponent {
     return fullName || 'N/A';
   }
 
+  /** Last 10 digits for India (+91) when at least 10 digit chars are present. */
+  private mobile10Digits(raw: unknown): string | null {
+    const digits = String(raw ?? '').replace(/\D/g, '');
+    if (digits.length < 10) return null;
+    const ten = digits.slice(-10);
+    return ten.length === 10 ? ten : null;
+  }
+
+  telHref(mobile: unknown): string | null {
+    const ten = this.mobile10Digits(mobile);
+    return ten ? `tel:+91${ten}` : null;
+  }
+
+  whatsappHrefMobile(mobileRaw: unknown): string | null {
+    const ten = this.mobile10Digits(mobileRaw);
+    if (!ten) return null;
+    return `https://wa.me/91${ten}?text=${encodeURIComponent('Hi')}`;
+  }
   memberConfirmDisplayName(m: Member): string {
     const n = `${m.firstName} ${m.lastName}`.trim();
     return n || this.i18n.t('members.thisMember');

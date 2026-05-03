@@ -356,6 +356,153 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    /**
+     * Pre–add-member join invite (public `/join-intake/{token}`).
+     * Distinct from `memberOnboardingLinks` (existing member profile completion).
+     */
+    match /memberJoinIntakes/{token} {
+      function intakeOwnerOrSupervisorRead() {
+        return isAdmin()
+          || (isApprovedOwner() && resource.data.ownerId == request.auth.uid)
+          || (
+            isActiveSupervisorOf(resource.data.ownerId)
+            && supervisorPerm('canAddMembers')
+          );
+      }
+
+      /** Active invite metadata (no submission yet). Includes expired actives so the public page can show a clear message. */
+      function intakePublicActiveShellRead() {
+        return resource.data.status == 'active'
+          && !('submissionFirstName' in resource.data);
+      }
+
+      /**
+       * Anyone with the secret token URL may read terminal-state rows so the
+       * public `/join-intake/{token}` page can show "already submitted" / etc.
+       * (Token is 192-bit hex; not enumerable from rules.)
+       */
+      function intakePublicTerminalRead() {
+        return resource.data.status in ['submitted', 'completed', 'dismissed', 'revoked'];
+      }
+
+      /**
+       * `get` (single doc by token): public join page + owner/supervisor.
+       * `list` (queries): **owner/supervisor only** — never widen with public
+       * branches or unconstrained queries could return other owners' intakes.
+       */
+      allow get: if intakeOwnerOrSupervisorRead() || intakePublicActiveShellRead() || intakePublicTerminalRead();
+      allow list: if intakeOwnerOrSupervisorRead();
+
+      allow create: if (
+          (isApprovedOwner() && request.resource.data.ownerId == request.auth.uid)
+          || (
+            isActiveSupervisorOf(request.resource.data.ownerId)
+            && supervisorPerm('canAddMembers')
+          )
+        )
+        && request.resource.data.businessName is string
+        && request.resource.data.ownerId is string
+        && request.resource.data.status == 'active'
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(15, 'm')
+        && request.resource.data.businessName.size() >= 1
+        && request.resource.data.businessName.size() <= 120
+        && !('submissionFirstName' in request.resource.data)
+        && !('submissionLastName' in request.resource.data)
+        && !('submissionMobile' in request.resource.data)
+        && !('submissionAadhaarNumber' in request.resource.data)
+        && !('submissionAddress' in request.resource.data)
+        && !('submittedAt' in request.resource.data)
+        && !('linkedMemberId' in request.resource.data)
+        && !('completedAt' in request.resource.data)
+        && !('dismissedAt' in request.resource.data);
+
+      function intakeImmutablesUnchanged() {
+        return request.resource.data.ownerId == resource.data.ownerId
+          && request.resource.data.businessName == resource.data.businessName
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.expiresAt == resource.data.expiresAt;
+      }
+
+      function isPublicJoinIntakeSubmit() {
+        return resource.data.status == 'active'
+          && resource.data.expiresAt > request.time
+          && !('submissionFirstName' in resource.data)
+          && request.resource.data.status == 'submitted'
+          && request.resource.data.submittedAt is timestamp
+          && request.resource.data.submissionFirstName is string
+          && request.resource.data.submissionFirstName.size() >= 1
+          && request.resource.data.submissionFirstName.size() <= 80
+          && request.resource.data.submissionLastName is string
+          && request.resource.data.submissionLastName.size() >= 0
+          && request.resource.data.submissionLastName.size() <= 80
+          && request.resource.data.submissionMobile is string
+          && request.resource.data.submissionMobile.matches('^[0-9]{10}$')
+          && request.resource.data.submissionAadhaarNumber is string
+          && request.resource.data.submissionAadhaarNumber.size() <= 12
+          && (
+            request.resource.data.submissionAadhaarNumber == ''
+            || request.resource.data.submissionAadhaarNumber.matches('^[0-9]{12}$')
+          )
+          && request.resource.data.submissionAddress is string
+          && request.resource.data.submissionAddress.size() >= 1
+          && request.resource.data.submissionAddress.size() <= 500
+          && intakeImmutablesUnchanged()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'submittedAt',
+            'submissionFirstName',
+            'submissionLastName',
+            'submissionMobile',
+            'submissionAadhaarNumber',
+            'submissionAddress'
+          ]);
+      }
+
+      function isOwnerJoinIntakeDismiss() {
+        return intakeOwnerOrSupervisorRead()
+          && resource.data.status == 'submitted'
+          && request.resource.data.status == 'dismissed'
+          && intakeImmutablesUnchanged()
+          && request.resource.data.dismissedAt is timestamp
+          && request.resource.data.submissionFirstName == resource.data.submissionFirstName
+          && request.resource.data.submissionLastName == resource.data.submissionLastName
+          && request.resource.data.submissionMobile == resource.data.submissionMobile
+          && request.resource.data.submissionAadhaarNumber == resource.data.submissionAadhaarNumber
+          && request.resource.data.submissionAddress == resource.data.submissionAddress
+          && request.resource.data.submittedAt == resource.data.submittedAt
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'dismissedAt']);
+      }
+
+      function isOwnerJoinIntakeComplete() {
+        return intakeOwnerOrSupervisorRead()
+          && resource.data.status == 'submitted'
+          && request.resource.data.status == 'completed'
+          && intakeImmutablesUnchanged()
+          && request.resource.data.submissionFirstName == resource.data.submissionFirstName
+          && request.resource.data.submissionLastName == resource.data.submissionLastName
+          && request.resource.data.submissionMobile == resource.data.submissionMobile
+          && request.resource.data.submissionAadhaarNumber == resource.data.submissionAadhaarNumber
+          && request.resource.data.submissionAddress == resource.data.submissionAddress
+          && request.resource.data.submittedAt == resource.data.submittedAt
+          && request.resource.data.linkedMemberId is string
+          && request.resource.data.completedAt is timestamp
+          && exists(/databases/$(database)/documents/members/$(request.resource.data.linkedMemberId))
+          && get(/databases/$(database)/documents/members/$(request.resource.data.linkedMemberId)).data.ownerId == resource.data.ownerId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'linkedMemberId',
+            'completedAt'
+          ]);
+      }
+
+      allow update: if isPublicJoinIntakeSubmit() || isOwnerJoinIntakeDismiss() || isOwnerJoinIntakeComplete();
+
+      allow delete: if false;
+    }
+
     match /payments/{paymentId} {
       /**
        * Audit-log integrity check.

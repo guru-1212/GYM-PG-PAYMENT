@@ -70,6 +70,14 @@ export const routes: Routes = [
   },
   /** Public onboarding link a member receives to fill in their own details. */
   { path: 'member-onboarding/:token', component: MemberOnboardingComponent },
+  /** Pre–add-member: member submits basics; owner completes bed / payment in Add member. */
+  {
+    path: 'join-intake/:token',
+    loadComponent: () =>
+      import('./pages/member-join-intake/member-join-intake-page.component').then(
+        (m) => m.MemberJoinIntakePageComponent,
+      ),
+  },
   /** Public receipt link a member receives to download their payment receipt. */
   { path: 'member-receipt/:token', component: MemberReceiptComponent },
   /** PWA `start_url` — routes tenants away from the public marketing home page. */
