@@ -85,22 +85,34 @@ export class OwnerPublicStatusService {
     ownerId: string,
     cb: (status: OwnerPublicStatus | null) => void,
   ): Unsubscribe {
-    return onSnapshot(this.statusRef(ownerId), (snap) => {
-      if (!snap.exists()) {
+    return onSnapshot(
+      this.statusRef(ownerId),
+      (snap) => {
+        if (!snap.exists()) {
+          cb(null);
+          return;
+        }
+        const data = snap.data() as Record<string, unknown>;
+        cb({
+          ownerId,
+          businessName: String(data['businessName'] || ''),
+          businessType: data['businessType'] === 'gym' ? 'gym' : 'pg',
+          planEndDate: (data['planEndDate'] as Timestamp | null) ?? null,
+          planActive: Boolean(data['planActive']),
+          complaintEnabled: data['complaintEnabled'] !== false,
+          tenantMemberAppEnabled: data['tenantMemberAppEnabled'] !== false,
+          updatedAt: (data['updatedAt'] as Timestamp | undefined) ?? undefined,
+        });
+      },
+      (err) => {
+        // Missing/outdated rules on a Firebase project used for local dev
+        // (e.g. test-gym-pg-sass) would deny reads here; tenant sign-in still works.
+        console.warn(
+          '[OwnerPublicStatus] snapshot failed — deploy firestore.rules to this project or set useProdFirebase in environment.development.ts',
+          err,
+        );
         cb(null);
-        return;
-      }
-      const data = snap.data() as Record<string, unknown>;
-      cb({
-        ownerId,
-        businessName: String(data['businessName'] || ''),
-        businessType: (data['businessType'] === 'gym' ? 'gym' : 'pg'),
-        planEndDate: (data['planEndDate'] as Timestamp | null) ?? null,
-        planActive: Boolean(data['planActive']),
-        complaintEnabled: data['complaintEnabled'] !== false,
-        tenantMemberAppEnabled: data['tenantMemberAppEnabled'] !== false,
-        updatedAt: (data['updatedAt'] as Timestamp | undefined) ?? undefined,
-      });
-    });
+      },
+    );
   }
 }
