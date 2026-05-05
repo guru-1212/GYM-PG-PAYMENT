@@ -542,7 +542,7 @@
                 <button
                   type="button"
                   class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100"
-                  (click)="toggleMobileMenu(m.memberId, $event)"
+                  (click)="toggleMobileMenu(m.memberId, $event); $event.stopPropagation()"
                   [attr.aria-expanded]="mobileMenuOpen() === m.memberId"
                   aria-label="More options"
                 >
@@ -557,7 +557,7 @@
                         <button
                           type="button"
                           class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
-                          (click)="openPayPendingOnly(m); closeMobileMenu()"
+                          (click)="openPayPendingOnly(m); closeMobileMenu(); $event.stopPropagation()"
                         >
                           <span class="material-icons-outlined text-base text-amber-600">payments</span>
                           Collect Due Amount
@@ -569,7 +569,7 @@
                         <button
                           type="button"
                           class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
-                          (click)="openPay(m); closeMobileMenu()"
+                          (click)="openPay(m); closeMobileMenu(); $event.stopPropagation()"
                         >
                           <span class="material-icons-outlined text-base text-emerald-600">check_circle</span>
                           Collect Rent
@@ -580,7 +580,7 @@
                       <button
                         type="button"
                         class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
-                        (click)="sendReceipt(m); closeMobileMenu()"
+                        (click)="sendReceipt(m); closeMobileMenu(); $event.stopPropagation()"
                       >
                         <span class="material-icons-outlined text-base text-blue-600">receipt</span>
                         Send Receipt
@@ -592,7 +592,7 @@
                         target="_blank"
                         rel="noopener noreferrer"
                         class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
-                        (click)="closeMobileMenu()"
+                        (click)="closeMobileMenu(); $event.stopPropagation()"
                       >
                         <span class="material-icons-outlined text-base text-amber-600">campaign</span>
                         Send Reminder
@@ -603,7 +603,7 @@
                         type="button"
                         class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                         [disabled]="!canShareOnboardingLink(m)"
-                        (click)="openShareLink(m); closeMobileMenu()"
+                        (click)="openShareLink(m); closeMobileMenu(); $event.stopPropagation()"
                       >
                         <span class="material-icons-outlined text-base text-purple-600">share</span>
                         Profile Update Link
@@ -614,7 +614,7 @@
                         <button
                           type="button"
                           class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
-                          (click)="requestDeactivateMember(m); closeMobileMenu()"
+                          (click)="requestDeactivateMember(m); closeMobileMenu(); $event.stopPropagation()"
                         >
                           <span class="material-icons-outlined text-base text-rose-600">person_off</span>
                           {{ 'members.makeInactive' | t }}
@@ -623,7 +623,7 @@
                         <button
                           type="button"
                           class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
-                          (click)="toggleMemberStatus(m, true); closeMobileMenu()"
+                          (click)="toggleMemberStatus(m, true); closeMobileMenu(); $event.stopPropagation()"
                         >
                           <span class="material-icons-outlined text-base text-emerald-600">person</span>
                           Make Active
@@ -632,7 +632,7 @@
                       <button
                         type="button"
                         class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
-                        (click)="openEdit(m); closeMobileMenu()"
+                        (click)="openEdit(m); closeMobileMenu(); $event.stopPropagation()"
                       >
                         <span class="material-icons-outlined text-base text-indigo-600">edit</span>
                         Edit Member
