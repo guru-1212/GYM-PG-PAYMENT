@@ -903,7 +903,6 @@ export class MembersComponent implements OnInit, OnDestroy {
     this.memberForm.controls.joinDate.setValidators([
       Validators.required,
       Validators.pattern(/^\d{4}-\d{2}-\d{2}$/),
-      joinDateNotInPast(),
     ]);
     this.memberForm.controls.joinDate.updateValueAndValidity({ emitEvent: false });
     const today = new Date();
@@ -1233,6 +1232,30 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   memberDueDateDdMmHint(): string {
     return formatYyyyMmDdAsDdMmYyyy(this.memberForm.controls.dueDate.value || '');
+  }
+
+  /** Days calculation for join date display */
+  daysFromJoinDateDisplay(): number | null {
+    const joinDateStr = this.memberForm.controls.joinDate.value;
+    if (!joinDateStr) return null;
+    
+    const joinDate = parseYyyyMmDdLocal(joinDateStr);
+    if (!joinDate) return null;
+    
+    const today = startOfToday();
+    return calendarDaysBetween(today, startOfDay(joinDate));
+  }
+
+  /** Days calculation for due date display */
+  daysUntilDueDateDisplay(): number | null {
+    const dueDateStr = this.memberForm.controls.dueDate.value;
+    if (!dueDateStr) return null;
+    
+    const dueDate = parseYyyyMmDdLocal(dueDateStr);
+    if (!dueDate) return null;
+    
+    const today = startOfToday();
+    return calendarDaysBetween(today, startOfDay(dueDate));
   }
 
   onMemberJoinDatePickerChange(): void {

@@ -1281,16 +1281,13 @@
           formControlName="joinDate"
           autocomplete="off"
           class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base"
-          [attr.min]="memberJoinDateInputMinIso()"
           (change)="onMemberJoinDatePickerChange()"
         />
         @if (memberJoinDateDdMmHint()) {
           <p class="mt-1 text-xs text-slate-500">DD/MM/YYYY: {{ memberJoinDateDdMmHint() }}</p>
         }
-        @if (!editingId()) {
-          <p class="mt-1 text-xs text-slate-500">Use the calendar — dates before today are not allowed for new members.</p>
-        } @else {
-          <p class="mt-1 text-xs text-slate-500">Use the calendar to change the join date.</p>
+        @if (daysFromJoinDateDisplay() !== null) {
+          <p class="mt-1 text-xs font-medium text-slate-600">Date adjustment: {{ daysFromJoinDateDisplay() }} days</p>
         }
         @if (memberForm.controls.joinDate.touched && memberForm.controls.joinDate.invalid) {
           @if (memberForm.controls.joinDate.hasError('required')) {
@@ -1317,10 +1314,8 @@
         @if (memberDueDateDdMmHint()) {
           <p class="mt-1 text-xs text-slate-500">DD/MM/YYYY: {{ memberDueDateDdMmHint() }}</p>
         }
-        @if (!editingId()) {
-          <p class="mt-1 text-xs text-slate-500">For new members this updates to 30 days after join when you change the join date.</p>
-        } @else {
-          <p class="mt-1 text-xs text-slate-500">Must be on or after join date.</p>
+        @if (daysUntilDueDateDisplay() !== null) {
+          <p class="mt-1 text-xs font-medium {{ daysUntilDueDateDisplay()! < 0 ? 'text-red-600' : 'text-slate-600' }}">Date adjustment:{{ daysUntilDueDateDisplay()! < 0 ? '-' : '' }}{{ daysUntilDueDateDisplay()! < 0 ? -daysUntilDueDateDisplay()! : daysUntilDueDateDisplay()! }} days</p>
         }
         @if (memberForm.controls.dueDate.touched && memberForm.controls.dueDate.invalid) {
           @if (memberForm.controls.dueDate.errors?.['required']) {
