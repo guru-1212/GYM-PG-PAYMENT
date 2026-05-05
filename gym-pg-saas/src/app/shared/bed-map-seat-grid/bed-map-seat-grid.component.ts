@@ -1,4 +1,5 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { Timestamp } from 'firebase/firestore';
 import { Member } from '../../core/models/member.model';
 import { PgLayout } from '../../core/models/pg-layout.model';
@@ -104,6 +105,7 @@ export class BedMapSeatGridComponent {
   private readonly membersApi = inject(MemberService);
   private readonly toast = inject(ToastService);
   private readonly i18n = inject(TranslationService);
+  private readonly router = inject(Router);
 
   readonly layout = input<PgLayout | null>(null);
   readonly members = input<Member[]>([]);
@@ -419,6 +421,15 @@ export class BedMapSeatGridComponent {
     const key = this.bedKey(floor, room, bed);
     if (!key) return false;
     return this.occupiedBedKeys().has(key);
+  }
+
+  viewMemberDetails(member: Member | null | undefined): void {
+    if (!member) return;
+    const displayName = this.memberDisplayName(member);
+    this.router.navigate(['/members'], {
+      queryParams: { search: displayName },
+      queryParamsHandling: 'merge',
+    });
   }
 
   getOccupiedMember(floor: unknown, room: unknown, bed: unknown): Member | null {

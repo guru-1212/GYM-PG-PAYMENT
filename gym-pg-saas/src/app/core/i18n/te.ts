@@ -500,6 +500,7 @@ export const TE: Record<string, unknown> = {
     cancel: 'రద్దు చేయండి',
     save: 'సేవ్ చేయండి',
     saving: 'సేవ్ అవుతోంది…',
+    seeMore: 'మరిన్ని చూడండి',
   },
   whatsapp: {
     cardTitle: 'వాట్సాప్ ఇంటిగ్రేషన్',

@@ -500,6 +500,7 @@ export const EN: Record<string, unknown> = {
     cancel: 'Cancel',
     save: 'Save',
     saving: 'Saving…',
+    seeMore: 'See More',
   },
   whatsapp: {
     cardTitle: 'WhatsApp Integration',

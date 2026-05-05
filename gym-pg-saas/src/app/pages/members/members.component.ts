@@ -169,6 +169,9 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly editingId = signal<string | null>(null);
   readonly moreOpen = signal(false);
 
+  /** Mobile 3-dot menu state - tracks which member's menu is open */
+  readonly mobileMenuOpen = signal<string | null>(null);
+
   /** Add/Edit member modal: mobile `<input>` for formatted display sync after modal opens. */
   readonly memberMobileInputRef = viewChild<ElementRef<HTMLInputElement>>('memberMobile');
 
@@ -666,6 +669,11 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     this.querySub = this.route.queryParamMap.subscribe((params) => {
+      const search = params.get('search');
+      if (search?.trim()) {
+        this.search.set(search.trim());
+      }
+
       const pay = params.get('pay');
       if (
         pay === 'all' ||
@@ -705,6 +713,12 @@ export class MembersComponent implements OnInit, OnDestroy {
       try {
         await this.cache.loadMembers(id);
         await this.cache.loadLayout(id);
+        
+        // Scroll to searched member after data is loaded
+        const searchParam = this.route.snapshot.queryParamMap.get('search');
+        if (searchParam?.trim()) {
+          this.scrollToSearchedMember(searchParam.trim());
+        }
       } catch (error) {
         console.error('❌ Error loading members data:', error);
         this.toast.error('Failed to load members');
@@ -2223,6 +2237,24 @@ ${pgName}`;
     this.bedPickerOpen.set(false);
   }
 
+  toggleMore(): void {
+    this.moreOpen.set(!this.moreOpen());
+  }
+
+  toggleMobileMenu(memberId: string, event: Event): void {
+    event.stopPropagation();
+    const currentOpen = this.mobileMenuOpen();
+    if (currentOpen === memberId) {
+      this.mobileMenuOpen.set(null);
+    } else {
+      this.mobileMenuOpen.set(memberId);
+    }
+  }
+
+  closeMobileMenu(): void {
+    this.mobileMenuOpen.set(null);
+  }
+
   isBedOccupied(floor: unknown, room: unknown, bed: unknown): boolean {
     const key = this.bedKey(floor, room, bed);
     if (!key) return false;
@@ -3295,6 +3327,54 @@ ${businessName}`;
       if (index >= 0) return index;
     }
     return -1;
+  }
+
+  /** Scroll to the member element that matches the search query */
+  private scrollToSearchedMember(searchQuery: string): void {
+    // Wait for the view to update after search filters are applied
+    setTimeout(() => {
+      const members = this.displayMembers();
+      const searchTerm = searchQuery.toLowerCase().trim();
+      
+      // Find the first member that matches the search query
+      const targetMember = members.find(m => {
+        const fullName = `${m.firstName} ${m.lastName || ''}`.toLowerCase();
+        return fullName.includes(searchTerm);
+      });
+      
+      if (targetMember) {
+        // Determine the view mode and construct the element ID
+        const isMobile = window.innerWidth < 768;
+        const isCardView = this.desktopMemberView() === 'card' && !isMobile;
+        
+        let elementId: string;
+        if (isMobile) {
+          elementId = `member-mobile-${targetMember.memberId}`;
+        } else if (isCardView) {
+          elementId = `member-card-${targetMember.memberId}`;
+        } else {
+          elementId = `member-table-${targetMember.memberId}`;
+        }
+        
+        const element = document.getElementById(elementId);
+        if (element) {
+          // Smooth scroll to the element
+          element.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center', 
+            inline: 'nearest' 
+          });
+          
+          // Add a brief highlight effect
+          element.style.transition = 'background-color 0.3s ease';
+          element.style.backgroundColor = '#fef3c7'; // amber-100
+          
+          setTimeout(() => {
+            element.style.backgroundColor = '';
+          }, 1500);
+        }
+      }
+    }, 100); // Small delay to ensure DOM is updated
   }
 }
 
