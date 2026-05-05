@@ -1,0 +1,115 @@
+import { injectQuery as __vite__injectQuery } from "/@vite/client";import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/chunk-6MPBSB4R.js");import {
+  AuthService,
+  init_auth_service
+} from "/chunk-MN5MNLYM.js";
+import {
+  __esm
+} from "/chunk-QDIDAZJD.js";
+
+// src/app/shared/brand-logo.component.ts
+import { Component, Input, inject } from "/@fs/C:/Users/gurunath.h/Desktop/New folder/GYM-PG-PAYMENT/gym-pg-saas/.angular/cache/19.2.23/gym-pg-saas/vite/deps/@angular_core.js?v=5c60ccb7";
+import { Router } from "/@fs/C:/Users/gurunath.h/Desktop/New folder/GYM-PG-PAYMENT/gym-pg-saas/.angular/cache/19.2.23/gym-pg-saas/vite/deps/@angular_router.js?v=5c60ccb7";
+import * as i0 from "/@fs/C:/Users/gurunath.h/Desktop/New folder/GYM-PG-PAYMENT/gym-pg-saas/.angular/cache/19.2.23/gym-pg-saas/vite/deps/@angular_core.js?v=5c60ccb7";
+function BrandLogoComponent_Conditional_1_Template(rf, ctx) {
+  if (rf & 1) {
+    i0.\u0275\u0275elementStart(0, "span", 1);
+    i0.\u0275\u0275text(1);
+    i0.\u0275\u0275elementEnd();
+  }
+  if (rf & 2) {
+    const ctx_r0 = i0.\u0275\u0275nextContext();
+    i0.\u0275\u0275advance();
+    i0.\u0275\u0275textInterpolate(ctx_r0.brandName);
+  }
+}
+var BrandLogoComponent;
+var init_brand_logo_component = __esm({
+  "src/app/shared/brand-logo.component.ts"() {
+    "use strict";
+    init_auth_service();
+    BrandLogoComponent = class _BrandLogoComponent {
+      router = inject(Router);
+      auth = inject(AuthService);
+      logoSize = "32px";
+      showText = false;
+      brandName = "OurPGTracker";
+      navigateFromLogo() {
+        const target = this.auth.user() ? "/dashboard" : "/";
+        void this.router.navigateByUrl(target);
+      }
+      onSpaceNavigate(event) {
+        event.preventDefault();
+        this.navigateFromLogo();
+      }
+      static \u0275fac = function BrandLogoComponent_Factory(__ngFactoryType__) {
+        return new (__ngFactoryType__ || _BrandLogoComponent)();
+      };
+      static \u0275cmp = /* @__PURE__ */ i0.\u0275\u0275defineComponent({ type: _BrandLogoComponent, selectors: [["app-brand-logo"]], inputs: { logoSize: "logoSize", showText: "showText", brandName: "brandName" }, decls: 2, vars: 1, consts: [["role", "link", "tabindex", "0", 1, "flex", "items-center", "gap-2", "brand-link", 3, "click", "keydown.enter", "keydown.space"], [1, "brand-name"]], template: function BrandLogoComponent_Template(rf, ctx) {
+        if (rf & 1) {
+          i0.\u0275\u0275elementStart(0, "div", 0);
+          i0.\u0275\u0275listener("click", function BrandLogoComponent_Template_div_click_0_listener() {
+            return ctx.navigateFromLogo();
+          })("keydown.enter", function BrandLogoComponent_Template_div_keydown_enter_0_listener() {
+            return ctx.navigateFromLogo();
+          })("keydown.space", function BrandLogoComponent_Template_div_keydown_space_0_listener($event) {
+            return ctx.onSpaceNavigate($event);
+          });
+          i0.\u0275\u0275template(1, BrandLogoComponent_Conditional_1_Template, 2, 1, "span", 1);
+          i0.\u0275\u0275elementEnd();
+        }
+        if (rf & 2) {
+          i0.\u0275\u0275advance();
+          i0.\u0275\u0275conditional(ctx.showText ? 1 : -1);
+        }
+      }, styles: ["\n\n[_nghost-%COMP%] {\n  display: flex;\n  align-items: center;\n}\n.brand-logo[_ngcontent-%COMP%] {\n  flex-shrink: 0;\n}\n.brand-name[_ngcontent-%COMP%] {\n  font-weight: 600;\n  background:\n    linear-gradient(\n      to right,\n      #3b82f6,\n      #4f46e5);\n  -webkit-background-clip: text;\n  -webkit-text-fill-color: transparent;\n  background-clip: text;\n  font-size: 24px;\n}\n.brand-link[_ngcontent-%COMP%] {\n  cursor: pointer;\n  -webkit-user-select: none;\n  user-select: none;\n}\n/*# sourceMappingURL=brand-logo.component.css.map */"] });
+    };
+    (() => {
+      (typeof ngDevMode === "undefined" || ngDevMode) && i0.\u0275setClassMetadata(BrandLogoComponent, [{
+        type: Component,
+        args: [{ selector: "app-brand-logo", standalone: true, template: `
+    <div
+      class="flex items-center gap-2 brand-link"
+      role="link"
+      tabindex="0"
+      (click)="navigateFromLogo()"
+      (keydown.enter)="navigateFromLogo()"
+      (keydown.space)="onSpaceNavigate($event)"
+    >
+     
+      @if (showText) {
+        <span class="brand-name">{{ brandName }}</span>
+      }
+    </div>
+  `, styles: ["/* angular:styles/component:scss;cb74813c252235ff67718608c7b43eae33a44c93fd4b9091338eadb823a9256f;C:/Users/gurunath.h/Desktop/New folder/GYM-PG-PAYMENT/gym-pg-saas/src/app/shared/brand-logo.component.ts */\n:host {\n  display: flex;\n  align-items: center;\n}\n.brand-logo {\n  flex-shrink: 0;\n}\n.brand-name {\n  font-weight: 600;\n  background:\n    linear-gradient(\n      to right,\n      #3b82f6,\n      #4f46e5);\n  -webkit-background-clip: text;\n  -webkit-text-fill-color: transparent;\n  background-clip: text;\n  font-size: 24px;\n}\n.brand-link {\n  cursor: pointer;\n  -webkit-user-select: none;\n  user-select: none;\n}\n/*# sourceMappingURL=brand-logo.component.css.map */\n"] }]
+      }], null, { logoSize: [{
+        type: Input
+      }], showText: [{
+        type: Input
+      }], brandName: [{
+        type: Input
+      }] });
+    })();
+    (() => {
+      (typeof ngDevMode === "undefined" || ngDevMode) && i0.\u0275setClassDebugInfo(BrandLogoComponent, { className: "BrandLogoComponent", filePath: "src/app/shared/brand-logo.component.ts", lineNumber: 45 });
+    })();
+    (() => {
+      const id = "src%2Fapp%2Fshared%2Fbrand-logo.component.ts%40BrandLogoComponent";
+      function BrandLogoComponent_HmrLoad(t) {
+        import(
+          /* @vite-ignore */
+          __vite__injectQuery(i0.\u0275\u0275getReplaceMetadataURL(id, t, import.meta.url), 'import')
+        ).then((m) => m.default && i0.\u0275\u0275replaceMetadata(BrandLogoComponent, m.default, [i0], [Component, Input], import.meta, id));
+      }
+      (typeof ngDevMode === "undefined" || ngDevMode) && BrandLogoComponent_HmrLoad(Date.now());
+      (typeof ngDevMode === "undefined" || ngDevMode) && (import.meta.hot && import.meta.hot.on("angular:component-update", (d) => d.id === id && BrandLogoComponent_HmrLoad(d.timestamp)));
+    })();
+  }
+});
+
+export {
+  BrandLogoComponent,
+  init_brand_logo_component
+};
+
+
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbInNyYy9hcHAvc2hhcmVkL2JyYW5kLWxvZ28uY29tcG9uZW50LnRzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IENvbXBvbmVudCwgSW5wdXQsIGluamVjdCB9IGZyb20gJ0Bhbmd1bGFyL2NvcmUnO1xyXG5pbXBvcnQgeyBSb3V0ZXIgfSBmcm9tICdAYW5ndWxhci9yb3V0ZXInO1xyXG5pbXBvcnQgeyBBdXRoU2VydmljZSB9IGZyb20gJy4uL2NvcmUvc2VydmljZXMvYXV0aC5zZXJ2aWNlJztcclxuXHJcbkBDb21wb25lbnQoe1xyXG4gIHNlbGVjdG9yOiAnYXBwLWJyYW5kLWxvZ28nLFxyXG4gIHN0YW5kYWxvbmU6IHRydWUsXHJcbiAgdGVtcGxhdGU6IGBcclxuICAgIDxkaXZcclxuICAgICAgY2xhc3M9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMiBicmFuZC1saW5rXCJcclxuICAgICAgcm9sZT1cImxpbmtcIlxyXG4gICAgICB0YWJpbmRleD1cIjBcIlxyXG4gICAgICAoY2xpY2spPVwibmF2aWdhdGVGcm9tTG9nbygpXCJcclxuICAgICAgKGtleWRvd24uZW50ZXIpPVwibmF2aWdhdGVGcm9tTG9nbygpXCJcclxuICAgICAgKGtleWRvd24uc3BhY2UpPVwib25TcGFjZU5hdmlnYXRlKCRldmVudClcIlxyXG4gICAgPlxyXG4gICAgIFxyXG4gICAgICBAaWYgKHNob3dUZXh0KSB7XHJcbiAgICAgICAgPHNwYW4gY2xhc3M9XCJicmFuZC1uYW1lXCI+e3sgYnJhbmROYW1lIH19PC9zcGFuPlxyXG4gICAgICB9XHJcbiAgICA8L2Rpdj5cclxuICBgLFxyXG4gIHN0eWxlczogW2BcclxuICAgIDpob3N0IHtcclxuICAgICAgZGlzcGxheTogZmxleDtcclxuICAgICAgYWxpZ24taXRlbXM6IGNlbnRlcjtcclxuICAgIH1cclxuICAgIC5icmFuZC1sb2dvIHtcclxuICAgICAgZmxleC1zaHJpbms6IDA7XHJcbiAgICB9XHJcbiAgICAuYnJhbmQtbmFtZSB7XHJcbiAgICAgIGZvbnQtd2VpZ2h0OiA2MDA7XHJcbiAgICAgIGJhY2tncm91bmQ6IGxpbmVhci1ncmFkaWVudCh0byByaWdodCwgIzNiODJmNiwgIzRmNDZlNSk7XHJcbiAgICAgIC13ZWJraXQtYmFja2dyb3VuZC1jbGlwOiB0ZXh0O1xyXG4gICAgICAtd2Via2l0LXRleHQtZmlsbC1jb2xvcjogdHJhbnNwYXJlbnQ7XHJcbiAgICAgIGJhY2tncm91bmQtY2xpcDogdGV4dDtcclxuICAgICAgZm9udC1zaXplOiAyNHB4O1xyXG4gICAgfVxyXG4gICAgLmJyYW5kLWxpbmsge1xyXG4gICAgICBjdXJzb3I6IHBvaW50ZXI7XHJcbiAgICAgIHVzZXItc2VsZWN0OiBub25lO1xyXG4gICAgfVxyXG4gIGBdXHJcbn0pXHJcbmV4cG9ydCBjbGFzcyBCcmFuZExvZ29Db21wb25lbnQge1xyXG4gIHByaXZhdGUgcmVhZG9ubHkgcm91dGVyID0gaW5qZWN0KFJvdXRlcik7XHJcbiAgcHJpdmF0ZSByZWFkb25seSBhdXRoID0gaW5qZWN0KEF1dGhTZXJ2aWNlKTtcclxuXHJcbiAgQElucHV0KCkgbG9nb1NpemUgPSAnMzJweCc7XHJcbiAgQElucHV0KCkgc2hvd1RleHQgPSBmYWxzZTtcclxuICBASW5wdXQoKSBicmFuZE5hbWUgPSAnT3VyUEdUcmFja2VyJztcclxuXHJcbiAgbmF2aWdhdGVGcm9tTG9nbygpOiB2b2lkIHtcclxuICAgIGNvbnN0IHRhcmdldCA9IHRoaXMuYXV0aC51c2VyKCkgPyAnL2Rhc2hib2FyZCcgOiAnLyc7XHJcbiAgICB2b2lkIHRoaXMucm91dGVyLm5hdmlnYXRlQnlVcmwodGFyZ2V0KTtcclxuICB9XHJcblxyXG4gIG9uU3BhY2VOYXZpZ2F0ZShldmVudDogRXZlbnQpOiB2b2lkIHtcclxuICAgIGV2ZW50LnByZXZlbnREZWZhdWx0KCk7XHJcbiAgICB0aGlzLm5hdmlnYXRlRnJvbUxvZ28oKTtcclxuICB9XHJcbn1cclxuIl0sIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7QUFB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

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script type="module" src="/@vite/client"></script>
+
+  <meta charset="utf-8">
+  <script>
+    try {
+      if (localStorage.getItem('paybook.theme') === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    } catch (e) {}
+  </script>
+  <title>Our PG Tracker – Manage PG Rooms, Rent & Tenants Easily</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- SEO: search engines are allowed to crawl & index. -->
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta name="googlebot" content="index,follow">
+  <meta name="description" content="Our PG Tracker is a simple PG management software for rent tracking, tenant management, room &amp; bed allotment, and monthly earnings. Manage your PG, hostel, or co-living property with clarity.">
+  <meta name="keywords" content="Our PG Tracker, PG management, PG management software, rent tracking, tenant management, PG rent collection, room management, hostel management, co-living management, PG software India">
+  <meta name="author" content="Our PG Tracker">
+  <link rel="canonical" href="https://ourpgtracker.in/">
+
+  <!-- Open Graph / social sharing -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Our PG Tracker">
+  <meta property="og:title" content="Our PG Tracker – Manage PG Rooms, Rent &amp; Tenants Easily">
+  <meta property="og:description" content="Our PG Tracker is a simple PG management software for rent tracking, tenant management, room &amp; bed allotment, and monthly earnings.">
+  <meta property="og:url" content="https://ourpgtracker.in/">
+  <meta property="og:image" content="https://ourpgtracker.in/icons/Brand_LOGO_New.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Our PG Tracker – Manage PG Rooms, Rent &amp; Tenants Easily">
+  <meta name="twitter:description" content="PG management made simple — rent tracking, tenant management, rooms &amp; beds, monthly earnings.">
+  <meta name="twitter:image" content="https://ourpgtracker.in/icons/Brand_LOGO_New.png">
+
+  <!-- Allow screenshots on all devices -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="icon" type="image/png" href="icons/Brand_LOGO_New.png">
+  <link rel="apple-touch-icon" href="icons/Brand_LOGO_New.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#1D4ED8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+  <link href="https://unpkg.com/tailwindcss@^2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!--
+    Font Awesome is bundled locally via angular.json (node_modules/@fortawesome/fontawesome-free/css/all.min.css).
+    CDN link avoided: integrity/hash drift broke icons when the CDN file changed or was unreachable.
+  -->
+
+  <!-- Structured data: SoftwareApplication + Organization for Our PG Tracker -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "Our PG Tracker",
+        "alternateName": "OurPGTracker",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web, Android, iOS",
+        "url": "https://ourpgtracker.in/",
+        "description": "Our PG Tracker is a PG management software for rent tracking, tenant management, room & bed allotment, and monthly earnings.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "INR"
+        }
+      },
+      {
+        "@type": "Organization",
+        "name": "Our PG Tracker",
+        "url": "https://ourpgtracker.in/",
+        "logo": "https://ourpgtracker.in/icons/Brand_LOGO_New.png"
+      },
+      {
+        "@type": "WebSite",
+        "name": "Our PG Tracker",
+        "url": "https://ourpgtracker.in/"
+      }
+    ]
+  }
+  </script>
+<link rel="stylesheet" href="styles.css"></head>
+<body class="font-sans">
+  <app-root></app-root>
+<script src="polyfills.js" type="module"></script><script src="main.js" type="module"></script></body>
+</html>
