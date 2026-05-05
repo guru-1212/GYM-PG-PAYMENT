@@ -6,6 +6,7 @@ import {
   AskGuruSuggestion,
 } from '../models/ask-guru.model';
 import { AskGuruKnowledgeService } from './ask-guru-knowledge.service';
+import { OverdueMembersQueryService } from './overdue-members-query.service';
 
 @Injectable({ providedIn: 'root' })
 export class AskGuruAssistantService {
@@ -17,13 +18,32 @@ export class AskGuruAssistantService {
     intro: 'I can help you with actions available here.',
   };
 
-  constructor(private readonly knowledgeService: AskGuruKnowledgeService) {}
+  constructor(private readonly knowledgeService: AskGuruKnowledgeService, private readonly overdueQuery: OverdueMembersQueryService) {}
 
   async matchQuestion(question: string, routeUrl: string): Promise<AskGuruMatchResult> {
     const knowledge = await this.knowledgeService.loadKnowledge();
     const items = knowledge.items;
     const context = this.resolveContext(routeUrl, knowledge.pageContexts);
     const normalizedInput = this.normalize(question);
+    
+    // Special handling for overdue members queries
+    if (this.overdueQuery.isOverdueMembersQuery(question)) {
+      try {
+        // Get owner ID from current user context (this would need to be injected or passed)
+        // For now, return a special response that will be handled by the component
+        const overdueItem = items.find(item => item.id === 'overdue-members');
+        if (overdueItem) {
+          return {
+            item: overdueItem,
+            score: 200, // High priority for overdue queries
+            suggestions: this.toSuggestions(this.relatedSuggestions(overdueItem, items)),
+          };
+        }
+      } catch (error) {
+        console.error('Error handling overdue members query:', error);
+      }
+    }
+    
     if (!normalizedInput) {
       return {
         item: null,

@@ -4,6 +4,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
 import { AskGuruSuggestion } from '../core/models/ask-guru.model';
 import { AskGuruAssistantService } from '../core/services/ask-guru-assistant.service';
+import { OverdueMembersQueryService } from '../core/services/overdue-members-query.service';
 
 const ADMIN_WHATSAPP_NUMBER = '916300675014';
 
@@ -28,6 +29,7 @@ export class AskToGuruAssistantComponent implements AfterViewChecked {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly assistantService = inject(AskGuruAssistantService);
+  private readonly overdueQuery = inject(OverdueMembersQueryService);
   @ViewChild('chatViewport') private chatViewport?: ElementRef<HTMLDivElement>;
 
   readonly profile = this.auth.profile;
@@ -122,6 +124,40 @@ export class AskToGuruAssistantComponent implements AfterViewChecked {
     });
     this.isTyping.set(true);
 
+    // Special handling for overdue members queries
+    if (this.overdueQuery.isOverdueMembersQuery(question)) {
+      const owner = this.profile();
+      if (owner?.ownerId) {
+        try {
+          const overdueMembers = await this.overdueQuery.getOverdueMembers(owner.ownerId);
+          const responseText = this.overdueQuery.generateOverdueMembersCardResponse(overdueMembers);
+          
+          const delay = 500 + Math.floor(Math.random() * 500);
+          await new Promise<void>((resolve) => {
+            window.setTimeout(() => resolve(), delay);
+          });
+
+          this.isTyping.set(false);
+          const msgId = this.newId('assistant');
+          this.pushMessage({
+            id: msgId,
+            sender: 'assistant',
+            text: responseText,
+            highlight: true,
+          });
+          
+          window.setTimeout(() => {
+            this.messages.update((rows) =>
+              rows.map((row) => (row.id === msgId ? { ...row, highlight: false } : row)),
+            );
+          }, 1700);
+          return;
+        } catch (error) {
+          console.error('Error handling overdue members query:', error);
+        }
+      }
+    }
+
     const result = await this.assistantService.matchQuestion(question, this.router.url);
     const delay = 500 + Math.floor(Math.random() * 500);
     await new Promise<void>((resolve) => {
@@ -162,5 +198,18 @@ export class AskToGuruAssistantComponent implements AfterViewChecked {
 
   private newId(prefix: string): string {
     return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  }
+
+  formatOverdueMessage(text: string): string {
+    // Convert markdown-style bold member names to clickable links
+    // Pattern: **Member Name** -> clickable link
+    const owner = this.profile();
+    if (!owner) return text;
+    
+    return text.replace(/\*\*(.*?)\*\*/g, (match, memberName) => {
+      const encodedName = encodeURIComponent(memberName.trim());
+      const href = `/members?search=${encodedName}&pay=overdue`;
+      return `<a href="${href}" onclick="window.open(this.href, '_self'); return false;" style="color: #3b82f6; text-decoration: underline; cursor: pointer;">${memberName}</a>`;
+    });
   }
 }

@@ -20,8 +20,14 @@
         @for (msg of messages(); track msg.id) {
           <article class="message-row" [class.message-row-user]="msg.sender === 'user'">
             <div class="message-bubble" [class.message-bubble-user]="msg.sender === 'user'" [class.message-bubble-highlight]="msg.highlight">
-              @for (line of msg.text.split('\n'); track $index) {
-                <p>{{ line }}</p>
+              @if (msg.sender === 'assistant' && msg.text.includes('background: white; border: 1px solid #e5e7eb')) {
+                <div [innerHTML]="msg.text" style="max-width: 100%; overflow-x: auto;"></div>
+              } @else if (msg.sender === 'assistant' && msg.text.includes('**')) {
+                <p [innerHTML]="formatOverdueMessage(msg.text)"></p>
+              } @else {
+                @for (line of msg.text.split('\n'); track $index) {
+                  <p>{{ line }}</p>
+                }
               }
             </div>
 

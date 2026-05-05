@@ -5,6 +5,7 @@ import { OwnerAdminChatMessage } from '../../core/models/owner-admin-chat.model'
 import { AdminService } from '../../core/services/admin.service';
 import { AuthService } from '../../core/services/auth.service';
 import { OwnerAdminChatService } from '../../core/services/owner-admin-chat.service';
+import { OverdueMembersQueryService } from '../../core/services/overdue-members-query.service';
 import { SubscriptionService } from '../../core/services/subscription.service';
 import { ToastService } from '../../core/services/toast.service';
 import { TranslationService } from '../../core/services/translation.service';
@@ -22,6 +23,7 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
   private readonly admin = inject(AdminService);
   private readonly auth = inject(AuthService);
   private readonly chat = inject(OwnerAdminChatService);
+  private readonly overdueQuery = inject(OverdueMembersQueryService);
   private readonly subscription = inject(SubscriptionService);
   private readonly toast = inject(ToastService);
   private readonly i18n = inject(TranslationService);
@@ -202,6 +204,19 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
     });
   }
 
+  formatChatMessage(text: string): string {
+    // Convert markdown-style bold member names to clickable links
+    // Pattern: **Member Name** -> clickable link
+    const owner = this.chatOwner();
+    if (!owner) return text;
+    
+    return text.replace(/\*\*(.*?)\*\*/g, (match, memberName) => {
+      const encodedName = encodeURIComponent(memberName.trim());
+      const href = `/members?search=${encodedName}&pay=overdue`;
+      return `<a href="${href}" onclick="window.open(this.href, '_self'); return false;" style="color: #3b82f6; text-decoration: underline; cursor: pointer;">${memberName}</a>`;
+    });
+  }
+
   async openOwnerChat(owner: Owner): Promise<void> {
     this.chatOwner.set(owner);
     this.chatMessages.set([]);
@@ -226,7 +241,36 @@ export class AdminOwnersComponent implements OnInit, OnDestroy {
     if (!owner || !text) return;
     const adminId = this.auth.profile()?.ownerId || this.auth.user()?.uid || 'admin';
     const adminName = this.auth.profile()?.name || 'Admin';
+    
     try {
+      // Check if this is an overdue members query
+      if (this.overdueQuery.isOverdueMembersQuery(text)) {
+        // Send the original message first
+        await this.chat.sendMessage({
+          chatId: owner.ownerId,
+          senderRole: 'admin',
+          senderId: adminId,
+          senderName: adminName,
+          text,
+        });
+        
+        // Get overdue members and send response
+        const overdueMembers = await this.overdueQuery.getOverdueMembers(owner.ownerId);
+        const responseText = this.overdueQuery.generateOverdueMembersResponse(overdueMembers);
+        
+        await this.chat.sendMessage({
+          chatId: owner.ownerId,
+          senderRole: 'admin',
+          senderId: adminId,
+          senderName: 'Assistant',
+          text: responseText,
+        });
+        
+        this.chatText.set('');
+        return;
+      }
+      
+      // Send regular message
       await this.chat.sendMessage({
         chatId: owner.ownerId,
         senderRole: 'admin',

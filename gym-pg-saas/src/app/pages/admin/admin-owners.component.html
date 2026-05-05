@@ -617,7 +617,7 @@
                 [class.bg-white]="msg.senderRole === 'owner'"
                 [class.text-slate-800]="msg.senderRole === 'owner'"
               >
-                <p>{{ msg.text }}</p>
+                <p [innerHTML]="formatChatMessage(msg.text)"></p>
                 <p class="mt-1 text-[10px]" [class.text-indigo-100]="msg.senderRole === 'admin'" [class.text-slate-400]="msg.senderRole === 'owner'">
                   {{ formatChatTime(msg) }}
                 </p>
