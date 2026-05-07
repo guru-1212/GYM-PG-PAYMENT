@@ -31,8 +31,11 @@ export class AdminService {
       (snap) => {
         const counts: Record<string, number> = {};
         snap.forEach((d) => {
-          const ownerId = String((d.data() as { ownerId?: string }).ownerId || '').trim();
+          const data = d.data() as { ownerId?: string; status?: string };
+          const ownerId = String(data.ownerId || '').trim();
           if (!ownerId) return;
+          // Only count active members
+          if (data.status !== 'active') return;
           counts[ownerId] = (counts[ownerId] || 0) + 1;
         });
         callback(counts);
