@@ -143,6 +143,15 @@ export class BedMapSeatGridComponent {
   readonly scheduleDateRaw = signal('');
   readonly scheduleBusy = signal(false);
 
+  readonly mobileBedDetailsOpen = signal(false);
+  readonly mobileBedDetails = signal<{
+    floorNumber: number;
+    roomNumber: number;
+    bedNumber: number;
+    totalBeds: number;
+    member: Member;
+  } | null>(null);
+
   /** Viewport-aware tooltip: 'above' (default) or 'below' the bed cell. */
   private readonly seatTooltipVertical = signal<Map<string, 'above' | 'below'>>(new Map());
 
@@ -162,6 +171,12 @@ export class BedMapSeatGridComponent {
   }
 
   onSeatPointerEnter(event: Event, floor: unknown, room: unknown, bed: unknown): void {
+    // Check if mobile and bed is occupied
+    if (this.isMobile() && this.isBedOccupied(floor, room, bed)) {
+      this.openMobileBedDetails(floor, room, bed);
+      return;
+    }
+
     const key = this.bedKey(floor, room, bed);
     if (!key) return;
     const el = event.currentTarget as HTMLElement | null;
@@ -532,6 +547,46 @@ export class BedMapSeatGridComponent {
     if (!Number.isFinite(f) || !Number.isFinite(r) || !Number.isFinite(b)) return '';
     if (f < 0 || r <= 0 || b <= 0) return '';
     return `${Math.trunc(f)}-${Math.trunc(r)}-${Math.trunc(b)}`;
+  }
+
+  isMobile(): boolean {
+    return window.innerWidth <= 768;
+  }
+
+  openMobileBedDetails(floor: unknown, room: unknown, bed: unknown): void {
+    const member = this.getOccupiedMember(floor, room, bed);
+    if (!member) return;
+
+    const floorNum = Math.trunc(Number(floor));
+    const roomNum = Math.trunc(Number(room));
+    const bedNum = Math.trunc(Number(bed));
+
+    // Get total beds for this room
+    const pgLayout = this.layout();
+    let totalBeds = 1;
+    if (pgLayout?.floors) {
+      const floor = pgLayout.floors.find(f => Math.trunc(Number(f.floorNumber)) === floorNum);
+      if (floor?.rooms) {
+        const room = floor.rooms.find(r => Math.trunc(Number(r.roomNumber)) === roomNum);
+        if (room?.beds) {
+          totalBeds = Math.trunc(Number(room.beds));
+        }
+      }
+    }
+
+    this.mobileBedDetails.set({
+      floorNumber: floorNum,
+      roomNumber: roomNum,
+      bedNumber: bedNum,
+      totalBeds,
+      member
+    });
+    this.mobileBedDetailsOpen.set(true);
+  }
+
+  onMobileBedDetailsDismiss(): void {
+    this.mobileBedDetailsOpen.set(false);
+    this.mobileBedDetails.set(null);
   }
 
   openDeactivateConfirm(m: Member): void {
