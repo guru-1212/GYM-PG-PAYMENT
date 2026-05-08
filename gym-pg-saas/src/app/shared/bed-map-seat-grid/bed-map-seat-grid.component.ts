@@ -97,6 +97,19 @@ type BedMapSearchTarget =
       .bedmap-search-flash {
         animation: bedmap-search-blink 0.34s ease-in-out 3;
       }
+      @keyframes sharing-filter-glow {
+        0%,
+        100% {
+          box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4), 0 0 15px rgba(250, 204, 21, 0.6);
+        }
+        50% {
+          box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.8), 0 0 25px rgba(250, 204, 21, 0.9);
+        }
+      }
+      .sharing-filter-highlight {
+        animation: sharing-filter-glow 1.5s ease-in-out infinite;
+        border-color: rgb(250, 204, 21) !important;
+      }
     `,
   ],
 })
@@ -158,6 +171,40 @@ export class BedMapSeatGridComponent {
   readonly searchDraft = signal('');
   /** DOM id of element to show the 3× blink highlight (#scroll target). */
   readonly searchFlashId = signal<string | null>(null);
+
+  /** Sharing filter: selected sharing type (e.g., 2, 3, 8, etc.) */
+  readonly sharingFilter = signal<number | null>(null);
+
+  /** Available sharing options derived from the layout */
+  readonly sharingOptions = computed(() => {
+    const pg = this.layout();
+    if (!pg?.floors?.length) return [];
+    const sharingSet = new Set<number>();
+    for (const floor of pg.floors) {
+      for (const room of floor.rooms) {
+        const beds = Math.trunc(Number(room.beds) || 0);
+        if (beds > 0) sharingSet.add(beds);
+      }
+    }
+    return Array.from(sharingSet).sort((a, b) => a - b);
+  });
+
+  /** Cached map of room bed counts for faster filtering */
+  private readonly roomBedCountMap = computed(() => {
+    const pg = this.layout();
+    if (!pg?.floors?.length) return new Map<string, number>();
+    const map = new Map<string, number>();
+    for (const floor of pg.floors) {
+      const floorNum = Math.trunc(Number(floor.floorNumber));
+      for (const room of floor.rooms) {
+        const roomNum = Math.trunc(Number(room.roomNumber));
+        const beds = Math.trunc(Number(room.beds) || 0);
+        const key = `${floorNum}-${roomNum}`;
+        map.set(key, beds);
+      }
+    }
+    return map;
+  });
 
   /** Cancels overlapping search highlight timers when a new search runs. */
   private searchHighlightToken = 0;
@@ -228,6 +275,65 @@ export class BedMapSeatGridComponent {
 
   isSearchFlashing(elId: string): boolean {
     return this.searchFlashId() === elId;
+  }
+
+  /** Check if a room matches the selected sharing filter */
+  isRoomFiltered(floor: unknown, room: unknown): boolean {
+    const filter = this.sharingFilter();
+    if (!filter) return false;
+    const floorNum = Math.trunc(Number(floor));
+    const roomNum = Math.trunc(Number(room));
+    const key = `${floorNum}-${roomNum}`;
+    return this.roomBedCountMap().get(key) === filter;
+  }
+
+  /** Set the sharing filter */
+  setSharingFilter(sharing: number | null): void {
+    this.sharingFilter.set(sharing);
+  }
+
+  /** Handle sharing filter change from dropdown */
+  onSharingFilterChange(value: string): void {
+    if (value && value.trim()) {
+      this.sharingFilter.set(parseInt(value, 10));
+      // Scroll to first filtered room after a short delay to let the UI update
+      requestAnimationFrame(() => {
+        setTimeout(() => this.scrollToFirstFilteredRoom(), 50);
+      });
+    } else {
+      this.sharingFilter.set(null);
+    }
+  }
+
+  /** Scroll to the first room that matches the sharing filter */
+  private scrollToFirstFilteredRoom(): void {
+    const filter = this.sharingFilter();
+    if (!filter) return;
+
+    const pg = this.layout();
+    if (!pg?.floors?.length) return;
+
+    // Find the first room that matches the filter
+    for (const floor of pg.floors) {
+      const floorNum = Math.trunc(Number(floor.floorNumber));
+      for (const room of floor.rooms) {
+        const roomNum = Math.trunc(Number(room.roomNumber));
+        const beds = Math.trunc(Number(room.beds) || 0);
+        if (beds === filter) {
+          const elId = this.bedmapRoomDomId(floorNum, roomNum);
+          const el = document.getElementById(elId);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  /** Clear the sharing filter */
+  clearSharingFilter(): void {
+    this.sharingFilter.set(null);
   }
 
   onSearchInput(event: Event): void {
