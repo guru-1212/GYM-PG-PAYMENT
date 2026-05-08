@@ -135,6 +135,26 @@ const MEMBER_MODAL_PHOTO_MIMES = ['image/jpeg', 'image/png', 'image/webp'] as co
       100% { background-position: 100% 50%; }
     }
 
+    .pending-join-intakes-highlight {
+      border-radius: 1rem;
+      background: linear-gradient(120deg, #fef3c7, #fde68a, #fcd34d, #fbbf24, #fcd34d, #fde68a, #fef3c7);
+      background-size: 300% 300%;
+      animation: pendingIntakesPulse 1s ease-in-out infinite, pendingIntakesShift 2s linear infinite;
+      box-shadow:
+        0 0 0 3px rgba(251, 191, 36, 0.6),
+        0 0 24px rgba(245, 158, 11, 0.4);
+    }
+
+    @keyframes pendingIntakesPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+
+    @keyframes pendingIntakesShift {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+
   `],
 })
 export class MembersComponent implements OnInit, OnDestroy {
@@ -571,6 +591,8 @@ export class MembersComponent implements OnInit, OnDestroy {
   /** True once Firestore shows this invite is no longer `active` (member submitted, etc.). */
   readonly joinIntakeQrConsumed = signal(false);
   readonly pendingJoinIntakes = signal<MemberJoinIntake[]>([]);
+  /** Signal to trigger 5-second highlight on pending join intakes section */
+  readonly pendingJoinIntakesHighlight = signal(false);
   private joinIntakeListUnsub: (() => void) | null = null;
   private joinIntakeDocUnsub: (() => void) | null = null;
   private joinIntakeTickTimer: ReturnType<typeof setInterval> | null = null;
@@ -1138,6 +1160,21 @@ export class MembersComponent implements OnInit, OnDestroy {
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not dismiss';
       this.toast.error(msg);
+    }
+  }
+
+  /** Handle click on consumed QR - close modal, scroll to pending join intakes and highlight for 5 seconds */
+  onQrConsumedClick(): void {
+    this.closeModal();
+    const section = document.getElementById('pending-join-intakes-section');
+    if (section) {
+      setTimeout(() => {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        this.pendingJoinIntakesHighlight.set(true);
+        setTimeout(() => {
+          this.pendingJoinIntakesHighlight.set(false);
+        }, 5000);
+      }, 100);
     }
   }
 

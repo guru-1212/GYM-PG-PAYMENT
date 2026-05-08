@@ -41,7 +41,9 @@
 
   @if (listMode() === 'active' && pendingJoinIntakes().length > 0) {
     <section
+      id="pending-join-intakes-section"
       class="rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/95 via-white to-teal-50/40 px-4 py-4 shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/30 dark:via-slate-900/80 dark:to-teal-950/20"
+      [class.pending-join-intakes-highlight]="pendingJoinIntakesHighlight()"
       aria-label="Pending join requests"
     >
       <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -747,6 +749,8 @@
               <div
                 class="relative rounded-xl border border-white bg-white p-2 shadow-md dark:border-slate-600 dark:bg-slate-800"
                 [class.opacity-40]="joinIntakeQrConsumed()"
+                [class.cursor-pointer]="joinIntakeQrConsumed()"
+                (click)="onQrConsumedClick()"
               >
                 <img [src]="joinIntakeQrDataUrl()" alt="QR code for join link" class="h-44 w-44 object-contain" width="176" height="176" />
                 @if (joinIntakeQrConsumed()) {
@@ -757,6 +761,7 @@
                     <span class="material-icons-outlined text-3xl text-emerald-300">verified</span>
                     <p class="text-xs font-semibold leading-snug">{{ 'members.joinIntakeQrUsedOverlayTitle' | t }}</p>
                     <p class="text-[11px] leading-snug text-emerald-100/95">{{ 'members.joinIntakeQrUsedOverlayHint' | t }}</p>
+                    <p class="text-[10px] leading-snug text-emerald-200/80 mt-1">Click to view request</p>
                   </div>
                 }
               </div>
