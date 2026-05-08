@@ -1,5 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Router, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
 import { PwaInstallService } from './core/services/pwa-install.service';
 import { ThemeService } from './core/services/theme.service';
@@ -18,9 +18,15 @@ export class AppComponent {
   /** Eager inject so theme applies before routed shells (e.g. login). */
   private readonly theme = inject(ThemeService);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   /** Ask to Guru is for signed-in users only — keeps the public home FAB row uncluttered. */
-  readonly showAskToGuru = computed(() => this.auth.user() !== null);
+  readonly showAskToGuru = computed(() => {
+    if (this.auth.user() === null) return false;
+    const url = this.router.url;
+    // Hide on member page and home page
+    return !url.startsWith('/members') && !url.startsWith('/home');
+  });
   /**
    * Eager inject so the PWA install service captures `beforeinstallprompt`
    * as early as possible — that event only fires once and we'd miss it if
