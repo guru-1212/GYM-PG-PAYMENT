@@ -553,7 +553,13 @@
                 
                 <!-- Dropdown menu -->
                 @if (mobileMenuOpen() === m.memberId) {
-                  <div class="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                  <div style="height: 150px; overflow: scroll;"
+                    class="absolute right-0 z-[100] w-48 rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800 max-h-96 overflow-y-auto"
+                    [class.bottom-full]="mobileMenuDirection()[m.memberId] === 'up'"
+                    [class.top-full]="mobileMenuDirection()[m.memberId] === 'down'"
+                    [class.mb-1]="mobileMenuDirection()[m.memberId] === 'up'"
+                    [class.mt-1]="mobileMenuDirection()[m.memberId] === 'down'"
+                  >
                     @if (isPartialPaymentPending(m)) {
                       @if (canRecordPaymentsAction()) {
                         <button
@@ -600,14 +606,14 @@
                         Send Reminder
                       </a>
                     }
-                    <button
+                    <!-- <button
                       type="button"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
                       (click)="openEdit(m); closeMobileMenu(); $event.stopPropagation()"
                     >
                       <span class="material-icons-outlined text-base text-indigo-600">edit</span>
                       Profile Update
-                    </button>
+                    </button> -->
                     @if (needsSelfOnboarding(m) && canShareOnboardingLinkAction()) {
                       <button
                         type="button"

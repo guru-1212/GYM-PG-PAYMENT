@@ -192,6 +192,9 @@ export class MembersComponent implements OnInit, OnDestroy {
   /** Mobile 3-dot menu state - tracks which member's menu is open */
   readonly mobileMenuOpen = signal<string | null>(null);
 
+  /** Mobile menu direction: 'up' or 'down' based on available space */
+  readonly mobileMenuDirection = signal<Record<string, 'up' | 'down'>>({});
+
   /** Add/Edit member modal: mobile `<input>` for formatted display sync after modal opens. */
   readonly memberMobileInputRef = viewChild<ElementRef<HTMLInputElement>>('memberMobile');
 
@@ -2308,6 +2311,19 @@ ${pgName}`;
       this.mobileMenuOpen.set(null);
     } else {
       this.mobileMenuOpen.set(memberId);
+
+      // Calculate available space to determine direction
+      const button = event.currentTarget as HTMLElement;
+      const rect = button.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+
+      // Estimated menu height (max-h-96 = 24rem = 384px)
+      const estimatedMenuHeight = 300;
+
+      // Open down only if there's enough space for the menu, otherwise open up
+      const direction = spaceBelow >= estimatedMenuHeight ? 'down' : 'up';
+      this.mobileMenuDirection.update((map) => ({ ...map, [memberId]: direction }));
     }
   }
 
