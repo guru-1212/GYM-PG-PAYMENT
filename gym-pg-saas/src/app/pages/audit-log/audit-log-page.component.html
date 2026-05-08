@@ -244,7 +244,7 @@
                         <p class="mt-0.5 text-[12.5px] leading-relaxed text-slate-600 dark:text-slate-300">
                           {{ row.description }}
                         </p>
-                        @if (row.meta && (row.meta['method'] || row.meta['pending'] || row.meta['fields'])) {
+                        @if (row.meta && (row.meta['method'] || row.meta['pending'] || row.meta['fields'] || row.meta['platform'])) {
                           <div class="mt-1.5 flex flex-wrap gap-1.5">
                             @if (row.meta['method']) {
                               <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -260,6 +260,16 @@
                             @if (row.meta['fields']) {
                               <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                                 {{ row.meta['fields'] }}
+                              </span>
+                            }
+                            @if (row.meta['platform'] && row.action === 'auth.login') {
+                              <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                                <span class="material-icons-outlined text-[12px] leading-none">devices</span>
+                                {{ row.meta['platform'] }} · {{ row.meta['browser'] }}
+                              </span>
+                              <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                <span class="material-icons-outlined text-[12px] leading-none">monitor</span>
+                                {{ row.meta['screenResolution'] }}
                               </span>
                             }
                           </div>
@@ -353,6 +363,16 @@
                       @if (row.amount && row.amount > 0) {
                         <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50">
                           &#8377;{{ row.amount | number }}
+                        </span>
+                      }
+                      @if (row.meta && row.meta['platform'] && row.action === 'auth.login') {
+                        <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 ring-1 ring-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-900/50">
+                          <span class="material-icons-outlined text-[12px] leading-none">devices</span>
+                          {{ row.meta['platform'] }} · {{ row.meta['browser'] }}
+                        </span>
+                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                          <span class="material-icons-outlined text-[12px] leading-none">monitor</span>
+                          {{ row.meta['screenResolution'] }}
                         </span>
                       }
                     </div>

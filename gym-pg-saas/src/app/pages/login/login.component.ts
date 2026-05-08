@@ -11,6 +11,7 @@ import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Va
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { normalizeOwnerPhone } from '../../core/utils/phone-auth.util';
+import { deviceInfoToMeta, getDeviceInfo } from '../../core/utils/device-info.util';
 import { AuditLogService } from '../../core/services/audit-log.service';
 import { AuthService } from '../../core/services/auth.service';
 import { DataCacheService } from '../../core/services/data-cache.service';
@@ -236,6 +237,7 @@ export class LoginComponent implements OnInit, OnDestroy {
           entityId: load.uid || undefined,
           entityLabel: p.name || p.email || undefined,
           description: actorLabel,
+          meta: deviceInfoToMeta(getDeviceInfo()),
         });
       }
       await this.redirectAfterProfile(p);
