@@ -3,13 +3,12 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getAuth, signInWithCustomToken } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable, httpsCallableFromURL } from 'firebase/functions';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { FirebaseAppService } from '../../core/services/firebase-app.service';
 import { OwnerPublicStatusService } from '../../core/services/owner-public-status.service';
 import { PwaInstallService } from '../../core/services/pwa-install.service';
 import { ToastService } from '../../core/services/toast.service';
 import { applyDigitsOnlyFromInput } from '../../core/utils/validators';
-import { environment } from '../../../environments/environment';
 
 /** Last successful tenant sign-in for this device (per owner). Not a password — still verified server-side. */
 const MEMBER_SIGNIN_CREDENTIAL_LS = 'memberApp.signInCredential';
@@ -153,16 +152,8 @@ export class MemberAppInstallComponent implements OnInit {
     this.errorMessage.set('');
     try {
       const functions = getFunctions(this.fb.app, 'us-central1');
-      const configured = environment.verifyMemberCallableUrl?.trim() || null;
-      const isLocal =
-        typeof window !== 'undefined' &&
-        /^localhost$|^127\.0\.0\.1$/i.test(window.location.hostname);
-      const sameOrigin =
-        !isLocal && typeof window !== 'undefined'
-          ? `${window.location.origin}/api-fn/verifyMemberForApp`
-          : null;
-      const url = configured || sameOrigin;
-      const verify = url ? httpsCallableFromURL(functions, url) : httpsCallable(functions, 'verifyMemberForApp');
+      // Always use direct Firebase callable (same as localhost) - works on any hosting platform
+      const verify = httpsCallable(functions, 'verifyMemberForApp');
       const res = await verify({
         installCode,
         ownerId: oid,
