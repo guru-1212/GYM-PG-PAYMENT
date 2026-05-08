@@ -1,0 +1,46 @@
+@if (isVisible()) {
+  <div class="offline-banner" [class.offline]="isOffline()" [class.online]="!isOffline()">
+    <div class="banner-content">
+      <div class="icon-wrapper">
+        @if (isOffline()) {
+          <div class="offline-icon">
+            <svg class="wifi-off" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M1 1L23 23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M16.72 11.06C17.56 12.03 18 13.23 18 14.5C18 15.77 17.56 16.97 16.72 17.94" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M20.38 7.63C21.98 9.48 23 11.85 23 14.5C23 17.15 21.98 19.52 20.38 21.37" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12.5 17.94C11.66 16.97 11.22 15.77 11.22 14.5C11.22 13.23 11.66 12.03 12.5 11.06" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8.84 21.37C7.24 19.52 6.22 17.15 6.22 14.5C6.22 11.85 7.24 9.48 8.84 7.63" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="12" cy="18" r="3" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </div>
+        } @else {
+          <div class="online-icon">
+            <svg class="wifi-on" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5 12.55C7.42 10.13 10.55 8.5 14 8.5C17.45 8.5 20.58 10.13 23 12.55" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M1.42 9C5.19 5.23 9.81 3 14 3C18.19 3 22.81 5.23 26.58 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8.53 16.11C10.04 14.6 11.94 13.5 14 13.5C16.06 13.5 17.96 14.6 19.47 16.11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="14" cy="20" r="2" fill="currentColor"/>
+            </svg>
+          </div>
+        }
+      </div>
+      
+      <div class="message-wrapper">
+        @if (isOffline()) {
+          <h3 class="title">You're Offline</h3>
+          <p class="message">No internet connection detected. Some features may not work properly.</p>
+        } @else {
+          <h3 class="title">You're Back Online</h3>
+          <p class="message">Internet connection restored. Everything should work normally now.</p>
+        }
+      </div>
+      
+      <button type="button" class="dismiss-btn" (click)="dismiss()" aria-label="Dismiss">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+}

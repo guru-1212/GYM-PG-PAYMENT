@@ -4,6 +4,7 @@ import { FormsModule, NgForm } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { PwaInstallService } from '../../core/services/pwa-install.service';
 import { ToastService } from '../../core/services/toast.service';
+import { LoadingService } from '../../core/services/loading.service';
 import { BrandLogoComponent } from '../../shared/brand-logo.component';
 import { ThemeToggleComponent } from '../../shared/theme-toggle.component';
 
@@ -20,6 +21,8 @@ export type HomeHeroSlide = {
   styleUrl: './home.component.scss',
 })
 export class HomeComponent implements OnInit, OnDestroy {
+  private readonly loading = inject(LoadingService);
+  
   readonly ownerMobileNumber = '6300675014';
   readonly whatsappNumber = `91${this.ownerMobileNumber}`;
   mobileMenuOpen = false;
