@@ -28,10 +28,10 @@ export const useProdFirebase = true;
 export const selectedFirebase: FirebaseOptions = useProdFirebase ? firebaseProd : firebaseTest;
 
 /**
- * Use null to always use direct Firebase callable (same as localhost).
- * This works on any hosting platform without requiring URL rewrites.
+ * Direct Firebase Cloud Functions URL - works on any hosting platform.
+ * Set to null to use direct Firebase callable (like localhost).
  */
-export const verifyMemberCallableUrl: string | null = null;
+export const verifyMemberCallableUrl: string | null = 'https://us-central1-gym-pg-saas.cloudfunctions.net/verifyMemberForApp';
 
 /**
  * Use null to always use direct Firebase callable (same as localhost).

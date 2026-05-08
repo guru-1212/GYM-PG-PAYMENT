@@ -3,12 +3,13 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getAuth, signInWithCustomToken } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallable, httpsCallableFromURL } from 'firebase/functions';
 import { FirebaseAppService } from '../../core/services/firebase-app.service';
 import { OwnerPublicStatusService } from '../../core/services/owner-public-status.service';
 import { PwaInstallService } from '../../core/services/pwa-install.service';
 import { ToastService } from '../../core/services/toast.service';
 import { applyDigitsOnlyFromInput } from '../../core/utils/validators';
+import { environment } from '../../../environments/environment';
 
 /** Last successful tenant sign-in for this device (per owner). Not a password — still verified server-side. */
 const MEMBER_SIGNIN_CREDENTIAL_LS = 'memberApp.signInCredential';
@@ -152,8 +153,11 @@ export class MemberAppInstallComponent implements OnInit {
     this.errorMessage.set('');
     try {
       const functions = getFunctions(this.fb.app, 'us-central1');
-      // Always use direct Firebase callable (same as localhost) - works on any hosting platform
-      const verify = httpsCallable(functions, 'verifyMemberForApp');
+      const configuredUrl = environment.verifyMemberCallableUrl?.trim() || null;
+      // Use configured URL if available, otherwise use direct Firebase callable (like localhost)
+      const verify = configuredUrl
+        ? httpsCallableFromURL(functions, configuredUrl)
+        : httpsCallable(functions, 'verifyMemberForApp');
       const res = await verify({
         installCode,
         ownerId: oid,
@@ -216,7 +220,7 @@ export class MemberAppInstallComponent implements OnInit {
         this.errorMessage.set('These details do not match our records for this property.');
       } else if (/CORS|Failed to fetch|NetworkError|Load failed|network request failed/i.test(msg)) {
         this.errorMessage.set(
-          'Could not reach the sign-in service (often a missing deploy or blocked cloudfunctions.net). Deploy verifyMemberForApp to us-central1 for this Firebase project, or set verifyMemberCallableUrl to your Hosting rewrite (see firebase.json / environment).',
+          'Could not reach the sign-in service. Ensure the Cloud Function verifyMemberForApp is deployed to us-central1 for this Firebase project.',
         );
       } else {
         this.errorMessage.set(
