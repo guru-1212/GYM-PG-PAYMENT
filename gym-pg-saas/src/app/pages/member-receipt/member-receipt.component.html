@@ -64,14 +64,17 @@
           }
         </div>
 
-        <button 
-          class="download-btn" 
-          (click)="downloadReceipt()" 
-          [disabled]="downloading"
+        <button
+          class="download-btn"
+          (click)="downloadReceipt()"
+          [disabled]="downloading || downloaded"
         >
           @if (downloading) {
             <div class="loading-spinner"></div>
             <span>Downloading...</span>
+          } @else if (downloaded) {
+            <span class="material-icons-outlined">check_circle</span>
+            <span>Downloaded ({{ countdown }}s)</span>
           } @else {
             <span class="material-icons-outlined">download</span>
             <span>Download Receipt</span>

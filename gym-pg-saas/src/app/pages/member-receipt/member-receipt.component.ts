@@ -111,6 +111,8 @@ export class MemberReceiptComponent implements OnInit {
   loading = true;
   error: string | null = null;
   downloading = false;
+  downloaded = false;
+  countdown = 0;
 
   // Convert Firebase Timestamp to JavaScript Date for template
   get paymentDate(): Date | null {
@@ -155,7 +157,7 @@ export class MemberReceiptComponent implements OnInit {
   }
 
   async downloadReceipt(): Promise<void> {
-    if (!this.receiptData || this.downloading) return;
+    if (!this.receiptData || this.downloading || this.downloaded) return;
 
     this.downloading = true;
     try {
@@ -170,6 +172,17 @@ export class MemberReceiptComponent implements OnInit {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+
+      // Set downloaded state and start countdown
+      this.downloaded = true;
+      this.countdown = 20;
+      const timer = setInterval(() => {
+        this.countdown--;
+        if (this.countdown <= 0) {
+          clearInterval(timer);
+          this.downloaded = false;
+        }
+      }, 1000);
     } catch (err) {
       console.error('Error downloading receipt:', err);
       this.error = 'Failed to download receipt. Please try again.';
