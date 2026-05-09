@@ -175,6 +175,8 @@ export class MembersComponent implements OnInit, OnDestroy {
 
   readonly members = signal<Member[]>([]);
   readonly search = signal('');
+  /** True when search was set from URL query param (for showing clear filter banner). */
+  readonly searchFromUrl = signal(false);
   readonly statusFilter = signal<'all' | 'active' | 'inactive'>('all');
   readonly listMode = signal<'active' | 'inactive'>('active');
   readonly payFilter = signal<'all' | 'paid' | 'overdue' | 'dueSoon' | 'partial' | 'pending'>('all');
@@ -697,6 +699,9 @@ export class MembersComponent implements OnInit, OnDestroy {
       const search = params.get('search');
       if (search?.trim()) {
         this.search.set(search.trim());
+        this.searchFromUrl.set(true);
+      } else {
+        this.searchFromUrl.set(false);
       }
 
       const pay = params.get('pay');
@@ -871,6 +876,21 @@ export class MembersComponent implements OnInit, OnDestroy {
   /** Clears profile-review-only list mode and drops `onboarding` from the URL when it was set via deep link. */
   clearOnboardingReviewDeepLink(): void {
     this.exitOnboardingReviewFilterMode();
+  }
+
+  /** Clears search filter set from URL and updates the URL to remove the search param. */
+  clearSearchFilter(): void {
+    const urlHad = this.route.snapshot.queryParamMap.get('search')?.trim();
+    if (urlHad) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { search: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
+    this.search.set('');
+    this.searchFromUrl.set(false);
   }
 
   /** Used when the user changes payment filter manually so URL and list stay in sync. */

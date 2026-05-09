@@ -1598,6 +1598,7 @@
 
       <a
         routerLink="/members"
+        [queryParams]="{ search: (m.firstName + ' ' + (m.lastName || '')).trim() }"
         class="saas-btn-primary block w-full py-3 text-center text-sm no-underline"
         (click)="closeMemberDetail()"
       >

@@ -39,6 +39,18 @@
     </div>
   }
 
+  @if (searchFromUrl()) {
+    <div
+      class="flex flex-col gap-2 rounded-xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+      role="status"
+    >
+      <p class="text-sm text-emerald-900">{{ 'members.searchFilterHint' | t: { search: search() } }}</p>
+      <button type="button" class="saas-btn-secondary shrink-0 px-4 py-2 text-sm" (click)="clearSearchFilter()">
+        {{ 'members.clearSearchFilter' | t }}
+      </button>
+    </div>
+  }
+
   @if (listMode() === 'active' && pendingJoinIntakes().length > 0) {
     <section
       id="pending-join-intakes-section"

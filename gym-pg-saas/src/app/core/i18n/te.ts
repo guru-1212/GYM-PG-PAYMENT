@@ -208,6 +208,8 @@ export const TE: Record<string, unknown> = {
     pending: 'అతిరిక్తం / గడువు',
     onboardingReviewHint: 'షేర్ లింక్ ద్వారా ప్రొఫైల్ సమర్పించి మీ ఆమోదం కోసం వేచి ఉన్న సభ్యులు మాత్రమే చూపుతున్నాం.',
     onboardingReviewShowAll: 'అందరు సభ్యులను చూపించు',
+    searchFilterHint: '"{{search}}" కోసం శోధన ఫలితాలు చూపిస్తున్నాం',
+    clearSearchFilter: 'ఫిల్టర్ తీసివేయండి',
     sort: 'క్రమం',
     dueUrgent: '{label} (త్వరితం ముందు)',
     nameSort: 'పేరు',

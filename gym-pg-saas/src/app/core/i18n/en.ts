@@ -209,6 +209,8 @@ export const EN: Record<string, unknown> = {
     pending: 'Overdue / Due',
     onboardingReviewHint: 'Showing only members who submitted a profile via share link and need your approval.',
     onboardingReviewShowAll: 'Show all members',
+    searchFilterHint: 'Showing search results for "{{search}}"',
+    clearSearchFilter: 'Clear filter',
     sort: 'Sort',
     dueUrgent: '{label} (urgent first)',
     nameSort: 'Name',
