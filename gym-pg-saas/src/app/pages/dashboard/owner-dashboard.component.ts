@@ -217,7 +217,8 @@ export interface TodayCollectionDetailRow {
       -moz-appearance: textfield;
       appearance: textfield;
     }
-  `],
+
+      `],
 })
 export class OwnerDashboardComponent implements OnInit, OnDestroy {
   readonly auth = inject(AuthService);
@@ -286,6 +287,38 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
   /** Pagination for the unified action queue. */
   readonly actionQueuePage = signal(1);
   readonly isPg = computed(() => this.auth.profile()?.businessType === 'pg');
+  
+  // Search functionality for Action Queue
+  readonly searchQuery = signal('');
+  readonly searchExpanded = signal(false);
+  private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  
+  // Search indexes for fast lookups
+  private readonly searchIndex = computed(() => {
+    const index = new Map<string, { member: Member; tab: ActionTab }>();
+    
+    const addMember = (m: Member, tab: ActionTab) => {
+      const name = `${m.firstName || ''} ${m.lastName || ''}`.toLowerCase();
+      const mobile = (m.mobile || '').toLowerCase();
+      const room = this.formatRoomNumberForSearch(m);
+      
+      // Index by full name, first name, last name, mobile, and room
+      index.set(name, { member: m, tab });
+      index.set(mobile, { member: m, tab });
+      if (room) index.set(room, { member: m, tab });
+      
+      // Also index by individual name parts
+      const parts = name.split(' ').filter(p => p.length > 0);
+      parts.forEach(p => index.set(p, { member: m, tab }));
+    };
+    
+    this.overdueList().forEach(m => addMember(m, 'overdue'));
+    this.dueTodayList().forEach(m => addMember(m, 'dueToday'));
+    this.dueSoonList().forEach(m => addMember(m, 'dueSoon'));
+    this.partialPendingList().forEach(m => addMember(m, 'partial'));
+    
+    return index;
+  });
   readonly isGym = computed(() => this.auth.profile()?.businessType === 'gym');
   /** Used to hide monthly-earnings (and other owner-only widgets) from supervisors. */
   readonly isSupervisor = computed(() => this.auth.profile()?.role === 'supervisor');
@@ -1014,9 +1047,13 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   readonly actionQueueAll = computed<QueueRow[]>(() => {
     const tab = this.activeActionTab();
+    const query = this.searchQuery().toLowerCase().trim();
+    
+    let rows: QueueRow[] = [];
+    
     switch (tab) {
       case 'overdue':
-        return this.overdueList().map((m) => ({
+        rows = this.overdueList().map((m) => ({
           m,
           tag: 'overdue' as ActionTab,
           tone: 'red' as const,
@@ -1025,24 +1062,27 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
             ? `Due ${this.memberDueDate(m)!.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`
             : undefined,
         }));
+        break;
       case 'dueToday':
-        return this.dueTodayList().map((m) => ({
+        rows = this.dueTodayList().map((m) => ({
           m,
           tag: 'dueToday' as ActionTab,
           tone: 'amber' as const,
           status: 'Due today',
           secondary: m.amount ? `₹${Number(m.amount).toLocaleString('en-IN')}` : undefined,
         }));
+        break;
       case 'dueSoon':
-        return this.dueSoonList().map((m) => ({
+        rows = this.dueSoonList().map((m) => ({
           m,
           tag: 'dueSoon' as ActionTab,
           tone: 'sky' as const,
           status: this.dueStatusLabel(m),
           secondary: m.amount ? `₹${Number(m.amount).toLocaleString('en-IN')}` : undefined,
         }));
+        break;
       case 'partial':
-        return this.partialPendingList().map((m) => ({
+        rows = this.partialPendingList().map((m) => ({
           m,
           tag: 'partial' as ActionTab,
           tone: 'indigo' as const,
@@ -1051,7 +1091,15 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
             ? `Due ${this.memberDueDate(m)!.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`
             : undefined,
         }));
+        break;
     }
+    
+    // Filter by search query if provided
+    if (query) {
+      rows = rows.filter(row => this.memberMatchesSearch(row.m, query));
+    }
+    
+    return rows;
   });
 
   readonly actionQueuePages = computed(() =>
@@ -1277,6 +1325,83 @@ export class OwnerDashboardComponent implements OnInit, OnDestroy {
 
   getActionQueuePageNumbers(): number[] {
     return Array.from({ length: this.actionQueuePages() }, (_, i) => i + 1);
+  }
+
+  // ── Search functionality for Action Queue ─────────────────────────────────────
+  toggleSearch(): void {
+    this.searchExpanded.set(!this.searchExpanded());
+    if (!this.searchExpanded()) {
+      this.clearSearch();
+    }
+  }
+
+  clearSearch(): void {
+    this.searchQuery.set('');
+    if (this.searchDebounceTimer) {
+      clearTimeout(this.searchDebounceTimer);
+      this.searchDebounceTimer = null;
+    }
+  }
+
+  searchActionQueue(query: string): void {
+    // Clear previous debounce timer
+    if (this.searchDebounceTimer) {
+      clearTimeout(this.searchDebounceTimer);
+    }
+    
+    // Update query immediately for filtering
+    this.searchQuery.set(query);
+    
+    if (!query.trim()) {
+      return;
+    }
+
+    // Debounce the tab switching (300ms delay)
+    this.searchDebounceTimer = setTimeout(() => {
+      this.performSearch(query);
+    }, 300);
+  }
+
+  private performSearch(query: string): void {
+    const searchLower = query.toLowerCase().trim();
+    const index = this.searchIndex();
+    
+    // Try exact match first using index
+    let result = index.get(searchLower);
+    
+    // If no exact match, try partial match
+    if (!result) {
+      for (const [key, value] of index.entries()) {
+        if (key.includes(searchLower)) {
+          result = value;
+          break;
+        }
+      }
+    }
+    
+    if (result) {
+      this.setActionTab(result.tab);
+      setTimeout(() => {
+        document.getElementById('action-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }
+
+  private formatRoomNumberForSearch(member: Member): string {
+    if (this.isPg() && member.floorNumber && member.roomNumber) {
+      return this.formatRoomNumber(+member.floorNumber, +member.roomNumber).toLowerCase();
+    }
+    return '';
+  }
+
+  private memberMatchesSearch(member: Member, query: string): boolean {
+    const fullName = `${member.firstName || ''} ${member.lastName || ''}`.toLowerCase();
+    const mobile = (member.mobile || '').toLowerCase();
+    const roomNumber = this.formatRoomNumberForSearch(member);
+    
+    return fullName.includes(query) || 
+           mobile.includes(query) || 
+           roomNumber.includes(query);
   }
 
   callMember(m: Member): void {
