@@ -155,6 +155,15 @@ const MEMBER_MODAL_PHOTO_MIMES = ['image/jpeg', 'image/png', 'image/webp'] as co
       100% { background-position: 100% 50%; }
     }
 
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
   `],
 })
 export class MembersComponent implements OnInit, OnDestroy {
@@ -2487,6 +2496,14 @@ ${pgName}`;
   }
 
   /** PG list/details: compact room label (e.g. G4, 101) from stored floor/room strings. */
+  memberInitials(m: Member): string {
+    const f = (m.firstName || '').trim();
+    const l = (m.lastName || '').trim();
+    const a = f ? f[0] : '';
+    const b = l ? l[0] : f.length > 1 ? f[1] : '';
+    return (a + b).toUpperCase() || '?';
+  }
+
   memberPgRoomLabel(m: Member): string {
     const f = Number(m.floorNumber);
     const r = Number(m.roomNumber);
