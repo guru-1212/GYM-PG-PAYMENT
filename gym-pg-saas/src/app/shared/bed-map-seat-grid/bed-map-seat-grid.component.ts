@@ -168,6 +168,12 @@ export class BedMapSeatGridComponent {
   /** Viewport-aware tooltip: 'above' (default) or 'below' the bed cell. */
   private readonly seatTooltipVertical = signal<Map<string, 'above' | 'below'>>(new Map());
 
+  /** Track pointer movements to detect scroll vs click */
+  private pointerStartX = 0;
+  private pointerStartY = 0;
+  private isScrolling = false;
+  private readonly SCROLL_THRESHOLD = 10; // pixels
+
   readonly searchDraft = signal('');
   /** DOM id of element to show the 3× blink highlight (#scroll target). */
   readonly searchFlashId = signal<string | null>(null);
@@ -217,7 +223,34 @@ export class BedMapSeatGridComponent {
     return (this.seatTooltipVertical().get(key) ?? 'above') === 'above';
   }
 
+  onSeatPointerDown(event: PointerEvent): void {
+    this.pointerStartX = event.clientX;
+    this.pointerStartY = event.clientY;
+    this.isScrolling = false;
+  }
+
+  onSeatPointerMove(event: PointerEvent): void {
+    // Only track if pointer has moved significantly
+    const deltaX = Math.abs(event.clientX - this.pointerStartX);
+    const deltaY = Math.abs(event.clientY - this.pointerStartY);
+    
+    if (deltaX > this.SCROLL_THRESHOLD || deltaY > this.SCROLL_THRESHOLD) {
+      this.isScrolling = true;
+    }
+  }
+
   onSeatPointerEnter(event: Event, floor: unknown, room: unknown, bed: unknown): void {
+    // Don't open popup on hover/pointer enter - only allow on explicit click
+    // This prevents popups from opening during scroll gestures
+  }
+
+  onSeatClick(event: Event, floor: unknown, room: unknown, bed: unknown): void {
+    // Only proceed if this wasn't a scroll gesture
+    if (this.isScrolling) {
+      this.isScrolling = false;
+      return;
+    }
+
     // Check if mobile and bed is occupied
     if (this.isMobile() && this.isBedOccupied(floor, room, bed)) {
       this.openMobileBedDetails(floor, room, bed);

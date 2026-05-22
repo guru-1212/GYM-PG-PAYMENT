@@ -130,8 +130,9 @@
                       class="group/seat relative z-0 overflow-visible hover:z-20"
                       [id]="bedmapSeatDomId(floor.floorNumber, room.roomNumber, seatBedNo)"
                       [class.bedmap-search-flash]="isSearchFlashing(bedmapSeatDomId(floor.floorNumber, room.roomNumber, seatBedNo))"
-                      (pointerenter)="onSeatPointerEnter($event, floor.floorNumber, room.roomNumber, seatBedNo)"
-                      (click)="onSeatPointerEnter($event, floor.floorNumber, room.roomNumber, seatBedNo)"
+                      (pointerdown)="onSeatPointerDown($event)"
+                      (pointermove)="onSeatPointerMove($event)"
+                      (click)="onSeatClick($event, floor.floorNumber, room.roomNumber, seatBedNo)"
                       (pointerleave)="onSeatPointerLeave(floor.floorNumber, room.roomNumber, seatBedNo)"
                     >
                       <div
