@@ -18,9 +18,10 @@ import { AuthService } from '../core/services/auth.service';
 import { DataCacheService } from '../core/services/data-cache.service';
 import { MarkPaidResult, PaymentService } from '../core/services/payment.service';
 import { ToastService } from '../core/services/toast.service';
-import { dateToTimestamp, timestampToDate } from '../core/utils/date.utils';
+import { dateToTimestamp, timestampToDate, nextDueAfterPaid, overdueCalendarDays } from '../core/utils/date.utils';
 import { positiveAmount } from '../core/utils/validators';
 import { ModalComponent } from './modal.component';
+import { CycleTransitionModalComponent } from './cycle-transition-modal.component';
 
 /**
  * Shared "Mark as paid" modal used by the Members page and the Payments page.
@@ -38,7 +39,7 @@ import { ModalComponent } from './modal.component';
 @Component({
   selector: 'app-pay-member-modal',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, ReactiveFormsModule, ModalComponent],
+  imports: [DatePipe, DecimalPipe, ReactiveFormsModule, ModalComponent, CycleTransitionModalComponent],
   templateUrl: './pay-member-modal.component.html',
 })
 export class PayMemberModalComponent implements OnChanges, OnDestroy {
@@ -79,6 +80,12 @@ export class PayMemberModalComponent implements OnChanges, OnDestroy {
   });
 
   private readonly formSubs: Subscription[] = [];
+
+  // Cycle transition modal state shown after a payment that clears prior pending
+  // but does not automatically advance the billing cycle.
+  readonly showCycleModal = signal<boolean>(false);
+  lastMarkPaidResult: MarkPaidResult | null = null;
+  lastPaymentMember: Member | null = null;
 
   constructor() {
     // Toggle currentPayingAmount validators based on partial-payment toggle,
@@ -205,6 +212,28 @@ export class PayMemberModalComponent implements OnChanges, OnDestroy {
       this.cache.patchMemberLocal(m.memberId, patch);
 
       this.toast.success(v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded');
+
+      // If a prior pending balance was cleared but the server did NOT advance
+      // the billing cycle automatically (no excess to renew), prompt the
+      // owner with a choice: move to next cycle or keep in current cycle.
+      if (result.pendingClearedButNotAdvanced && priorPending > 0) {
+        const overdueDays = overdueCalendarDays(due);
+        if (overdueDays > 0) {
+          // Store context for the modal flow and open the decision modal.
+          this.lastMarkPaidResult = result;
+          this.lastPaymentMember = m;
+          // We keep the modal open to allow the owner to choose; do NOT emit
+          // `paid` or close the parent modal yet — wait for the owner's decision.
+          // Attach modal data into the cache patch so the modal can read current
+          // values from the component instance directly in the template.
+          // Expose computed strings via signals by setting simple fields on the
+          // component instance (template reads them directly).
+          this.showCycleModal.set(true);
+          return;
+        }
+      }
+
+      // Normal success path: emit and close.
       this.paid.emit(result);
       this.closed.emit();
     } catch (error) {
@@ -232,5 +261,86 @@ export class PayMemberModalComponent implements OnChanges, OnDestroy {
   private syncPayFormPending(): void {
     const next = this.pendingFromPayForm();
     this.payForm.controls.pendingAmount.setValue(next, { emitEvent: false });
+  }
+
+  /** Handle the owner decision from the cycle-transition modal. */
+  async onCycleDecision(choice: 'moveNext' | 'keepCurrent'): Promise<void> {
+    const m = this.lastPaymentMember;
+    const result = this.lastMarkPaidResult;
+    const owner = this.auth.profile();
+    if (!m || !result || !owner) {
+      this.showCycleModal.set(false);
+      // Fallback: emit whatever we have and close.
+      if (result) this.paid.emit(result);
+      this.closed.emit();
+      return;
+    }
+
+    this.showCycleModal.set(false);
+
+    if (choice === 'keepCurrent') {
+      // Owner chose to keep in current cycle — nothing more to do.
+      this.paid.emit(result);
+      this.closed.emit();
+      this.lastMarkPaidResult = null;
+      this.lastPaymentMember = null;
+      return;
+    }
+
+    // Owner chose to advance the billing cycle. Compute next due and apply.
+    const currentDue = timestampToDate(m.dueDate);
+    const nextDue = currentDue ? nextDueAfterPaid(currentDue, result.subscriptionType) : null;
+    if (!nextDue) {
+      // Unexpected — just emit and close.
+      this.paid.emit(result);
+      this.closed.emit();
+      this.lastMarkPaidResult = null;
+      this.lastPaymentMember = null;
+      return;
+    }
+
+    try {
+      await this.paymentsApi.applyCycleMove({
+        memberId: m.memberId,
+        ownerId: owner.ownerId,
+        newDueDate: nextDue,
+        subscriptionType: result.subscriptionType ?? undefined,
+      });
+
+      // Patch cache to reflect the advanced due date immediately.
+      const patch: Partial<Member> = { pendingAmount: 0, dueDate: dateToTimestamp(nextDue) };
+      if (result.subscriptionType) patch.subscriptionType = result.subscriptionType;
+      this.cache.patchMemberLocal(m.memberId, patch);
+
+      // Emit updated result including the new due date so parents can react.
+      const updated: MarkPaidResult = { ...result, dueDate: nextDue };
+      this.paid.emit(updated);
+      this.closed.emit();
+    } catch (err) {
+      console.error('Could not advance cycle after owner decision:', err);
+      // Emit original result so UI stays consistent.
+      this.paid.emit(result);
+      this.closed.emit();
+    } finally {
+      this.lastMarkPaidResult = null;
+      this.lastPaymentMember = null;
+    }
+  }
+
+  getCurrentMonthLabel(): string {
+    const d = this.getMemberDueDate();
+    if (!d) return '';
+    return d.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+  }
+
+  getNextMonthLabel(): string {
+    const m = this.lastPaymentMember;
+    const result = this.lastMarkPaidResult;
+    if (!m) return '';
+    const d = timestampToDate(m.dueDate);
+    if (!d) return '';
+    const next = nextDueAfterPaid(d, result?.subscriptionType);
+    if (!next) return '';
+    return next.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
   }
 }

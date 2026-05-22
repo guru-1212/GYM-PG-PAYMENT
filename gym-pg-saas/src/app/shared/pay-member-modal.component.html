@@ -118,3 +118,14 @@
     </form>
   }
 </app-modal>
+
+<app-cycle-transition-modal
+  [open]="showCycleModal()"
+  [memberName]="lastPaymentMember ? (lastPaymentMember.firstName + ' ' + (lastPaymentMember.lastName || '')) : ''"
+  [pendingAmount]="lastMarkPaidResult ? lastMarkPaidResult.pendingAmount : (member?.pendingAmount || 0)"
+  [currentRent]="member?.amount || 0"
+  [currentMonth]="getCurrentMonthLabel()"
+  [nextMonth]="getNextMonthLabel()"
+  (decided)="onCycleDecision($event)"
+  (closed)="showCycleModal.set(false)"
+></app-cycle-transition-modal>

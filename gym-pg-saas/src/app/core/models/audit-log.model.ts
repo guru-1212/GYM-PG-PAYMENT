@@ -13,6 +13,7 @@ export type AuditAction =
   | 'payment.partialCollected'
   | 'payment.pendingCollected'
   | 'payment.edited'
+  | 'payment.advanceCycle'
   // Member lifecycle
   | 'member.added'
   | 'member.updated'
@@ -99,6 +100,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'payment.collected': 'Payment Collected',
   'payment.partialCollected': 'Partial Payment Collected',
   'payment.pendingCollected': 'Pending Amount Collected',
+  'payment.advanceCycle': 'Billing Cycle Advanced',
   'payment.edited': 'Payment Edited',
   'member.added': 'Member Added',
   'member.updated': 'Member Updated',
@@ -127,6 +129,7 @@ export const AUDIT_ACTION_TONES: Record<AuditAction, AuditTone> = {
   'payment.collected': 'green',
   'payment.partialCollected': 'green',
   'payment.pendingCollected': 'green',
+  'payment.advanceCycle': 'green',
   'payment.edited': 'amber',
   'member.added': 'blue',
   'member.updated': 'amber',
@@ -150,6 +153,7 @@ export const AUDIT_ACTION_ICONS: Record<AuditAction, string> = {
   'payment.collected': 'payments',
   'payment.partialCollected': 'request_quote',
   'payment.pendingCollected': 'savings',
+  'payment.advanceCycle': 'calendar_month',
   'payment.edited': 'edit_note',
   'member.added': 'person_add',
   'member.updated': 'manage_accounts',

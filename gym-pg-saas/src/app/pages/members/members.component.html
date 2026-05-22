@@ -1863,6 +1863,17 @@
 </app-modal>
 
 <app-modal [open]="payModalOpen()" [closable]="!paymentSubmitting()" [title]="payEntryMode() === 'pendingOnly' ? 'Collect Due' : 'Collect Rent'" (closed)="closePay()">
+
+<app-cycle-transition-modal
+  [open]="showCycleModal()"
+  [memberName]="lastPaymentMember ? (lastPaymentMember.firstName + ' ' + (lastPaymentMember.lastName || '')) : ''"
+  [pendingAmount]="lastMarkPaidResult ? lastMarkPaidResult.pendingAmount : (payTargetPendingAmount() || 0)"
+  [currentRent]="payFormRentNumeric()"
+  [currentMonth]="getCurrentMonthLabel()"
+  [nextMonth]="getNextMonthLabel()"
+  (decided)="onCycleDecision($event)"
+  (closed)="showCycleModal.set(false)"
+></app-cycle-transition-modal>
   @if (payTarget(); as m) {
     <form [formGroup]="payForm" (ngSubmit)="submitPay()" class="space-y-4">
       <p class="text-sm text-slate-600">
@@ -2020,6 +2031,17 @@
     </form>
   }
 </app-modal>
+
+<app-cycle-transition-modal
+  [open]="showCycleModal()"
+  [memberName]="lastPaymentMember ? (lastPaymentMember.firstName + ' ' + (lastPaymentMember.lastName || '')) : ''"
+  [pendingAmount]="lastMarkPaidResult ? lastMarkPaidResult.pendingAmount : (payTargetPendingAmount() || 0)"
+  [currentRent]="payFormRentNumeric()"
+  [currentMonth]="getCurrentMonthLabel()"
+  [nextMonth]="getNextMonthLabel()"
+  (decided)="onCycleDecision($event)"
+  (closed)="showCycleModal.set(false)"
+></app-cycle-transition-modal>
 
 <app-modal [open]="historyModalOpen()" title="Payment history" (closed)="closeHistory()">
   @if (historyMember(); as hm) {

@@ -34,6 +34,10 @@ export interface MarkPaidResult {
   dueDate?: Date;
   /** Subscription type recorded with this payment (if any). */
   subscriptionType?: SubscriptionType;
+  /** True when a prior pending balance was fully cleared but the billing cycle was NOT advanced.
+   *  UI can use this to prompt the owner to choose whether to move the member to the next cycle.
+   */
+  pendingClearedButNotAdvanced?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -343,9 +347,12 @@ export class PaymentService {
           subscriptionType: params.subscriptionType ?? undefined,
           pendingAmount: 0,
         });
+        // Prior pending cleared, but there was no excess to also renew the plan.
+        // Let the client prompt the owner whether to advance the billing cycle.
         return {
           pendingAmount: 0,
           subscriptionType: params.subscriptionType ?? undefined,
+          pendingClearedButNotAdvanced: true,
         };
       }
 
@@ -371,6 +378,36 @@ export class PaymentService {
       dueDate: nextDue,
       subscriptionType: params.subscriptionType ?? undefined,
     };
+  }
+
+  /**
+   * Apply the owner's decision to advance the billing cycle for a member.
+   * This is used when a pending balance was cleared but the payment did not
+   * automatically advance the cycle (no excess for renew). The UI may call
+   * this after prompting the owner.
+   */
+  async applyCycleMove(params: {
+    memberId: string;
+    ownerId: string;
+    newDueDate: Date;
+    subscriptionType?: SubscriptionType | null;
+  }): Promise<void> {
+    await this.members.updateBillingState(params.memberId, {
+      dueDate: params.newDueDate,
+      subscriptionType: params.subscriptionType ?? undefined,
+      pendingAmount: 0,
+    });
+    const memberDisplay = await this.getMemberDisplay(params.memberId);
+    void this.audit.log({
+      ownerId: params.ownerId,
+      action: 'payment.advanceCycle',
+      entityType: 'member',
+      entityId: params.memberId,
+      entityLabel: memberDisplay,
+      description: `Advanced billing cycle for ${memberDisplay} to ${params.newDueDate.toDateString()} after pending cleared.`,
+      amount: 0,
+      meta: {},
+    });
   }
 
   paymentDate(p: Payment): Date | null {

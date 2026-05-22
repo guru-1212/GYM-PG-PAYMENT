@@ -45,6 +45,8 @@ import {
   endOfToday,
   formatYyyyMmDdAsDdMmYyyy,
   memberDueBucket,
+  nextDueAfterPaid,
+  overdueCalendarDays,
   parseYyyyMmDdLocal,
   startOfDay,
   startOfToday,
@@ -68,6 +70,8 @@ import {
 } from '../../core/utils/validators';
 import { EditPaymentModalComponent, type EditPaymentKind } from '@app/shared/edit-payment-modal.component';
 import { ModalComponent } from '../../shared/modal.component';
+import { CycleTransitionModalComponent } from '../../shared/cycle-transition-modal.component';
+import type { MarkPaidResult } from '../../core/services/payment.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 
 const MEMBER_MODAL_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
@@ -82,6 +86,7 @@ const MEMBER_MODAL_PHOTO_MIMES = ['image/jpeg', 'image/png', 'image/webp'] as co
     DecimalPipe,
     ModalComponent,
     EditPaymentModalComponent,
+    CycleTransitionModalComponent,
     TranslatePipe,
   ],
   templateUrl: './members.component.html',
@@ -212,6 +217,9 @@ export class MembersComponent implements OnInit, OnDestroy {
   readonly payModalOpen = signal(false);
   readonly payTarget = signal<Member | null>(null);
   readonly payEntryMode = signal<'standard' | 'pendingOnly'>('standard');
+  readonly showCycleModal = signal<boolean>(false);
+  lastMarkPaidResult: MarkPaidResult | null = null;
+  lastPaymentMember: Member | null = null;
   /** True while a markPaid() call is in flight — blocks double/triple submit. */
   readonly paymentSubmitting = signal(false);
   readonly historyModalOpen = signal(false);
@@ -2049,8 +2057,9 @@ ${pgName}`;
     //    phase so any rapid-fire taps land in the early-return at the top.
     this.paymentSubmitting.set(true);
     let recorded = false;
+    let result: MarkPaidResult | null = null;
     try {
-      await this.paymentsApi.markPaid({
+      result = await this.paymentsApi.markPaid({
         memberId: m.memberId,
         ownerId: owner.ownerId,
         amount: paymentAmount,
@@ -2074,8 +2083,27 @@ ${pgName}`;
 
     if (!recorded) return;
 
-    // ── Phase 2: success path. Close modal IMMEDIATELY (force) so the user
-    //    gets instant feedback and can no longer interact with the form.
+    // If a prior pending balance was just cleared but the server did NOT
+    // advance the billing cycle (no excess to renew), prompt the owner
+    // to choose whether to move the member to the next cycle.
+    if (result && result.pendingClearedButNotAdvanced && priorPending > 0) {
+      const overdueDays = overdueCalendarDays(due);
+      if (overdueDays > 0) {
+        this.lastMarkPaidResult = result;
+        this.lastPaymentMember = m;
+        // Optimistic patch so UI reflects cleared pending immediately.
+        const patch: Partial<Member> = { pendingAmount: result.pendingAmount };
+        if (result.dueDate) patch.dueDate = dateToTimestamp(result.dueDate);
+        if (result.subscriptionType) patch.subscriptionType = result.subscriptionType;
+        this.cache.patchMemberLocal(m.memberId, patch);
+
+        this.showCycleModal.set(true);
+        // Wait for owner decision before closing modal / emitting receipts.
+        return;
+      }
+    }
+
+    // Normal success path: close and prompt for receipt.
     this.toast.success(v.isPartialPayment ? 'Partial payment recorded' : 'Payment recorded');
     const paymentText = paymentAmount.toLocaleString('en-IN');
     this.notifyOwnerAction(
@@ -2084,8 +2112,7 @@ ${pgName}`;
     );
     this.closePay(true);
 
-    // ── Phase 3: receipt prompt. Isolated so receipt failures never surface
-    //    as "Could not record payment" — the payment already landed.
+    // Receipt prompt (best-effort)
     try {
       await this.promptSendReceiptNow(m, {
         amount: paymentAmount,
@@ -2139,6 +2166,81 @@ ${pgName}`;
     // the member show as paid-up for the next period without paying that rent.
     if (this.payEntryMode() === 'pendingOnly') return false;
     return this.pendingFromPayForm() > 1;
+  }
+
+  /** Handle the owner decision from the cycle-transition modal. */
+  async onCycleDecision(choice: 'moveNext' | 'keepCurrent'): Promise<void> {
+    const m = this.lastPaymentMember;
+    const result = this.lastMarkPaidResult;
+    const owner = this.auth.profile();
+    if (!m || !result || !owner) {
+      this.showCycleModal.set(false);
+      // Fallback: close modal and return.
+      this.closePay(true);
+      this.lastMarkPaidResult = null;
+      this.lastPaymentMember = null;
+      return;
+    }
+
+    this.showCycleModal.set(false);
+
+    if (choice === 'keepCurrent') {
+      // Owner chose to keep in current cycle — nothing more to do.
+      this.closePay(true);
+      this.lastMarkPaidResult = null;
+      this.lastPaymentMember = null;
+      return;
+    }
+
+    // Owner chose to advance the billing cycle. Compute next due and apply.
+    const currentDue = timestampToDate(m.dueDate);
+    const nextDue = currentDue ? nextDueAfterPaid(currentDue, result.subscriptionType) : null;
+    if (!nextDue) {
+      // Unexpected — just close and cleanup.
+      this.closePay(true);
+      this.lastMarkPaidResult = null;
+      this.lastPaymentMember = null;
+      return;
+    }
+
+    try {
+      await this.paymentsApi.applyCycleMove({
+        memberId: m.memberId,
+        ownerId: owner.ownerId,
+        newDueDate: nextDue,
+        subscriptionType: result.subscriptionType ?? undefined,
+      });
+
+      // Patch cache to reflect the advanced due date immediately.
+      const patch: Partial<Member> = { pendingAmount: 0, dueDate: dateToTimestamp(nextDue) };
+      if (result.subscriptionType) patch.subscriptionType = result.subscriptionType;
+      this.cache.patchMemberLocal(m.memberId, patch);
+
+      this.closePay(true);
+    } catch (err) {
+      console.error('Could not advance cycle after owner decision:', err);
+      this.closePay(true);
+    } finally {
+      this.lastMarkPaidResult = null;
+      this.lastPaymentMember = null;
+    }
+  }
+
+  getCurrentMonthLabel(): string {
+    const d = this.getPayTargetDueDate();
+    if (!d) return '';
+    return d.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+  }
+
+  getNextMonthLabel(): string {
+    const m = this.lastPaymentMember;
+    const result = this.lastMarkPaidResult;
+    if (!m) return '';
+    const d = timestampToDate(m.dueDate);
+    if (!d) return '';
+    const next = nextDueAfterPaid(d, result?.subscriptionType);
+    if (!next) return '';
+    return next.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
   }
 
   private syncPayFormPending(): void {
